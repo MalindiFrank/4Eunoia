@@ -1,3 +1,17 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 'use client';
 
 import type { FC } from 'react';
@@ -6,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig } from 'lucide-react';
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -17,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Import AI functions and types
 import {
@@ -29,25 +45,40 @@ import {
   SummarizeDiaryEntriesInput,
   SummarizeDiaryEntriesOutput
 } from '@/ai/flows/summarize-diary-entries';
+import {
+  analyzeExpenseTrends,
+  AnalyzeExpenseTrendsInput,
+  AnalyzeExpenseTrendsOutput,
+} from '@/ai/flows/analyze-expense-trends';
+import {
+  analyzeTaskCompletion,
+  AnalyzeTaskCompletionInput,
+  AnalyzeTaskCompletionOutput,
+  Task, // Import Task type for display
+} from '@/ai/flows/analyze-task-completion';
 
 
 const insightsRequestSchema = z.object({
-  insightType: z.enum(['productivity', 'diarySummary']),
+  insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion']),
   startDate: z.date().optional(), // Optional for diary summary
   endDate: z.date().optional(), // Optional for diary summary
   frequency: z.enum(['weekly', 'monthly']).optional(), // For diary summary
 }).refine(data => {
-    // Require date range for productivity analysis
-    if (data.insightType === 'productivity' && (!data.startDate || !data.endDate)) {
+    // Require date range for productivity, expenses, and tasks
+    if (['productivity', 'expenseTrends', 'taskCompletion'].includes(data.insightType) && (!data.startDate || !data.endDate)) {
         return false;
     }
     // Require frequency for diary summary
     if (data.insightType === 'diarySummary' && !data.frequency) {
         return false;
     }
+    // Ensure end date is not before start date
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+        return false;
+    }
     return true;
 }, {
-    message: "Date range is required for productivity insights, and frequency is required for diary summaries.",
+    message: "Valid date range is required for Productivity, Expense, and Task insights. Frequency is required for Diary summaries. End date cannot be before start date.",
     path: ["startDate"], // Attach error message generally or to a specific field
 });
 
@@ -57,6 +88,8 @@ type InsightsRequestFormValues = z.infer<typeof insightsRequestSchema>;
 const InsightsPage: FC = () => {
   const [productivityInsights, setProductivityInsights] = useState<AnalyzeProductivityPatternsOutput | null>(null);
   const [diarySummary, setDiarySummary] = useState<SummarizeDiaryEntriesOutput | null>(null);
+  const [expenseTrends, setExpenseTrends] = useState<AnalyzeExpenseTrendsOutput | null>(null);
+  const [taskCompletion, setTaskCompletion] = useState<AnalyzeTaskCompletionOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -72,22 +105,36 @@ const InsightsPage: FC = () => {
 
    const selectedInsightType = form.watch('insightType');
 
+   const clearResults = () => {
+     setProductivityInsights(null);
+     setDiarySummary(null);
+     setExpenseTrends(null);
+     setTaskCompletion(null);
+   };
+
   const onSubmit = useCallback(async (data: InsightsRequestFormValues) => {
     setIsLoading(true);
-    setProductivityInsights(null); // Clear previous insights
-    setDiarySummary(null);
+    clearResults(); // Clear previous insights
 
     try {
+       const requiresDateRange = ['productivity', 'expenseTrends', 'taskCompletion'].includes(data.insightType);
+       if (requiresDateRange && (!data.startDate || !data.endDate)) {
+           toast({ title: "Error", description: "Please select a start and end date for this insight type.", variant: "destructive" });
+           setIsLoading(false);
+           return;
+       }
+
+       if (data.startDate && data.endDate && data.endDate < data.startDate) {
+            toast({ title: "Error", description: "End date cannot be before start date.", variant: "destructive" });
+            setIsLoading(false);
+            return;
+       }
+
+
        if (data.insightType === 'productivity') {
-           if (!data.startDate || !data.endDate) {
-               toast({ title: "Error", description: "Please select a start and end date for productivity analysis.", variant: "destructive" });
-               setIsLoading(false);
-               return;
-           }
             const input: AnalyzeProductivityPatternsInput = {
-                startDate: data.startDate,
-                endDate: data.endDate,
-                // additionalContext: "Optional context here" // Add if needed
+                startDate: data.startDate!,
+                endDate: data.endDate!,
             };
             const result = await analyzeProductivityPatterns(input);
             setProductivityInsights(result);
@@ -112,13 +159,29 @@ const InsightsPage: FC = () => {
             const result = await summarizeDiaryEntries(input);
             setDiarySummary(result);
             toast({ title: "Diary Summary Complete", description: "Summary generated successfully." });
+       } else if (data.insightType === 'expenseTrends') {
+            const input: AnalyzeExpenseTrendsInput = {
+                startDate: data.startDate!,
+                endDate: data.endDate!,
+            };
+            const result = await analyzeExpenseTrends(input);
+            setExpenseTrends(result);
+            toast({ title: "Expense Trend Analysis Complete", description: "Insights generated successfully." });
+       } else if (data.insightType === 'taskCompletion') {
+            const input: AnalyzeTaskCompletionInput = {
+                startDate: data.startDate!,
+                endDate: data.endDate!,
+            };
+            const result = await analyzeTaskCompletion(input);
+            setTaskCompletion(result);
+             toast({ title: "Task Completion Analysis Complete", description: "Insights generated successfully." });
        }
 
     } catch (error) {
       console.error("Failed to generate insights:", error);
       toast({
         title: "Error Generating Insights",
-        description: "An error occurred while processing your request. Please try again.",
+        description: `An error occurred while processing your request: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         variant: "destructive",
       });
     } finally {
@@ -148,7 +211,15 @@ const InsightsPage: FC = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Insight Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={(value) => {
+                        field.onChange(value);
+                        clearResults(); // Clear results when type changes
+                        // Reset dates if switching away from diary summary to a date-based one
+                        if (value !== 'diarySummary' && (!form.getValues("startDate") || !form.getValues("endDate"))) {
+                             form.setValue('startDate', new Date(new Date().setDate(new Date().getDate() - 30)));
+                             form.setValue('endDate', new Date());
+                        }
+                    }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select insight type" />
@@ -158,6 +229,12 @@ const InsightsPage: FC = () => {
                         <SelectItem value="productivity">
                             <div className="flex items-center gap-2"><BarChartHorizontalBig className="h-4 w-4" /> Productivity Patterns</div>
                         </SelectItem>
+                         <SelectItem value="expenseTrends">
+                             <div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Expense Trends</div>
+                         </SelectItem>
+                         <SelectItem value="taskCompletion">
+                              <div className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Completion</div>
+                          </SelectItem>
                         <SelectItem value="diarySummary">
                              <div className="flex items-center gap-2"><Activity className="h-4 w-4" /> Diary Summary</div>
                         </SelectItem>
@@ -168,7 +245,7 @@ const InsightsPage: FC = () => {
                 )}
               />
 
-             {selectedInsightType === 'productivity' && (
+             {['productivity', 'expenseTrends', 'taskCompletion'].includes(selectedInsightType) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <FormField
                         control={form.control}
@@ -287,85 +364,176 @@ const InsightsPage: FC = () => {
       </Card>
 
       {/* Display Insights */}
-      {isLoading && (
-         <Card>
-             <CardHeader>
-                 <Skeleton className="h-6 w-3/4" />
-             </CardHeader>
-             <CardContent className="space-y-4">
-                 <Skeleton className="h-4 w-full" />
-                 <Skeleton className="h-4 w-5/6" />
-                 <Skeleton className="h-4 w-full" />
-             </CardContent>
-         </Card>
-       )}
+      <div className="space-y-6">
+        {isLoading && (
+           <Card>
+               <CardHeader>
+                   <Skeleton className="h-6 w-3/4" />
+               </CardHeader>
+               <CardContent className="space-y-4">
+                   <Skeleton className="h-4 w-full" />
+                   <Skeleton className="h-4 w-5/6" />
+                   <Skeleton className="h-4 w-full" />
+               </CardContent>
+           </Card>
+         )}
 
-        {productivityInsights && !isLoading && (
-            <Card className="shadow-md bg-secondary/30">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><BarChartHorizontalBig className="h-5 w-5" /> Productivity Patterns Analysis</CardTitle>
-                 <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div>
-                    <h3 className="font-semibold text-lg mb-1">Overall Assessment</h3>
-                    <p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p>
-                </div>
-                 <div>
-                    <h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3>
-                    <p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p>
-                </div>
-                 <div>
-                    <h3 className="font-semibold text-lg mb-1">Recurring Obstacles</h3>
-                    <p className="text-sm text-secondary-foreground">{productivityInsights.recurringObstacles}</p>
-                </div>
-                 <div>
-                    <h3 className="font-semibold text-lg mb-1">Suggested Strategies</h3>
-                    <p className="text-sm text-secondary-foreground">{productivityInsights.suggestedStrategies}</p>
-                </div>
-            </CardContent>
-            </Card>
-        )}
+          {productivityInsights && !isLoading && (
+              <Card className="shadow-md bg-secondary/30">
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><BarChartHorizontalBig className="h-5 w-5" /> Productivity Patterns Analysis</CardTitle>
+                   <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div>
+                      <h3 className="font-semibold text-lg mb-1">Overall Assessment</h3>
+                      <p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p>
+                  </div>
+                   <div>
+                      <h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3>
+                      <p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p>
+                  </div>
+                   <div>
+                      <h3 className="font-semibold text-lg mb-1">Recurring Obstacles</h3>
+                      <p className="text-sm text-secondary-foreground">{productivityInsights.recurringObstacles}</p>
+                  </div>
+                   <div>
+                      <h3 className="font-semibold text-lg mb-1">Suggested Strategies</h3>
+                      <p className="text-sm text-secondary-foreground">{productivityInsights.suggestedStrategies}</p>
+                  </div>
+              </CardContent>
+              </Card>
+          )}
 
-        {diarySummary && !isLoading && (
+          {expenseTrends && !isLoading && (
              <Card className="shadow-md bg-secondary/30">
-             <CardHeader>
-                 <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary ({form.getValues("frequency")})</CardTitle>
-                  <CardDescription>Insights from your recent diary entries.</CardDescription>
-             </CardHeader>
-             <CardContent className="space-y-4">
-                 <div>
-                     <h3 className="font-semibold text-lg mb-1">Summary</h3>
-                     <p className="text-sm text-secondary-foreground">{diarySummary.summary}</p>
-                 </div>
+               <CardHeader>
+                 <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Expense Trend Analysis</CardTitle>
+                 <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+               </CardHeader>
+               <CardContent className="space-y-4">
                   <div>
-                     <h3 className="font-semibold text-lg mb-1">Key Events</h3>
-                      {diarySummary.keyEvents.length > 0 ? (
-                         <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
-                             {diarySummary.keyEvents.map((event, i) => <li key={`event-${i}`}>{event}</li>)}
+                      <h3 className="font-semibold text-lg mb-1">Spending Summary</h3>
+                      <p className="text-sm text-secondary-foreground">{expenseTrends.spendingSummary}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                         <p className="text-sm text-muted-foreground">Total Spending</p>
+                         <p className="text-xl font-bold">${expenseTrends.totalSpending.toFixed(2)}</p>
+                     </div>
+                      <div>
+                         <p className="text-sm text-muted-foreground">Avg. Daily Spending</p>
+                          <p className="text-xl font-bold">${expenseTrends.averageDailySpending.toFixed(2)}</p>
+                      </div>
+                  </div>
+                  <Separator />
+                   <div>
+                     <h3 className="font-semibold text-lg mb-2">Top Spending Categories</h3>
+                      {expenseTrends.topSpendingCategories.length > 0 ? (
+                         <ul className="space-y-2">
+                             {expenseTrends.topSpendingCategories.map((cat) => (
+                                <li key={cat.category} className="flex justify-between items-center text-sm">
+                                    <span>{cat.category}</span>
+                                    <span className="font-medium">${cat.amount.toFixed(2)} <span className="text-xs text-muted-foreground">({cat.percentage.toFixed(1)}%)</span></span>
+                                </li>
+                             ))}
                          </ul>
-                      ) : <p className="text-sm text-muted-foreground italic">No specific key events identified.</p>}
+                      ) : <p className="text-sm text-muted-foreground italic">No spending data found for this period.</p>}
                  </div>
-                  <div>
-                     <h3 className="font-semibold text-lg mb-1">Emotions</h3>
-                     {diarySummary.emotions.length > 0 ? (
-                        <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
-                            {diarySummary.emotions.map((emotion, i) => <li key={`emotion-${i}`}>{emotion}</li>)}
-                        </ul>
-                     ) : <p className="text-sm text-muted-foreground italic">No prominent emotions identified.</p>}
-                 </div>
-                  <div>
-                     <h3 className="font-semibold text-lg mb-1">Reflections</h3>
-                     {diarySummary.reflections.length > 0 ? (
-                         <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
-                             {diarySummary.reflections.map((reflection, i) => <li key={`reflection-${i}`}>{reflection}</li>)}
-                         </ul>
-                     ) : <p className="text-sm text-muted-foreground italic">No specific reflections identified.</p>}
-                 </div>
-             </CardContent>
+               </CardContent>
              </Card>
-        )}
+          )}
 
+          {taskCompletion && !isLoading && (
+              <Card className="shadow-md bg-secondary/30">
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><ListTodo className="h-5 w-5" /> Task Completion Analysis</CardTitle>
+                  <CardDescription>Based on tasks due between {format(form.getValues("startDate")!, 'PPP')} and {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div>
+                      <h3 className="font-semibold text-lg mb-1">Completion Summary</h3>
+                      <p className="text-sm text-secondary-foreground">{taskCompletion.completionSummary}</p>
+                  </div>
+                   <div className="grid grid-cols-3 gap-4 text-center">
+                     <div>
+                         <p className="text-sm text-muted-foreground">Total Tasks</p>
+                         <p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p>
+                     </div>
+                      <div>
+                         <p className="text-sm text-muted-foreground">Completed</p>
+                          <p className="text-xl font-bold">{taskCompletion.completedTasks}</p>
+                      </div>
+                      <div>
+                         <p className="text-sm text-muted-foreground">Completion Rate</p>
+                          <p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(1)}%</p>
+                      </div>
+                  </div>
+                  <Separator />
+                  <div>
+                       <h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>
+                       {taskCompletion.overdueTasks.length > 0 ? (
+                           <Alert variant="destructive">
+                               <AlertCircle className="h-4 w-4" />
+                               <AlertTitle>Overdue Tasks Found!</AlertTitle>
+                               <AlertDescription>
+                                    <ul className="list-disc list-inside mt-2 space-y-1">
+                                        {taskCompletion.overdueTasks.map((task: Task) => (
+                                            <li key={task.id} className="text-sm">
+                                                {task.title} {task.dueDate && `(Due: ${format(new Date(task.dueDate), 'PP')})`}
+                                            </li>
+                                        ))}
+                                    </ul>
+                               </AlertDescription>
+                           </Alert>
+                       ) : (
+                           <p className="text-sm text-muted-foreground italic">No overdue tasks found in this period. Keep it up!</p>
+                       )}
+                   </div>
+              </CardContent>
+              </Card>
+          )}
+
+
+          {diarySummary && !isLoading && (
+               <Card className="shadow-md bg-secondary/30">
+               <CardHeader>
+                   <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary ({form.getValues("frequency")})</CardTitle>
+                    <CardDescription>Insights from your recent diary entries.</CardDescription>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                   <div>
+                       <h3 className="font-semibold text-lg mb-1">Summary</h3>
+                       <p className="text-sm text-secondary-foreground">{diarySummary.summary}</p>
+                   </div>
+                    <div>
+                       <h3 className="font-semibold text-lg mb-1">Key Events</h3>
+                        {diarySummary.keyEvents.length > 0 ? (
+                           <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
+                               {diarySummary.keyEvents.map((event, i) => <li key={`event-${i}`}>{event}</li>)}
+                           </ul>
+                        ) : <p className="text-sm text-muted-foreground italic">No specific key events identified.</p>}
+                   </div>
+                    <div>
+                       <h3 className="font-semibold text-lg mb-1">Emotions</h3>
+                       {diarySummary.emotions.length > 0 ? (
+                          <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
+                              {diarySummary.emotions.map((emotion, i) => <li key={`emotion-${i}`}>{emotion}</li>)}
+                          </ul>
+                       ) : <p className="text-sm text-muted-foreground italic">No prominent emotions identified.</p>}
+                   </div>
+                    <div>
+                       <h3 className="font-semibold text-lg mb-1">Reflections</h3>
+                       {diarySummary.reflections.length > 0 ? (
+                           <ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">
+                               {diarySummary.reflections.map((reflection, i) => <li key={`reflection-${i}`}>{reflection}</li>)}
+                           </ul>
+                       ) : <p className="text-sm text-muted-foreground italic">No specific reflections identified.</p>}
+                   </div>
+               </CardContent>
+               </Card>
+          )}
+      </div>
 
     </div>
   );
