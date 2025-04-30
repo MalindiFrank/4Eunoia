@@ -17,8 +17,10 @@ import type { CalendarEvent } from '@/services/calendar';
 import type { Reminder } from '@/services/reminder';
 import type { Task } from '@/services/task';
 import type { Expense } from '@/services/expense';
-import type { Note } from '@/app/notes/page'; // Assuming Note type is exported from notes page
-import type { LogEntry } from '@/app/daily-log/page'; // Assuming LogEntry type is exported
+// Assuming Note type is exported from notes page
+interface Note { id: string; title: string; content: string; createdAt: Date; updatedAt: Date; }
+// Assuming LogEntry type is exported from daily log page
+interface LogEntry { id: string; date: Date; activity: string; notes?: string; diaryEntry?: string; }
 
 
 // ----- Data Loading Functions (Placeholders - Replace with actual service calls) -----
@@ -58,7 +60,7 @@ async function loadTasks(startDate: Date, endDate: Date): Promise<Task[]> {
             allTasks = JSON.parse(storedTasksRaw).map((t: any) => ({
                 ...t,
                 dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
-                createdAt: t.createdAt ? parseISO(t.createdAt) : undefined // Assuming createdAt might exist
+                createdAt: t.createdAt ? parseISO(t.createdAt) : new Date(0) // Handle potential missing createdAt
             }));
         } catch (e) { console.error("Error parsing tasks from storage:", e); }
     } else {
@@ -131,8 +133,8 @@ import { addDays, subDays, addHours } from 'date-fns'; // Make sure these are im
 
 
 const AnalyzeProductivityPatternsInputSchema = z.object({
-  startDate: z.date().describe('The start date for analyzing productivity patterns.'),
-  endDate: z.date().describe('The end date for analyzing productivity patterns.'),
+  startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing productivity patterns.'),
+  endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing productivity patterns.'),
   additionalContext: z
     .string()
     .optional()
@@ -168,12 +170,10 @@ export async function analyzeProductivityPatterns(
   return analyzeProductivityPatternsFlow(input);
 }
 
-const analyzeProductivityPatternsPrompt = ai.definePrompt({
-  name: 'analyzeProductivityPatternsPrompt',
-  input: {
-    schema: z.object({
-      startDate: z.date().describe('The start date for analyzing productivity patterns.'),
-      endDate: z.date().describe('The end date for analyzing productivity patterns.'),
+// Define prompt input schema using strings for dates
+const PromptInputSchema = z.object({
+      startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing productivity patterns.'),
+      endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing productivity patterns.'),
       calendarEvents: z
         .string()
         .describe('JSON string of calendar events within the specified date range. Structure: {title, start, end, description?}.'),
@@ -186,7 +186,12 @@ const analyzeProductivityPatternsPrompt = ai.definePrompt({
         .string()
         .optional()
         .describe('Any additional context or information provided by the user.'),
-    }),
+});
+
+const analyzeProductivityPatternsPrompt = ai.definePrompt({
+  name: 'analyzeProductivityPatternsPrompt',
+  input: {
+    schema: PromptInputSchema,
   },
   output: {
     schema: AnalyzeProductivityPatternsOutputSchema,
@@ -222,9 +227,11 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
     outputSchema: AnalyzeProductivityPatternsOutputSchema,
   },
   async (input) => {
-    // Fetch data using the placeholder functions
-    // Note: In a real app, these would likely be single calls to a backend service
-    // that fetches and aggregates data from a database.
+    // Parse input date strings into Date objects
+    const startDate = parseISO(input.startDate);
+    const endDate = parseISO(input.endDate);
+
+    // Fetch data using the placeholder functions with Date objects
     const [
         calendarEvents,
         reminders,
@@ -233,16 +240,15 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
         notes,
         dailyLogs
     ] = await Promise.all([
-        loadCalendarEvents(input.startDate, input.endDate),
-        loadReminders(input.startDate, input.endDate),
-        loadTasks(input.startDate, input.endDate),
-        loadExpenses(input.startDate, input.endDate),
-        loadNotes(input.startDate, input.endDate),
-        loadDailyLogs(input.startDate, input.endDate),
+        loadCalendarEvents(startDate, endDate),
+        loadReminders(startDate, endDate),
+        loadTasks(startDate, endDate),
+        loadExpenses(startDate, endDate),
+        loadNotes(startDate, endDate),
+        loadDailyLogs(startDate, endDate),
     ]);
 
     // Format data for the prompt (limit size if necessary)
-    // Consider summarizing large lists or selecting key items if data volume is excessive.
     const calendarEventsString = JSON.stringify(calendarEvents);
     const tasksString = JSON.stringify(tasks);
     const expensesString = JSON.stringify(expenses);
@@ -263,18 +269,24 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
        };
      }
 
-    const { output } = await analyzeProductivityPatternsPrompt({
-      ...input,
-      calendarEvents: calendarEventsString,
-      tasks: tasksString,
-      expenses: expensesString,
-      reminders: remindersString,
+    // Prepare input for the prompt using original string dates
+    const promptInput: z.infer<typeof PromptInputSchema> = {
+       startDate: input.startDate,
+       endDate: input.endDate,
+       calendarEvents: calendarEventsString,
+       tasks: tasksString,
+       expenses: expensesString,
+       reminders: remindersString,
        notes: notesString,
        dailyLogs: dailyLogsString,
-    });
+       additionalContext: input.additionalContext,
+    };
+
+    const { output } = await analyzeProductivityPatternsPrompt(promptInput);
 
     // Add fallback if AI output is missing
     if (!output) {
+        console.error('AI analysis failed to return output for productivity patterns.');
         return {
             peakPerformanceTimes: "Analysis could not determine peak performance times.",
             commonDistractionsOrObstacles: "Analysis could not identify common distractions or obstacles.",
@@ -286,3 +298,4 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
     return output;
   }
 );
+

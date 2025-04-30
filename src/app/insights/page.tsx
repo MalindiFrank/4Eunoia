@@ -5,7 +5,7 @@ import React, { useState, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, formatISO } from 'date-fns'; // Import formatISO
 import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -40,14 +40,16 @@ import {
   analyzeTaskCompletion,
   AnalyzeTaskCompletionInput,
   AnalyzeTaskCompletionOutput,
-  Task, // Import Task type for display
 } from '@/ai/flows/analyze-task-completion';
+
+// Task type for display (assuming TaskSchemaForOutput defined in analyze-task-completion)
+type DisplayTask = z.infer<AnalyzeTaskCompletionOutputSchema['shape']['overdueTasks']['element']>;
 
 
 const insightsRequestSchema = z.object({
   insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion']),
-  startDate: z.date().optional(), // Optional for diary summary
-  endDate: z.date().optional(), // Optional for diary summary
+  startDate: z.date().optional(), // Use Date for form, convert before sending
+  endDate: z.date().optional(), // Use Date for form, convert before sending
   frequency: z.enum(['weekly', 'monthly']).optional(), // For diary summary
 }).refine(data => {
     // Require date range for productivity, expenses, and tasks
@@ -118,9 +120,10 @@ const InsightsPage: FC = () => {
 
 
        if (data.insightType === 'productivity') {
+            // Convert Date objects to ISO strings before sending
             const input: AnalyzeProductivityPatternsInput = {
-                startDate: data.startDate!,
-                endDate: data.endDate!,
+                startDate: formatISO(data.startDate!),
+                endDate: formatISO(data.endDate!),
             };
             const result = await analyzeProductivityPatterns(input);
             setProductivityInsights(result);
@@ -140,17 +143,19 @@ const InsightsPage: FC = () => {
             setDiarySummary(result);
             toast({ title: "Diary Summary Complete", description: "Summary generated successfully." });
        } else if (data.insightType === 'expenseTrends') {
+             // Convert Date objects to ISO strings before sending
             const input: AnalyzeExpenseTrendsInput = {
-                startDate: data.startDate!,
-                endDate: data.endDate!,
+                startDate: formatISO(data.startDate!),
+                endDate: formatISO(data.endDate!),
             };
             const result = await analyzeExpenseTrends(input);
             setExpenseTrends(result);
             toast({ title: "Expense Trend Analysis Complete", description: "Insights generated successfully." });
        } else if (data.insightType === 'taskCompletion') {
+             // Convert Date objects to ISO strings before sending
             const input: AnalyzeTaskCompletionInput = {
-                startDate: data.startDate!,
-                endDate: data.endDate!,
+                startDate: formatISO(data.startDate!),
+                endDate: formatISO(data.endDate!),
             };
             const result = await analyzeTaskCompletion(input);
             setTaskCompletion(result);
@@ -167,7 +172,7 @@ const InsightsPage: FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast]); // Added toast dependency
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
@@ -364,7 +369,7 @@ const InsightsPage: FC = () => {
            </Card>
          )}
 
-          {productivityInsights && !isLoading && (
+          {productivityInsights && !isLoading && form.getValues("startDate") && form.getValues("endDate") && ( // Ensure dates exist
               <Card className="shadow-md bg-secondary/30">
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><BarChartHorizontalBig className="h-5 w-5" /> Productivity Patterns Analysis</CardTitle>
@@ -391,7 +396,7 @@ const InsightsPage: FC = () => {
               </Card>
           )}
 
-          {expenseTrends && !isLoading && (
+          {expenseTrends && !isLoading && form.getValues("startDate") && form.getValues("endDate") && ( // Ensure dates exist
              <Card className="shadow-md bg-secondary/30">
                <CardHeader>
                  <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Expense Trend Analysis</CardTitle>
@@ -430,7 +435,7 @@ const InsightsPage: FC = () => {
              </Card>
           )}
 
-          {taskCompletion && !isLoading && (
+          {taskCompletion && !isLoading && form.getValues("startDate") && form.getValues("endDate") && ( // Ensure dates exist
               <Card className="shadow-md bg-secondary/30">
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ListTodo className="h-5 w-5" /> Task Completion Analysis</CardTitle>
@@ -464,9 +469,9 @@ const InsightsPage: FC = () => {
                                <AlertTitle>{taskCompletion.overdueTasks.length} Overdue Task{taskCompletion.overdueTasks.length > 1 ? 's' : ''}!</AlertTitle>
                                <AlertDescription>
                                     <ul className="list-disc list-inside mt-2 space-y-1">
-                                        {taskCompletion.overdueTasks.map((task: Task) => (
+                                        {taskCompletion.overdueTasks.map((task: DisplayTask) => ( // Use DisplayTask type
                                             <li key={task.id} className="text-sm">
-                                                {task.title} {task.dueDate && `(Due: ${format(new Date(task.dueDate), 'PP')})`}
+                                                {task.title} {task.dueDate && `(Due: ${format(new Date(task.dueDate), 'PP')})`} {/* Format Date object */}
                                             </li>
                                         ))}
                                     </ul>

@@ -18,7 +18,7 @@ interface Expense {
   id: string;
   description: string;
   amount: number;
-  date: Date | string; // Allow string initially
+  date: Date; // Use Date object internally
   category: string;
 }
 
@@ -31,6 +31,7 @@ async function loadExpensesFromStorage(): Promise<Expense[]> {
 
     if (storedExpensesRaw) {
         try {
+            // Parse directly into Expense with Date objects
             return JSON.parse(storedExpensesRaw).map((e: any) => ({
                 ...e,
                 date: parseISO(e.date), // Ensure date is Date object
@@ -64,8 +65,8 @@ const generateMockExpenses = (): Expense[] => {
 
 
 const AnalyzeExpenseTrendsInputSchema = z.object({
-  startDate: z.date().describe('The start date for analyzing expense trends.'),
-  endDate: z.date().describe('The end date for analyzing expense trends.'),
+  startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing expense trends.'),
+  endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing expense trends.'),
 });
 export type AnalyzeExpenseTrendsInput = z.infer<
   typeof AnalyzeExpenseTrendsInputSchema
@@ -95,8 +96,8 @@ export async function analyzeExpenseTrends(
 
 // Define prompt input schema matching the data we will pass
 const PromptInputSchema = z.object({
-    startDate: z.date(),
-    endDate: z.date(),
+    startDate: z.string().datetime().describe('Start date in ISO 8601 format.'),
+    endDate: z.string().datetime().describe('End date in ISO 8601 format.'),
     // Provide calculated data directly to the prompt for summary generation
     totalSpending: z.number(),
     averageDailySpending: z.number(),
@@ -137,17 +138,21 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     outputSchema: AnalyzeExpenseTrendsOutputSchema,
   },
   async (input) => {
+    // Parse input date strings into Date objects
+    const startDate = parseISO(input.startDate);
+    const endDate = parseISO(input.endDate);
+
     // Fetch all expenses
     const allExpenses = await loadExpensesFromStorage();
 
     // Filter expenses within the date range
     const filteredExpenses = allExpenses.filter(expense => {
-      const expenseDate = new Date(expense.date); // Ensure it's a Date object
-      return isWithinInterval(expenseDate, { start: input.startDate, end: input.endDate });
-    });
+       // Expense date is already a Date object
+       return isWithinInterval(expense.date, { start: startDate, end: endDate });
+     });
 
      // Perform calculations directly
-     const numberOfDays = differenceInDays(input.endDate, input.startDate) + 1;
+     const numberOfDays = differenceInDays(endDate, startDate) + 1;
      const validNumberOfDays = numberOfDays > 0 ? numberOfDays : 1;
 
      const totalSpending = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -179,7 +184,8 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
 
 
     // Call the AI prompt with calculated data for summary generation
-    const promptInput = {
+    // Pass original string dates to the prompt
+    const promptInput: z.infer<typeof PromptInputSchema> = {
       startDate: input.startDate,
       endDate: input.endDate,
       totalSpending: parseFloat(totalSpending.toFixed(2)),
@@ -193,6 +199,8 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
         const { output } = await analyzeExpenseTrendsPrompt(promptInput);
          if (output?.spendingSummary) {
             summary = output.spendingSummary;
+        } else {
+             console.warn("AnalyzeExpenseTrendsPrompt did not return a summary.");
         }
      } catch (error) {
          console.error("Error calling analyzeExpenseTrendsPrompt:", error);

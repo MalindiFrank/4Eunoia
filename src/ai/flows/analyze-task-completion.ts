@@ -11,16 +11,16 @@
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
 // import { getTasks, Task } from '@/services/task'; // Import Task type - fetch directly now
-import { parseISO, isWithinInterval } from 'date-fns';
+import { parseISO, isWithinInterval, formatISO } from 'date-fns';
 
 // Define Task structure consistent with localStorage data
 interface Task {
   id: string;
   title: string;
   description?: string;
-  dueDate?: Date | string; // Allow string initially from JSON
+  dueDate?: Date; // Use Date object internally
   status: 'Pending' | 'In Progress' | 'Completed';
-  createdAt?: Date | string; // Optional creation date
+  createdAt?: Date; // Optional creation date
 }
 
 
@@ -33,6 +33,7 @@ async function loadTasksFromStorage(): Promise<Task[]> {
 
     if (storedTasksRaw) {
         try {
+            // Parse directly into Task with Date objects
             return JSON.parse(storedTasksRaw).map((t: any) => ({
                 ...t,
                 dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
@@ -65,21 +66,30 @@ const generateMockTasks = (): Task[] => {
 
 
 const AnalyzeTaskCompletionInputSchema = z.object({
-  startDate: z.date().describe('The start date for analyzing task completion.'),
-  endDate: z.date().describe('The end date for analyzing task completion.'),
+  startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing task completion.'),
+  endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing task completion.'),
 });
 export type AnalyzeTaskCompletionInput = z.infer<
   typeof AnalyzeTaskCompletionInputSchema
 >;
 
-const TaskSchemaForOutput = z.object({ // Schema for tasks included *in the output*
+// Define Task structure for the actual output of the flow
+interface OutputTask {
+    id: string;
+    title: string;
+    description?: string;
+    dueDate?: Date; // Keep as Date in the final JS output
+    status: 'Pending' | 'In Progress' | 'Completed';
+}
+
+// Zod schema for tasks included *in the output*. Use Date for dueDate.
+const TaskSchemaForOutput = z.object({
     id: z.string(),
     title: z.string(),
     description: z.string().optional(),
     dueDate: z.date().optional().describe("The task's due date, if available."),
     status: z.enum(['Pending', 'In Progress', 'Completed']).describe("The task's current status."),
 });
-type OutputTask = z.infer<typeof TaskSchemaForOutput>; // Type for output tasks
 
 const AnalyzeTaskCompletionOutputSchema = z.object({
   totalTasksConsidered: z.number().describe('The total number of tasks with a due date within the specified date range.'),
@@ -100,10 +110,10 @@ export async function analyzeTaskCompletion(
 
 // Define prompt input schema matching the data we will pass
 const PromptInputSchema = z.object({
-      startDate: z.date(),
-      endDate: z.date(),
+      startDate: z.string().datetime().describe('Start date in ISO 8601 format.'),
+      endDate: z.string().datetime().describe('End date in ISO 8601 format.'),
       tasksJson: z.string().describe('A JSON string representing the list of ALL tasks available.'),
-      todayDate: z.date().describe('The current date, for determining overdue status accurately.')
+      todayDate: z.string().datetime().describe('The current date (ISO 8601 format), for determining overdue status accurately.')
     });
 
 const analyzeTaskCompletionPrompt = ai.definePrompt({
@@ -143,13 +153,17 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
     outputSchema: AnalyzeTaskCompletionOutputSchema,
   },
   async (input) => {
-    const allTasks = await loadTasksFromStorage();
+    // Parse input date strings into Date objects
+    const startDate = parseISO(input.startDate);
+    const endDate = parseISO(input.endDate);
     const today = new Date(); // Use a fixed date for overdue comparison within the flow
+
+    const allTasks = await loadTasksFromStorage();
 
     // Filter tasks considered for the period (must have a due date within the range)
     const tasksConsidered = allTasks.filter(task =>
-        task.dueDate && // Must have a due date
-        isWithinInterval(new Date(task.dueDate), { start: input.startDate, end: input.endDate }) // Due date within range
+        task.dueDate && // Must have a due date (which is now a Date object)
+        isWithinInterval(task.dueDate, { start: startDate, end: endDate }) // Due date within range
     );
 
     // Calculate metrics based on the 'tasksConsidered'
@@ -159,18 +173,25 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
 
     // Identify overdue tasks among those considered
     const overdueTasksRaw = tasksConsidered.filter(t =>
-        t.status !== 'Completed' && new Date(t.dueDate!) <= today // Due date is in the past or today, and not completed
+        t.status !== 'Completed' && t.dueDate && t.dueDate <= today // Due date is in the past or today, and not completed
     );
 
-    // Format overdue tasks for both output and prompt context
+    // Format overdue tasks for the final output (using Date objects)
      const overdueTasksForOutput: OutputTask[] = overdueTasksRaw.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description,
-        dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
+        dueDate: t.dueDate, // Keep as Date object
         status: t.status,
      }));
-     const overdueTasksJsonForPrompt = JSON.stringify(overdueTasksForOutput.map(t => ({ title: t.title, dueDate: t.dueDate })));
+
+     // Format overdue tasks for prompt context (using string dates)
+     const overdueTasksJsonForPrompt = JSON.stringify(
+         overdueTasksRaw.map(t => ({
+             title: t.title,
+             dueDate: t.dueDate ? formatISO(t.dueDate) : undefined
+         }))
+     );
 
 
     // Handle case with no relevant tasks before calling AI
@@ -186,11 +207,12 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
 
 
     // Call the AI prompt with calculated data for summary generation
-    const promptInput = {
+    // Pass original string dates and today's date as string to the prompt
+    const promptInput: z.infer<typeof PromptInputSchema> = {
       startDate: input.startDate,
       endDate: input.endDate,
-      tasksJson: JSON.stringify(allTasks), // Provide all tasks for broader context if needed by AI (though prompt focuses on calculations)
-      todayDate: today,
+      tasksJson: JSON.stringify(allTasks.map(t => ({...t, dueDate: t.dueDate ? formatISO(t.dueDate) : undefined, createdAt: t.createdAt ? formatISO(t.createdAt) : undefined}))), // Stringify dates for prompt
+      todayDate: formatISO(today),
       // Add calculated context for the prompt
        totalTasksConsidered: totalConsidered,
        completedTasks: completedInPeriod,
@@ -205,6 +227,8 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         const { output } = await analyzeTaskCompletionPrompt(promptInput);
         if (output?.completionSummary) {
             summary = output.completionSummary;
+        } else {
+             console.warn("AnalyzeTaskCompletionPrompt did not return a summary.");
         }
      } catch (error) {
          console.error("Error calling analyzeTaskCompletionPrompt:", error);
@@ -212,12 +236,12 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
      }
 
 
-    // Construct the final output object
+    // Construct the final output object using Date objects for dates
     return {
         totalTasksConsidered: totalConsidered,
         completedTasks: completedInPeriod,
         completionRate: completionRate,
-        overdueTasks: overdueTasksForOutput,
+        overdueTasks: overdueTasksForOutput, // Use the array with Date objects
         completionSummary: summary,
     };
   }
