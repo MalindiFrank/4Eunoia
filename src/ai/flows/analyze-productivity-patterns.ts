@@ -1,17 +1,3 @@
-// Copyright 2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 'use server';
 
 /**
@@ -24,10 +10,125 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { getCalendarEvents } from '@/services/calendar';
-import { getUpcomingReminders } from '@/services/reminder';
-import { getTasks } from '@/services/task';
-import { getExpenses } from '@/services/expense';
+import { parseISO, isWithinInterval } from 'date-fns';
+
+// Import types directly (assuming they are defined in respective files)
+import type { CalendarEvent } from '@/services/calendar';
+import type { Reminder } from '@/services/reminder';
+import type { Task } from '@/services/task';
+import type { Expense } from '@/services/expense';
+import type { Note } from '@/app/notes/page'; // Assuming Note type is exported from notes page
+import type { LogEntry } from '@/app/daily-log/page'; // Assuming LogEntry type is exported
+
+
+// ----- Data Loading Functions (Placeholders - Replace with actual service calls) -----
+// IMPORTANT: Direct localStorage access won't work reliably in Server Actions.
+// These are illustrative and assume data is fetched/available server-side.
+
+async function loadCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+    console.warn("Using mock calendar events for productivity analysis.");
+    // In a real app, fetch from DB/API filtered by date range
+    const mockEvents = [
+        { title: 'Daily Standup', start: new Date(new Date().setHours(9, 0, 0, 0)), end: new Date(new Date().setHours(9, 15, 0, 0)) },
+        { title: 'Project Work', start: new Date(new Date().setHours(14, 0, 0, 0)), end: new Date(new Date().setHours(16, 0, 0, 0)) },
+         { title: 'Client Meeting', start: new Date(addDays(new Date(), 2).setHours(11, 0, 0, 0)), end: new Date(addDays(new Date(), 2).setHours(12, 0, 0, 0)) },
+         { title: 'Past Event', start: new Date(subDays(new Date(), 3).setHours(10, 0, 0, 0)), end: new Date(subDays(new Date(), 3).setHours(11, 0, 0, 0)) },
+    ];
+     return mockEvents.filter(event => isWithinInterval(event.start, { start: startDate, end: endDate }));
+}
+
+async function loadReminders(startDate: Date, endDate: Date): Promise<Reminder[]> {
+     console.warn("Using mock reminders for productivity analysis.");
+     // Fetch from localStorage or service
+     const now = new Date();
+      const mockReminders = [
+        { id: 'rem-mock-1', title: 'Call Mom', dateTime: addHours(now, 2), description: 'Check in for the week' },
+        { id: 'rem-mock-2', title: 'Doctor Appointment', dateTime: addDays(now, 3), description: 'Annual check-up at 10:00 AM' },
+        { id: 'rem-mock-3', title: 'Project Deadline', dateTime: addDays(now, 7), description: 'Submit final version of Project Alpha' },
+    ];
+    return mockReminders.filter(r => isWithinInterval(r.dateTime, { start: startDate, end: endDate }));
+}
+
+async function loadTasks(startDate: Date, endDate: Date): Promise<Task[]> {
+    console.log("Loading tasks from localStorage for productivity analysis.");
+    const storedTasksRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-tasks') : null;
+    let allTasks: Task[] = [];
+    if (storedTasksRaw) {
+        try {
+            allTasks = JSON.parse(storedTasksRaw).map((t: any) => ({
+                ...t,
+                dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
+                createdAt: t.createdAt ? parseISO(t.createdAt) : undefined // Assuming createdAt might exist
+            }));
+        } catch (e) { console.error("Error parsing tasks from storage:", e); }
+    } else {
+        console.warn("No tasks found in localStorage for analysis.");
+    }
+     // Filter tasks relevant to the period (e.g., due date or creation date within range)
+    return allTasks.filter(task => {
+        const relevantDate = task.dueDate || task.createdAt; // Prioritize due date
+        return relevantDate ? isWithinInterval(relevantDate, { start: startDate, end: endDate }) : false;
+    });
+}
+
+async function loadExpenses(startDate: Date, endDate: Date): Promise<Expense[]> {
+    console.log("Loading expenses from localStorage for productivity analysis.");
+    const storedExpensesRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-expenses') : null;
+     let allExpenses: Expense[] = [];
+    if (storedExpensesRaw) {
+         try {
+            allExpenses = JSON.parse(storedExpensesRaw).map((e: any) => ({
+                ...e,
+                date: parseISO(e.date),
+                amount: Number(e.amount) || 0
+            }));
+         } catch (e) { console.error("Error parsing expenses from storage:", e); }
+    } else {
+        console.warn("No expenses found in localStorage for analysis.");
+    }
+    return allExpenses.filter(expense => isWithinInterval(expense.date, { start: startDate, end: endDate }));
+}
+
+async function loadNotes(startDate: Date, endDate: Date): Promise<Note[]> {
+     console.log("Loading notes from localStorage for productivity analysis.");
+     const storedNotesRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-notes') : null;
+     let allNotes: Note[] = [];
+     if (storedNotesRaw) {
+          try {
+             allNotes = JSON.parse(storedNotesRaw).map((n: any) => ({
+                 ...n,
+                 createdAt: parseISO(n.createdAt),
+                 updatedAt: parseISO(n.updatedAt)
+             }));
+          } catch (e) { console.error("Error parsing notes from storage:", e); }
+     } else {
+         console.warn("No notes found in localStorage for analysis.");
+     }
+      return allNotes.filter(note => isWithinInterval(note.createdAt, { start: startDate, end: endDate })); // Filter by creation date
+}
+
+async function loadDailyLogs(startDate: Date, endDate: Date): Promise<LogEntry[]> {
+    console.log("Loading daily logs from localStorage for productivity analysis.");
+    const storedLogsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-daily-logs') : null;
+     let allLogs: LogEntry[] = [];
+    if (storedLogsRaw) {
+         try {
+            allLogs = JSON.parse(storedLogsRaw).map((l: any) => ({
+                ...l,
+                date: parseISO(l.date)
+            }));
+         } catch (e) { console.error("Error parsing daily logs from storage:", e); }
+    } else {
+        console.warn("No daily logs found in localStorage for analysis.");
+    }
+    return allLogs.filter(log => isWithinInterval(log.date, { start: startDate, end: endDate }));
+}
+
+// Helper functions (consider moving to utils if shared)
+import { addDays, subDays, addHours } from 'date-fns'; // Make sure these are imported
+
+// ----- End Data Loading -----
+
 
 const AnalyzeProductivityPatternsInputSchema = z.object({
   startDate: z.date().describe('The start date for analyzing productivity patterns.'),
@@ -35,7 +136,7 @@ const AnalyzeProductivityPatternsInputSchema = z.object({
   additionalContext: z
     .string()
     .optional()
-    .describe('Any additional context or information to consider during the analysis.'),
+    .describe('Any additional context or information provided by the user (e.g., current goals, feelings).'),
 });
 export type AnalyzeProductivityPatternsInput = z.infer<
   typeof AnalyzeProductivityPatternsInputSchema
@@ -44,16 +145,16 @@ export type AnalyzeProductivityPatternsInput = z.infer<
 const AnalyzeProductivityPatternsOutputSchema = z.object({
   peakPerformanceTimes: z
     .string()
-    .describe('Identifies the times of day or days of the week when the user is most productive.'),
-  recurringObstacles: z
+    .describe('Identifies the times of day or days of the week when the user seems most productive or focused based on logs, task completion, and calendar events.'),
+  commonDistractionsOrObstacles: z
     .string()
-    .describe('Identifies any recurring obstacles or challenges that hinder the user’s productivity.'),
+    .describe('Identifies potential recurring distractions, obstacles, or challenges mentioned in diary entries, or indicated by overdue tasks or low activity periods.'),
   suggestedStrategies: z
     .string()
-    .describe('Provides personalized strategies and recommendations for improving productivity.'),
+    .describe('Provides 2-3 personalized, actionable strategies and recommendations for improving productivity, time management, or focus based on the analysis (e.g., time blocking, task batching, managing specific distractions).'),
   overallAssessment: z
     .string()
-    .describe('An overall assessment of the user’s productivity based on the analyzed data.'),
+    .describe('A brief (1-2 sentence) overall assessment of the user’s productivity patterns during the period, highlighting strengths and areas for potential improvement.'),
 });
 export type AnalyzeProductivityPatternsOutput = z.infer<
   typeof AnalyzeProductivityPatternsOutputSchema
@@ -62,6 +163,8 @@ export type AnalyzeProductivityPatternsOutput = z.infer<
 export async function analyzeProductivityPatterns(
   input: AnalyzeProductivityPatternsInput
 ): Promise<AnalyzeProductivityPatternsOutput> {
+  // Direct localStorage access attempt - see warning above.
+  console.warn("Attempting localStorage access in analyzeProductivityPatterns flow. This relies on Server Action behavior and might fail in production.");
   return analyzeProductivityPatternsFlow(input);
 }
 
@@ -73,33 +176,39 @@ const analyzeProductivityPatternsPrompt = ai.definePrompt({
       endDate: z.date().describe('The end date for analyzing productivity patterns.'),
       calendarEvents: z
         .string()
-        .describe('A list of calendar events within the specified date range.'),
-      tasks: z.string().describe('A list of tasks with their status and due dates.'),
-      expenses: z.string().describe('A list of expenses with their amounts and categories.'),
-      reminders: z.string().describe('A list of upcoming reminders.'),
+        .describe('JSON string of calendar events within the specified date range. Structure: {title, start, end, description?}.'),
+      tasks: z.string().describe('JSON string of tasks relevant to the period (due or created). Structure: {id, title, description?, dueDate?, status, createdAt?}.'),
+      expenses: z.string().describe('JSON string of expenses within the range. Structure: {id, description, amount, date, category}.'),
+      reminders: z.string().describe('JSON string of reminders within the range. Structure: {id, title, dateTime, description?}.'),
+       notes: z.string().describe('JSON string of notes created within the range. Structure: {id, title, content, createdAt, updatedAt}.'),
+       dailyLogs: z.string().describe('JSON string of daily logs within the range. Structure: {id, date, activity, notes?, diaryEntry?}. Pay close attention to diary entries for sentiments and challenges.'),
       additionalContext: z
         .string()
         .optional()
-        .describe('Any additional context or information to consider during the analysis.'),
+        .describe('Any additional context or information provided by the user.'),
     }),
   },
   output: {
-    schema: z.object({
-      peakPerformanceTimes: z
-        .string()
-        .describe('Identifies the times of day or days of the week when the user is most productive.'),
-      recurringObstacles: z
-        .string()
-        .describe('Identifies any recurring obstacles or challenges that hinder the user’s productivity.'),
-      suggestedStrategies: z
-        .string()
-        .describe('Provides personalized strategies and recommendations for improving productivity.'),
-      overallAssessment: z
-        .string()
-        .describe('An overall assessment of the user’s productivity based on the analyzed data.'),
-    }),
+    schema: AnalyzeProductivityPatternsOutputSchema,
   },
-  prompt: `Analyze the user's productivity patterns based on the following data between {{startDate}} and {{endDate}}:\n\nCalendar Events: {{{calendarEvents}}}\n\nTasks: {{{tasks}}}\n\nExpenses: {{{expenses}}}\n\nReminders: {{{reminders}}}\n\nAdditional Context: {{{additionalContext}}}\n\nIdentify peak performance times, recurring obstacles, suggest strategies for improvement, and provide an overall assessment of the user’s productivity.  Make sure the output is well-formatted and easy to read.
+   prompt: `Analyze the user's productivity patterns based on the data provided for the period {{startDate}} to {{endDate}}.
+
+Data:
+Calendar Events: {{{calendarEvents}}}
+Tasks: {{{tasks}}}
+Expenses: {{{expenses}}}
+Reminders: {{{reminders}}}
+Notes Created: {{{notes}}}
+Daily Logs: {{{dailyLogs}}}
+User Context: {{{additionalContext}}}
+
+Analysis Tasks:
+1.  **Peak Performance Times:** Identify times/days the user appears most productive (e.g., frequent logs, task completions, focused work blocks in calendar).
+2.  **Common Distractions/Obstacles:** Identify recurring challenges (e.g., mentions of procrastination in diary, types of overdue tasks, frequent context switching implied by short/scattered calendar events).
+3.  **Suggested Strategies:** Based on the analysis, suggest 2-3 actionable strategies (e.g., if meetings interrupt flow, suggest time blocking; if tasks are often overdue, suggest breaking them down).
+4.  **Overall Assessment:** Provide a brief summary of productivity strengths and areas for potential improvement during this period.
+
+Generate the output in the specified JSON format. Be insightful and connect observations across different data sources where possible. For example, link diary entries about feeling overwhelmed to task statuses or calendar density.
 `,
 });
 
@@ -112,18 +221,47 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
     inputSchema: AnalyzeProductivityPatternsInputSchema,
     outputSchema: AnalyzeProductivityPatternsOutputSchema,
   },
-  async input => {
-    // Fetch data from services
-    const calendarEvents = await getCalendarEvents(input.startDate, input.endDate);
-    const upcomingReminders = await getUpcomingReminders();
-    const tasks = await getTasks();
-    const expenses = await getExpenses();
+  async (input) => {
+    // Fetch data using the placeholder functions
+    // Note: In a real app, these would likely be single calls to a backend service
+    // that fetches and aggregates data from a database.
+    const [
+        calendarEvents,
+        reminders,
+        tasks,
+        expenses,
+        notes,
+        dailyLogs
+    ] = await Promise.all([
+        loadCalendarEvents(input.startDate, input.endDate),
+        loadReminders(input.startDate, input.endDate),
+        loadTasks(input.startDate, input.endDate),
+        loadExpenses(input.startDate, input.endDate),
+        loadNotes(input.startDate, input.endDate),
+        loadDailyLogs(input.startDate, input.endDate),
+    ]);
 
-    // Format data for the prompt
+    // Format data for the prompt (limit size if necessary)
+    // Consider summarizing large lists or selecting key items if data volume is excessive.
     const calendarEventsString = JSON.stringify(calendarEvents);
     const tasksString = JSON.stringify(tasks);
     const expensesString = JSON.stringify(expenses);
-    const remindersString = JSON.stringify(upcomingReminders);
+    const remindersString = JSON.stringify(reminders);
+     const notesString = JSON.stringify(notes.map(n => ({ title: n.title, createdAt: n.createdAt }))); // Limit note content size
+     const dailyLogsString = JSON.stringify(dailyLogs);
+
+    // Check if any data was actually loaded
+    const hasData = calendarEvents.length > 0 || tasks.length > 0 || expenses.length > 0 || reminders.length > 0 || notes.length > 0 || dailyLogs.length > 0;
+
+     if (!hasData) {
+       // Return a default message if no data is available
+       return {
+         peakPerformanceTimes: "Insufficient data to determine peak performance times.",
+         commonDistractionsOrObstacles: "Insufficient data to identify common distractions or obstacles.",
+         suggestedStrategies: "Unable to suggest strategies due to lack of data. Start logging activities, tasks, and reflections!",
+         overallAssessment: "No data available for the selected period to assess productivity.",
+       };
+     }
 
     const { output } = await analyzeProductivityPatternsPrompt({
       ...input,
@@ -131,7 +269,20 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
       tasks: tasksString,
       expenses: expensesString,
       reminders: remindersString,
+       notes: notesString,
+       dailyLogs: dailyLogsString,
     });
-    return output!;
+
+    // Add fallback if AI output is missing
+    if (!output) {
+        return {
+            peakPerformanceTimes: "Analysis could not determine peak performance times.",
+            commonDistractionsOrObstacles: "Analysis could not identify common distractions or obstacles.",
+            suggestedStrategies: "Could not generate suggested strategies.",
+            overallAssessment: "Productivity analysis failed to generate an assessment.",
+        };
+    }
+
+    return output;
   }
 );

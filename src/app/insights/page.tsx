@@ -1,17 +1,3 @@
-// Copyright 2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 'use client';
 
 import type { FC } from 'react';
@@ -146,14 +132,8 @@ const InsightsPage: FC = () => {
                 setIsLoading(false);
                 return;
            }
-           // TODO: Fetch actual diary entries based on frequency/date range
-            const mockDiaryEntries = [
-                { date: new Date(new Date().setDate(new Date().getDate() - 2)), text: "Had a productive morning working on the project. Felt focused." },
-                { date: new Date(new Date().setDate(new Date().getDate() - 1)), text: "Meeting went well, but felt drained afterwards. Need better energy management." },
-                { date: new Date(), text: "Reflecting on the week. Good progress overall, but some distractions." }
-            ];
+           // Fetch actual diary entries based on frequency/date range is now handled *inside* the flow
            const input: SummarizeDiaryEntriesInput = {
-                diaryEntries: mockDiaryEntries, // Replace with actual fetched entries
                 frequency: data.frequency,
            };
             const result = await summarizeDiaryEntries(input);
@@ -218,6 +198,12 @@ const InsightsPage: FC = () => {
                         if (value !== 'diarySummary' && (!form.getValues("startDate") || !form.getValues("endDate"))) {
                              form.setValue('startDate', new Date(new Date().setDate(new Date().getDate() - 30)));
                              form.setValue('endDate', new Date());
+                        }
+                         // Reset frequency if switching away from diary summary
+                        if (value !== 'diarySummary') {
+                            form.setValue('frequency', undefined);
+                        } else if (!form.getValues('frequency')){
+                             form.setValue('frequency', 'weekly'); // Default frequency if switching to diary
                         }
                     }} defaultValue={field.value}>
                       <FormControl>
@@ -327,15 +313,15 @@ const InsightsPage: FC = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Summarization Frequency</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select frequency" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="weekly">This Week</SelectItem>
+                            <SelectItem value="monthly">This Month</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -394,8 +380,8 @@ const InsightsPage: FC = () => {
                       <p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p>
                   </div>
                    <div>
-                      <h3 className="font-semibold text-lg mb-1">Recurring Obstacles</h3>
-                      <p className="text-sm text-secondary-foreground">{productivityInsights.recurringObstacles}</p>
+                      <h3 className="font-semibold text-lg mb-1">Common Distractions/Obstacles</h3> {/* Updated field name */}
+                      <p className="text-sm text-secondary-foreground">{productivityInsights.commonDistractionsOrObstacles}</p>
                   </div>
                    <div>
                       <h3 className="font-semibold text-lg mb-1">Suggested Strategies</h3>
@@ -457,7 +443,7 @@ const InsightsPage: FC = () => {
                   </div>
                    <div className="grid grid-cols-3 gap-4 text-center">
                      <div>
-                         <p className="text-sm text-muted-foreground">Total Tasks</p>
+                         <p className="text-sm text-muted-foreground">Tasks Due</p>
                          <p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p>
                      </div>
                       <div>
@@ -471,11 +457,11 @@ const InsightsPage: FC = () => {
                   </div>
                   <Separator />
                   <div>
-                       <h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>
+                       <h3 className="font-semibold text-lg mb-2">Overdue Tasks (from this period)</h3>
                        {taskCompletion.overdueTasks.length > 0 ? (
                            <Alert variant="destructive">
                                <AlertCircle className="h-4 w-4" />
-                               <AlertTitle>Overdue Tasks Found!</AlertTitle>
+                               <AlertTitle>{taskCompletion.overdueTasks.length} Overdue Task{taskCompletion.overdueTasks.length > 1 ? 's' : ''}!</AlertTitle>
                                <AlertDescription>
                                     <ul className="list-disc list-inside mt-2 space-y-1">
                                         {taskCompletion.overdueTasks.map((task: Task) => (
@@ -487,7 +473,7 @@ const InsightsPage: FC = () => {
                                </AlertDescription>
                            </Alert>
                        ) : (
-                           <p className="text-sm text-muted-foreground italic">No overdue tasks found in this period. Keep it up!</p>
+                           <p className="text-sm text-muted-foreground italic">No overdue tasks found for tasks due in this period. Keep it up!</p>
                        )}
                    </div>
               </CardContent>
@@ -498,8 +484,11 @@ const InsightsPage: FC = () => {
           {diarySummary && !isLoading && (
                <Card className="shadow-md bg-secondary/30">
                <CardHeader>
-                   <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary ({form.getValues("frequency")})</CardTitle>
-                    <CardDescription>Insights from your recent diary entries.</CardDescription>
+                   <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary</CardTitle>
+                    <CardDescription>
+                        {`Summary for ${form.getValues("frequency") === 'weekly' ? 'This Week' : 'This Month'} (${diarySummary.entryCount} ${diarySummary.entryCount === 1 ? 'entry' : 'entries'})`}
+                        {diarySummary.dateRange && ` from ${format(diarySummary.dateRange.start, 'PPP')} to ${format(diarySummary.dateRange.end, 'PPP')}`}
+                    </CardDescription>
                </CardHeader>
                <CardContent className="space-y-4">
                    <div>

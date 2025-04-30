@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays, addDays } from 'date-fns';
 import { Calendar as CalendarIcon, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -42,23 +42,42 @@ interface LogEntry {
   diaryEntry?: string;
 }
 
-// Function to load logs from localStorage
+// Mock Data Generation
+const generateMockLogs = (): LogEntry[] => {
+    const today = new Date();
+    return [
+        { id: 'log-mock-1', date: subDays(today, 1), activity: 'Completed project proposal draft', notes: 'Sent for review to Jane.', diaryEntry: 'Felt productive today. The proposal took longer than expected but happy with the result.' },
+        { id: 'log-mock-2', date: subDays(today, 2), activity: 'Team meeting and brainstorming session', notes: 'Discussed Q3 goals. Good ideas generated.', diaryEntry: 'Meeting was energizing. Need to follow up on action items.' },
+        { id: 'log-mock-3', date: subDays(today, 3), activity: 'Worked on coding feature X', notes: 'Encountered a bug, spent time debugging.', diaryEntry: 'Frustrating day with the bug, but learned something new about the framework.' },
+        { id: 'log-mock-4', date: subDays(today, 5), activity: 'Client call and presentation prep', notes: 'Call went well. Presentation needs more polishing.', diaryEntry: '' },
+        { id: 'log-mock-5', date: subDays(today, 7), activity: 'Personal development - Read book on leadership', notes: 'Chapter 3 finished.', diaryEntry: 'Interesting concepts on delegation. Need to apply them.' },
+        { id: 'log-mock-6', date: subDays(today, 10), activity: 'Attended webinar on AI trends', notes: '', diaryEntry: 'Mind-blowing advancements. Need to explore how we can leverage this.' },
+    ].sort((a, b) => b.date.getTime() - a.date.getTime()); // Ensure sorted
+};
+
+
+// Function to load logs from localStorage or generate mock data
 const loadLogsFromLocalStorage = (): LogEntry[] => {
   if (typeof window === 'undefined') return [];
   const storedLogs = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (storedLogs) {
     try {
       // Parse and ensure dates are Date objects
-      return JSON.parse(storedLogs).map((log: any) => ({
+      const parsedLogs = JSON.parse(storedLogs).map((log: any) => ({
         ...log,
         date: parseISO(log.date), // Convert string back to Date
       }));
+       return parsedLogs.sort((a: LogEntry, b: LogEntry) => b.date.getTime() - a.date.getTime()); // Ensure sorted
     } catch (e) {
       console.error("Error parsing logs from localStorage:", e);
-      return [];
+      // Fallback to mock data if parsing fails
+       return generateMockLogs();
     }
   }
-  return [];
+  // If no stored logs, generate mock data
+  const mockLogs = generateMockLogs();
+  saveLogsToLocalStorage(mockLogs); // Save mock data to localStorage initially
+  return mockLogs;
 };
 
 // Function to save logs to localStorage

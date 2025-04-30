@@ -1,11 +1,11 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Check, Edit, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,23 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-// Function to load tasks from localStorage
+// Mock Data Generation
+const generateMockTasks = (): Task[] => {
+    const today = new Date();
+    return [
+        { id: 'task-mock-1', title: 'Finalize Q3 report', description: 'Compile data and write summary', dueDate: addDays(today, 2), status: 'In Progress' },
+        { id: 'task-mock-2', title: 'Schedule team sync meeting', description: 'Find a time that works for everyone', dueDate: addDays(today, 1), status: 'Pending' },
+        { id: 'task-mock-3', title: 'Review design mockups', description: 'Provide feedback on the new UI', dueDate: subDays(today, 1), status: 'Completed' }, // Completed past task
+        { id: 'task-mock-4', title: 'Update project documentation', description: '', dueDate: addDays(today, 7), status: 'Pending' },
+        { id: 'task-mock-5', title: 'Pay electricity bill', description: 'Due by the 15th', dueDate: addDays(today, 5), status: 'Pending' },
+        { id: 'task-mock-6', title: 'Research competitor features', description: '', status: 'In Progress' }, // No due date
+        { id: 'task-mock-7', title: 'Book flight for conference', description: 'Check prices and book', status: 'Pending' }, // No due date
+        { id: 'task-mock-8', title: 'Submit expense report', description: 'For last month\'s travel', dueDate: subDays(today, 3), status: 'Completed' }, // Completed past task
+    ];
+};
+
+
+// Function to load tasks from localStorage or generate mock data
 const loadTasksFromLocalStorage = (): Task[] => {
     if (typeof window === 'undefined') return [];
     const storedTasks = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -50,10 +66,14 @@ const loadTasksFromLocalStorage = (): Task[] => {
             }));
         } catch (e) {
             console.error("Error parsing tasks from localStorage:", e);
-            return [];
+             // Fallback to mock data if parsing fails
+            return generateMockTasks();
         }
     }
-    return [];
+    // If no stored tasks, generate mock data
+    const mockTasks = generateMockTasks();
+    saveTasksToLocalStorage(mockTasks); // Save mock data initially
+    return mockTasks;
 };
 
 // Function to save tasks to localStorage

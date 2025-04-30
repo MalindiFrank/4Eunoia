@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, addHours, addDays, subDays } from 'date-fns';
 import { Calendar as CalendarIcon, Edit, Plus, Trash2, Bell } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,20 @@ const reminderSchema = z.object({
 
 type ReminderFormValues = z.infer<typeof reminderSchema>;
 
+// Mock Data Generation
+const generateMockReminders = (): Reminder[] => {
+    const now = new Date();
+    return [
+        { id: 'rem-mock-1', title: 'Call Mom', dateTime: addHours(now, 2), description: 'Check in for the week' },
+        { id: 'rem-mock-2', title: 'Doctor Appointment', dateTime: addDays(now, 3), description: 'Annual check-up at 10:00 AM' },
+        { id: 'rem-mock-3', title: 'Project Deadline', dateTime: addDays(now, 7), description: 'Submit final version of Project Alpha' },
+        { id: 'rem-mock-4', title: 'Water Plants', dateTime: addDays(now, 1), description: '' },
+        // Example of a past reminder (might not show depending on fetch logic)
+        { id: 'rem-mock-5', title: 'Gym Session', dateTime: subDays(now, 1), description: 'Leg day' },
+    ].sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime()); // Ensure sorted
+};
+
+
 const RemindersPage: FC = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +67,14 @@ const RemindersPage: FC = () => {
     const loadReminders = async () => {
       try {
         setIsLoading(true);
-        const fetchedReminders = await fetchReminders();
+        let fetchedReminders = await fetchReminders();
+        // If fetchReminders returns empty (or fails silently), use mock data
+        if (!fetchedReminders || fetchedReminders.length === 0) {
+             console.log("No reminders fetched from service, using mock data.");
+             fetchedReminders = generateMockReminders();
+             // Optional: Save mock data if you intend to persist it later
+             // await saveRemindersToLocalStorage(fetchedReminders); // Assuming a save function exists
+        }
         // Sort reminders by date/time
         fetchedReminders.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
         setReminders(fetchedReminders);
@@ -61,9 +82,11 @@ const RemindersPage: FC = () => {
         console.error("Failed to fetch reminders:", error);
         toast({
           title: "Error",
-          description: "Could not load reminders.",
+          description: "Could not load reminders. Displaying mock data.",
           variant: "destructive",
         });
+         // Use mock data on error
+         setReminders(generateMockReminders());
       } finally {
         setIsLoading(false);
       }
@@ -100,16 +123,16 @@ const RemindersPage: FC = () => {
   };
 
   const onSubmit = (data: ReminderFormValues) => {
+    let updatedReminders: Reminder[];
     if (editingReminder) {
       // Update existing reminder
       const updatedReminder: Reminder = { ...editingReminder, ...data };
-      setReminders(
-        reminders
+      updatedReminders = reminders
           .map((r) => (r.id === editingReminder.id ? updatedReminder : r))
-          .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()) // Re-sort after update
-      );
+          .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Re-sort after update
+      setReminders(updatedReminders);
       toast({ title: "Reminder Updated", description: `Reminder "${data.title}" has been updated.` });
-      // TODO: Call API to update reminder
+      // TODO: Call API to update reminder & Persist changes (e.g., localStorage)
       console.log('Updated Reminder:', updatedReminder);
     } else {
       // Add new reminder
@@ -117,11 +140,11 @@ const RemindersPage: FC = () => {
         id: crypto.randomUUID(),
         ...data,
       };
-      setReminders(
-        [...reminders, newReminder].sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()) // Sort after adding
-      );
+       updatedReminders = [...reminders, newReminder]
+           .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()); // Sort after adding
+      setReminders(updatedReminders);
       toast({ title: "Reminder Added", description: `Reminder "${data.title}" has been set.` });
-      // TODO: Call API to add reminder
+      // TODO: Call API to add reminder & Persist changes (e.g., localStorage)
       console.log('New Reminder:', newReminder);
     }
     closeDialog();
@@ -129,9 +152,10 @@ const RemindersPage: FC = () => {
 
   const deleteReminder = (reminderId: string) => {
     const reminderToDelete = reminders.find(r => r.id === reminderId);
-    setReminders(reminders.filter((r) => r.id !== reminderId));
+    const updatedReminders = reminders.filter((r) => r.id !== reminderId);
+    setReminders(updatedReminders);
     toast({ title: "Reminder Deleted", description: `Reminder "${reminderToDelete?.title}" has been deleted.`, variant: "destructive" });
-    // TODO: Call API to delete reminder
+    // TODO: Call API to delete reminder & Persist changes (e.g., localStorage)
      console.log('Deleted Reminder ID:', reminderId);
   };
 
@@ -205,6 +229,7 @@ const RemindersPage: FC = () => {
                                     selected={field.value}
                                     onSelect={field.onChange}
                                     initialFocus
+                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))} // Disable past dates
                                   />
                                  <div className="p-3 border-t border-border">
                                    <Input
@@ -213,8 +238,16 @@ const RemindersPage: FC = () => {
                                         onChange={(e) => {
                                             const [hours, minutes] = e.target.value.split(':').map(Number);
                                             const newDate = field.value ? new Date(field.value) : new Date();
-                                            newDate.setHours(hours, minutes);
-                                            field.onChange(newDate);
+                                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                               newDate.setHours(hours, minutes, 0, 0); // Set seconds/ms to 0
+                                               // Ensure the selected time is not in the past today
+                                               const now = new Date();
+                                               if (newDate < now && format(newDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) {
+                                                   toast({ title: "Invalid Time", description: "Cannot set reminder time in the past.", variant: "destructive" });
+                                               } else {
+                                                   field.onChange(newDate);
+                                               }
+                                            }
                                         }}
                                     />
                                  </div>

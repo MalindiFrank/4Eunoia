@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { Edit, Plus, Trash2, GripVertical, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,25 +39,42 @@ const noteSchema = z.object({
 
 type NoteFormValues = z.infer<typeof noteSchema>;
 
+// Mock Data Generation
+const generateMockNotes = (): Note[] => {
+    const now = new Date();
+    return [
+        { id: 'note-mock-1', title: 'Meeting Notes - Project Phoenix', content: 'Discussed timeline adjustments. John to update Gantt chart. Need to clarify budget allocation for Q4.', createdAt: subDays(now, 1), updatedAt: subDays(now, 1) },
+        { id: 'note-mock-2', title: 'Brainstorming Ideas - New Feature', content: '- User profiles\n- Gamification elements\n- Integration with Slack', createdAt: subDays(now, 3), updatedAt: subDays(now, 2) },
+        { id: 'note-mock-3', title: 'Book Summary - Atomic Habits', content: 'Focus on small, consistent improvements. Habit stacking is key. Make it obvious, attractive, easy, satisfying.', createdAt: subDays(now, 7), updatedAt: subDays(now, 7) },
+        { id: 'note-mock-4', title: 'Recipe - Pasta Carbonara', content: 'Ingredients: Guanciale, eggs, Pecorino Romano, black pepper, pasta.\nSteps: Cook guanciale, whisk eggs and cheese, cook pasta, combine.', createdAt: subDays(now, 10), updatedAt: subDays(now, 10) },
+        { id: 'note-mock-5', title: 'Quick Thoughts', content: 'Need to remember to follow up with Sarah about the presentation slides.', createdAt: subDays(now, 0), updatedAt: subDays(now, 0) }, // Today
+    ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()); // Ensure sorted
+};
 
-// Function to load notes from localStorage
+
+// Function to load notes from localStorage or generate mock data
 const loadNotesFromLocalStorage = (): Note[] => {
    if (typeof window === 'undefined') return [];
    const storedNotes = localStorage.getItem(LOCAL_STORAGE_KEY);
    if (storedNotes) {
        try {
            // Parse and ensure dates are Date objects
-           return JSON.parse(storedNotes).map((note: any) => ({
+           const parsedNotes = JSON.parse(storedNotes).map((note: any) => ({
                ...note,
                createdAt: parseISO(note.createdAt), // Convert string back to Date
                updatedAt: parseISO(note.updatedAt), // Convert string back to Date
            }));
+            return parsedNotes.sort((a: Note, b: Note) => b.updatedAt.getTime() - a.updatedAt.getTime()); // Ensure sorted
        } catch (e) {
            console.error("Error parsing notes from localStorage:", e);
-           return [];
+            // Fallback to mock data if parsing fails
+           return generateMockNotes();
        }
    }
-   return [];
+   // If no stored notes, generate mock data
+   const mockNotes = generateMockNotes();
+   saveNotesToLocalStorage(mockNotes); // Save mock data initially
+   return mockNotes;
 };
 
 // Function to save notes to localStorage

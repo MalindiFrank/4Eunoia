@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays, startOfMonth } from 'date-fns';
 import { Calendar as CalendarIcon, Edit, Plus, Trash2, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 
@@ -45,23 +45,48 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 // Sample categories - consider making this dynamic or configurable
 const expenseCategories = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Housing', 'Shopping', 'Health', 'Other'];
 
-// Function to load expenses from localStorage
+// Mock Data Generation
+const generateMockExpenses = (): Expense[] => {
+    const today = new Date();
+    const monthStart = startOfMonth(today);
+    return [
+        { id: 'exp-mock-1', description: 'Groceries', amount: 75.50, date: subDays(today, 2), category: 'Food' },
+        { id: 'exp-mock-2', description: 'Coffee', amount: 4.75, date: subDays(today, 1), category: 'Food' },
+        { id: 'exp-mock-3', description: 'Gasoline', amount: 55.00, date: subDays(today, 3), category: 'Transport' },
+        { id: 'exp-mock-4', description: 'Movie Tickets', amount: 30.00, date: subDays(today, 5), category: 'Entertainment' },
+        { id: 'exp-mock-5', description: 'Electricity Bill', amount: 120.30, date: subDays(monthStart, 5), category: 'Utilities' }, // Previous month bill
+        { id: 'exp-mock-6', description: 'New Shirt', amount: 45.99, date: subDays(today, 7), category: 'Shopping' },
+        { id: 'exp-mock-7', description: 'Bus Fare', amount: 2.75, date: subDays(today, 1), category: 'Transport' },
+        { id: 'exp-mock-8', description: 'Lunch Out', amount: 18.20, date: subDays(today, 4), category: 'Food' },
+        { id: 'exp-mock-9', description: 'Pharmacy', amount: 22.50, date: subDays(today, 10), category: 'Health' },
+        { id: 'exp-mock-10', description: 'Streaming Subscription', amount: 15.99, date: monthStart, category: 'Entertainment' },
+        { id: 'exp-mock-11', description: 'Rent', amount: 1200.00, date: monthStart, category: 'Housing' },
+        { id: 'exp-mock-12', description: 'Hardware Store', amount: 35.10, date: subDays(today, 6), category: 'Other' },
+    ].sort((a, b) => b.date.getTime() - a.date.getTime()); // Ensure sorted
+};
+
+// Function to load expenses from localStorage or generate mock data
 const loadExpensesFromLocalStorage = (): Expense[] => {
    if (typeof window === 'undefined') return [];
    const storedExpenses = localStorage.getItem(LOCAL_STORAGE_KEY);
    if (storedExpenses) {
        try {
            // Parse and ensure dates are Date objects
-           return JSON.parse(storedExpenses).map((expense: any) => ({
+           const parsedExpenses = JSON.parse(storedExpenses).map((expense: any) => ({
                ...expense,
                date: parseISO(expense.date), // Convert string back to Date
            }));
+            return parsedExpenses.sort((a: Expense, b: Expense) => b.date.getTime() - a.date.getTime()); // Ensure sorted
        } catch (e) {
            console.error("Error parsing expenses from localStorage:", e);
-           return [];
+            // Fallback to mock data if parsing fails
+            return generateMockExpenses();
        }
    }
-   return [];
+   // If no stored expenses, generate mock data
+   const mockExpenses = generateMockExpenses();
+   saveExpensesToLocalStorage(mockExpenses); // Save mock data initially
+   return mockExpenses;
 };
 
 // Function to save expenses to localStorage
@@ -311,7 +336,7 @@ const ExpensesPage: FC = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
          <Card>
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                 <CardTitle className="text-sm font-medium">Total Expenses</CardTitle> {/* Simplified Title */}
+                 <CardTitle className="text-sm font-medium">Total Expenses (All Time)</CardTitle> {/* Clarified scope */}
                  <DollarSign className="h-4 w-4 text-muted-foreground" />
              </CardHeader>
              <CardContent>
@@ -320,7 +345,7 @@ const ExpensesPage: FC = () => {
                  {/* <p className="text-xs text-muted-foreground">+20.1% from last month</p> */}
              </CardContent>
          </Card>
-          {/* Add more summary cards if needed (e.g., Average Daily Spend) */}
+          {/* Add more summary cards if needed (e.g., Average Daily Spend for current month) */}
       </div>
 
 
@@ -328,7 +353,7 @@ const ExpensesPage: FC = () => {
        <Card className="mb-8 shadow-md">
          <CardHeader>
            <CardTitle>Expenses by Category</CardTitle>
-            <CardDescription>Visualize your spending distribution.</CardDescription>
+            <CardDescription>Visualize your spending distribution (All Time).</CardDescription>
          </CardHeader>
          <CardContent className="h-[300px] w-full">
             {expensesByCategory.length > 0 ? (
