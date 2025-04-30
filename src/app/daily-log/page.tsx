@@ -1,11 +1,11 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Calendar as CalendarIcon, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,9 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+
+// Local storage key
+const LOCAL_STORAGE_KEY = 'prodev-daily-logs';
 
 const logEntrySchema = z.object({
   date: z.date({
@@ -39,9 +42,49 @@ interface LogEntry {
   diaryEntry?: string;
 }
 
+// Function to load logs from localStorage
+const loadLogsFromLocalStorage = (): LogEntry[] => {
+  if (typeof window === 'undefined') return [];
+  const storedLogs = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (storedLogs) {
+    try {
+      // Parse and ensure dates are Date objects
+      return JSON.parse(storedLogs).map((log: any) => ({
+        ...log,
+        date: parseISO(log.date), // Convert string back to Date
+      }));
+    } catch (e) {
+      console.error("Error parsing logs from localStorage:", e);
+      return [];
+    }
+  }
+  return [];
+};
+
+// Function to save logs to localStorage
+const saveLogsToLocalStorage = (logs: LogEntry[]) => {
+   if (typeof window === 'undefined') return;
+  try {
+      // Store dates as ISO strings for JSON compatibility
+      const logsToStore = logs.map(log => ({
+          ...log,
+          date: log.date.toISOString(),
+      }));
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(logsToStore));
+  } catch (e) {
+      console.error("Error saving logs to localStorage:", e);
+  }
+};
+
+
 const DailyLogPage: FC = () => {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const { toast } = useToast();
+
+   // Load logs on initial render
+   useEffect(() => {
+       setLogEntries(loadLogsFromLocalStorage());
+   }, []);
 
   const form = useForm<LogEntryFormValues>({
     resolver: zodResolver(logEntrySchema),
@@ -58,13 +101,16 @@ const DailyLogPage: FC = () => {
       id: crypto.randomUUID(),
       ...data,
     };
-    setLogEntries((prevEntries) => [newEntry, ...prevEntries]);
+    // Prepend new entry and save
+     const updatedLogs = [newEntry, ...logEntries].sort((a, b) => b.date.getTime() - a.date.getTime()); // Keep sorted
+     setLogEntries(updatedLogs);
+     saveLogsToLocalStorage(updatedLogs);
+
     form.reset({ date: new Date(), activity: '', notes: '', diaryEntry: '' }); // Reset form after submission
     toast({
       title: "Log Entry Added",
       description: "Your daily log has been updated.",
     });
-    // Here you would typically send the data to your backend/API
     console.log('New Log Entry:', newEntry);
   };
 

@@ -12,6 +12,7 @@ import {
   Lightbulb,
   ListChecks,
   Menu,
+  PieChart,
   StickyNote,
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ const menuItems = [
   { href: '/expenses', label: 'Expenses', icon: CreditCard },
   { href: '/notes', label: 'Notes', icon: StickyNote },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
+  { href: '/visualizations', label: 'Visualizations', icon: PieChart }, // Added Visualization link
 ];
 
 export function AppSidebar() {

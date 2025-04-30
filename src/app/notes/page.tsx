@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Edit, Plus, Trash2, GripVertical, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils'; // Import cn utility function
+import { cn } from '@/lib/utils'; // Ensure cn is imported
+
+// Local storage key
+const LOCAL_STORAGE_KEY = 'prodev-notes';
 
 // Define the Note interface (if not already defined elsewhere)
 interface Note {
@@ -36,24 +39,47 @@ const noteSchema = z.object({
 
 type NoteFormValues = z.infer<typeof noteSchema>;
 
-// Mock function to get notes (replace with actual API call)
-async function getNotes(): Promise<Note[]> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  // Retrieve notes from localStorage or return empty array
-  const storedNotes = localStorage.getItem('prodev-notes');
-  return storedNotes ? JSON.parse(storedNotes) : [];
-}
 
-// Mock function to save notes (replace with actual API call)
-async function saveNotes(notes: Note[]): Promise<void> {
-  localStorage.setItem('prodev-notes', JSON.stringify(notes));
-}
+// Function to load notes from localStorage
+const loadNotesFromLocalStorage = (): Note[] => {
+   if (typeof window === 'undefined') return [];
+   const storedNotes = localStorage.getItem(LOCAL_STORAGE_KEY);
+   if (storedNotes) {
+       try {
+           // Parse and ensure dates are Date objects
+           return JSON.parse(storedNotes).map((note: any) => ({
+               ...note,
+               createdAt: parseISO(note.createdAt), // Convert string back to Date
+               updatedAt: parseISO(note.updatedAt), // Convert string back to Date
+           }));
+       } catch (e) {
+           console.error("Error parsing notes from localStorage:", e);
+           return [];
+       }
+   }
+   return [];
+};
+
+// Function to save notes to localStorage
+const saveNotesToLocalStorage = (notes: Note[]) => {
+    if (typeof window === 'undefined') return;
+   try {
+       // Store dates as ISO strings for JSON compatibility
+       const notesToStore = notes.map(note => ({
+           ...note,
+           createdAt: note.createdAt.toISOString(),
+           updatedAt: note.updatedAt.toISOString(),
+       }));
+       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(notesToStore));
+   } catch (e) {
+       console.error("Error saving notes to localStorage:", e);
+   }
+};
 
 
 const NotesPage: FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Not really loading from API anymore
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -66,27 +92,10 @@ const NotesPage: FC = () => {
     },
   });
 
-  useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        setIsLoading(true);
-        const fetchedNotes = await getNotes();
-        // Sort notes by updated date descending
-        fetchedNotes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        setNotes(fetchedNotes);
-      } catch (error) {
-        console.error("Failed to fetch notes:", error);
-        toast({
-          title: "Error",
-          description: "Could not load notes.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadNotes();
-  }, [toast]);
+  // Load notes on initial render
+   useEffect(() => {
+       setNotes(loadNotesFromLocalStorage());
+   }, []);
 
   const openNoteDialog = (note: Note | null = null) => {
     setEditingNote(note);
@@ -110,7 +119,7 @@ const NotesPage: FC = () => {
     form.reset();
   };
 
-  const onSubmit = async (data: NoteFormValues) => {
+  const onSubmit = (data: NoteFormValues) => {
     let updatedNotes;
     const now = new Date();
 
@@ -134,18 +143,18 @@ const NotesPage: FC = () => {
     }
 
     // Sort and save
-    updatedNotes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    updatedNotes.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     setNotes(updatedNotes);
-    await saveNotes(updatedNotes); // Persist changes
+    saveNotesToLocalStorage(updatedNotes); // Persist changes
 
     closeNoteDialog();
   };
 
-  const deleteNote = async (noteId: string) => {
+  const deleteNote = (noteId: string) => {
     const noteToDelete = notes.find(n => n.id === noteId);
     const remainingNotes = notes.filter((n) => n.id !== noteId);
     setNotes(remainingNotes);
-    await saveNotes(remainingNotes); // Persist changes
+    saveNotesToLocalStorage(remainingNotes); // Persist changes
     toast({ title: "Note Deleted", description: `Note "${noteToDelete?.title}" has been deleted.`, variant: "destructive" });
     console.log('Deleted Note ID:', noteId);
   };
@@ -229,7 +238,7 @@ const NotesPage: FC = () => {
                                 {note.title}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                                Updated: {format(new Date(note.updatedAt), 'PP p')}
+                                Updated: {format(note.updatedAt, 'PP p')} {/* Already Date object */}
                             </p>
                         </div>
                      </div>

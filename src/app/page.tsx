@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity, Calendar, CheckSquare, CreditCard, Lightbulb, ListChecks, StickyNote } from 'lucide-react';
+import { Activity, Calendar, CheckSquare, CreditCard, Lightbulb, ListChecks, PieChart, StickyNote } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"> {/* Adjusted grid columns */}
         <DashboardCard
           title="Daily Log"
           icon={Activity}
@@ -49,6 +49,12 @@ export default function Home() {
           description="Get AI-powered personal insights."
           href="/insights"
         />
+         <DashboardCard
+           title="Visualizations"
+           icon={PieChart}
+           description="See charts of your data."
+           href="/visualizations"
+         />
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Calendar as CalendarIcon, Edit, Plus, Trash2, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 
@@ -24,8 +24,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense } from '@/services/expense'; // Import Expense type
-import { getExpenses as fetchExpenses } from '@/services/expense'; // Import service function
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+// import { getExpenses as fetchExpenses } from '@/services/expense'; // Import service function - We'll use localStorage now
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+
+// Local storage key
+const LOCAL_STORAGE_KEY = 'prodev-expenses';
 
 
 const expenseSchema = z.object({
@@ -40,11 +43,46 @@ const expenseSchema = z.object({
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 // Sample categories - consider making this dynamic or configurable
-const expenseCategories = ['Food', 'Transportation', 'Entertainment', 'Utilities', 'Housing', 'Shopping', 'Health', 'Other'];
+const expenseCategories = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Housing', 'Shopping', 'Health', 'Other'];
+
+// Function to load expenses from localStorage
+const loadExpensesFromLocalStorage = (): Expense[] => {
+   if (typeof window === 'undefined') return [];
+   const storedExpenses = localStorage.getItem(LOCAL_STORAGE_KEY);
+   if (storedExpenses) {
+       try {
+           // Parse and ensure dates are Date objects
+           return JSON.parse(storedExpenses).map((expense: any) => ({
+               ...expense,
+               date: parseISO(expense.date), // Convert string back to Date
+           }));
+       } catch (e) {
+           console.error("Error parsing expenses from localStorage:", e);
+           return [];
+       }
+   }
+   return [];
+};
+
+// Function to save expenses to localStorage
+const saveExpensesToLocalStorage = (expenses: Expense[]) => {
+    if (typeof window === 'undefined') return;
+   try {
+       // Store dates as ISO strings for JSON compatibility
+       const expensesToStore = expenses.map(expense => ({
+           ...expense,
+           date: expense.date.toISOString(),
+       }));
+       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(expensesToStore));
+   } catch (e) {
+       console.error("Error saving expenses to localStorage:", e);
+   }
+};
+
 
 const ExpensesPage: FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Not really loading from API anymore
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -59,27 +97,10 @@ const ExpensesPage: FC = () => {
     },
   });
 
-   useEffect(() => {
-     const loadExpenses = async () => {
-       try {
-         setIsLoading(true);
-         const fetchedExpenses = await fetchExpenses();
-         // Sort expenses by date descending
-         fetchedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-         setExpenses(fetchedExpenses);
-       } catch (error) {
-         console.error("Failed to fetch expenses:", error);
-         toast({
-           title: "Error",
-           description: "Could not load expenses.",
-           variant: "destructive",
-         });
-       } finally {
-         setIsLoading(false);
-       }
-     };
-     loadExpenses();
-   }, [toast]);
+    // Load expenses on initial render
+    useEffect(() => {
+        setExpenses(loadExpensesFromLocalStorage());
+    }, []);
 
   const openDialog = (expense: Expense | null = null) => {
      setEditingExpense(expense);
@@ -87,7 +108,7 @@ const ExpensesPage: FC = () => {
        form.reset({
          description: expense.description,
          amount: expense.amount,
-         date: new Date(expense.date),
+         date: expense.date, // Already Date object from loading
          category: expense.category,
        });
      } else {
@@ -108,15 +129,13 @@ const ExpensesPage: FC = () => {
    };
 
   const onSubmit = (data: ExpenseFormValues) => {
+    let updatedExpenses: Expense[];
     if (editingExpense) {
       // Update existing expense
       const updatedExpense: Expense = { ...editingExpense, ...data };
-      setExpenses(
-         expenses.map((e) => (e.id === editingExpense.id ? updatedExpense : e))
-         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Re-sort
-         );
+       updatedExpenses = expenses.map((e) => (e.id === editingExpense.id ? updatedExpense : e));
       toast({ title: "Expense Updated", description: `Expense "${data.description}" has been updated.` });
-      // TODO: Call API to update expense
+      // TODO: Call API to update expense (if applicable)
        console.log('Updated Expense:', updatedExpense);
     } else {
       // Add new expense
@@ -124,22 +143,26 @@ const ExpensesPage: FC = () => {
         id: crypto.randomUUID(),
         ...data,
       };
-      setExpenses(
-        [...expenses, newExpense]
-         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Re-sort
-         );
+       updatedExpenses = [...expenses, newExpense];
        toast({ title: "Expense Added", description: `Expense "${data.description}" has been added.` });
-      // TODO: Call API to add expense
+      // TODO: Call API to add expense (if applicable)
        console.log('New Expense:', newExpense);
     }
+     // Sort, set state, and save
+      updatedExpenses.sort((a, b) => b.date.getTime() - a.date.getTime()); // Re-sort
+      setExpenses(updatedExpenses);
+      saveExpensesToLocalStorage(updatedExpenses);
+
      closeDialog();
   };
 
   const deleteExpense = (expenseId: string) => {
     const expenseToDelete = expenses.find(e => e.id === expenseId);
-    setExpenses(expenses.filter((e) => e.id !== expenseId));
+    const updatedExpenses = expenses.filter((e) => e.id !== expenseId);
+    setExpenses(updatedExpenses);
+    saveExpensesToLocalStorage(updatedExpenses); // Save changes
     toast({ title: "Expense Deleted", description: `Expense "${expenseToDelete?.description}" has been deleted.`, variant: "destructive" });
-    // TODO: Call API to delete expense
+    // TODO: Call API to delete expense (if applicable)
     console.log('Deleted Expense ID:', expenseId);
   };
 
@@ -158,12 +181,22 @@ const ExpensesPage: FC = () => {
      return { totalExpenses: total, expensesByCategory: chartData };
    }, [expenses]);
 
-    const chartConfig = {
-     amount: {
-       label: "Amount ($)",
-       color: "hsl(var(--primary))",
-     },
-   } satisfies ChartConfig; // Assuming ChartConfig type exists from ui/chart
+    const chartConfig = useMemo(() => {
+        const config: ChartConfig = {
+            amount: { label: "Amount ($)", color: "hsl(var(--primary))" },
+        };
+         // Dynamically add categories from data to the config for the pie chart tooltip/legend
+        expensesByCategory.forEach((item, index) => {
+            if (!config[item.category]) {
+                // Cycle through chart colors or use a generator
+                config[item.category] = {
+                    label: item.category,
+                    color: `hsl(var(--chart-${(index % 5) + 1}))` // Use chart-1 to chart-5
+                };
+            }
+        });
+        return config;
+     }, [expensesByCategory]);
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -248,7 +281,7 @@ const ExpensesPage: FC = () => {
                          render={({ field }) => (
                            <FormItem>
                              <FormLabel>Category</FormLabel>
-                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                             <Select onValueChange={field.onChange} value={field.value}> {/* Controlled */}
                                <FormControl>
                                  <SelectTrigger>
                                    <SelectValue placeholder="Select a category" />
@@ -278,11 +311,12 @@ const ExpensesPage: FC = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
          <Card>
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                 <CardTitle className="text-sm font-medium">Total Expenses (This Month)</CardTitle> {/* TODO: Make dynamic */}
+                 <CardTitle className="text-sm font-medium">Total Expenses</CardTitle> {/* Simplified Title */}
                  <DollarSign className="h-4 w-4 text-muted-foreground" />
              </CardHeader>
              <CardContent>
                  <div className="text-2xl font-bold">${totalExpenses.toFixed(2)}</div>
+                 {/* Optional: Add trend comparison if historical data is available */}
                  {/* <p className="text-xs text-muted-foreground">+20.1% from last month</p> */}
              </CardContent>
          </Card>
@@ -331,7 +365,7 @@ const ExpensesPage: FC = () => {
                    <TableHead>Description</TableHead>
                    <TableHead>Category</TableHead>
                    <TableHead className="text-right">Amount</TableHead>
-                   <TableHead className="w-[80px]">Actions</TableHead>
+                   <TableHead className="w-[80px] text-right">Actions</TableHead> {/* Align right */}
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -346,11 +380,11 @@ const ExpensesPage: FC = () => {
                  ) : (
                    expenses.map((expense) => (
                      <TableRow key={expense.id}>
-                       <TableCell>{format(new Date(expense.date), 'PP')}</TableCell>
+                       <TableCell>{format(expense.date, 'PP')}</TableCell> {/* Already Date */}
                        <TableCell className="font-medium">{expense.description}</TableCell>
                        <TableCell><span className="text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground">{expense.category}</span></TableCell>
                        <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
-                       <TableCell>
+                       <TableCell className="text-right"> {/* Align right */}
                          <div className="flex items-center justify-end gap-1">
                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(expense)}>
                                  <Edit className="h-4 w-4" />
