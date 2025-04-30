@@ -3,7 +3,7 @@
 import type { FC } from 'react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Bar, BarChart, Pie, PieChart, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, Line, LineChart } from 'recharts';
-import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval, addDays, subDays } from 'date-fns'; // Import addDays and subDays
 import { Loader2, BarChartBig, PieChart as PieIcon, CalendarDays, ListChecksIcon, StickyNote, Wallet } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,8 +53,8 @@ async function getCalendarEvents(rangeStart?: Date, rangeEnd?: Date): Promise<Ca
      console.warn("Calendar events not stored; returning mock data for visualization.");
      const today = new Date();
      const mockEvents = [
-        { title: 'Daily Standup', start: new Date(today.setHours(9, 0, 0, 0)), end: new Date(today.setHours(9, 15, 0, 0)) },
-        { title: 'Project Work', start: new Date(today.setHours(14, 0, 0, 0)), end: new Date(today.setHours(16, 0, 0, 0)) },
+        { title: 'Daily Standup', start: new Date(new Date(today).setHours(9, 0, 0, 0)), end: new Date(new Date(today).setHours(9, 15, 0, 0)) },
+        { title: 'Project Work', start: new Date(new Date(today).setHours(14, 0, 0, 0)), end: new Date(new Date(today).setHours(16, 0, 0, 0)) },
         { title: 'Client Meeting', start: new Date(addDays(today, 2).setHours(11, 0, 0, 0)), end: new Date(addDays(today, 2).setHours(12, 0, 0, 0)) },
         { title: 'Past Event', start: new Date(subDays(today, 3).setHours(10, 0, 0, 0)), end: new Date(subDays(today, 3).setHours(11, 0, 0, 0)) },
      ];
@@ -403,3 +403,5 @@ const VisualizationsPage: FC = () => {
 };
 
 export default VisualizationsPage;
+
+    
