@@ -56,8 +56,8 @@ async function getCalendarEvents(rangeStart?: Date, rangeEnd?: Date): Promise<Ca
      const mockEvents = [
         { title: 'Daily Standup', start: new Date(new Date(today).setHours(9, 0, 0, 0)), end: new Date(new Date(today).setHours(9, 15, 0, 0)) },
         { title: 'Project Work', start: new Date(new Date(today).setHours(14, 0, 0, 0)), end: new Date(new Date(today).setHours(16, 0, 0, 0)) },
-        { title: 'Client Meeting', start: new Date(addDays(today, 2).setHours(11, 0, 0, 0)), end: new Date(addDays(today, 2).setHours(12, 0, 0, 0)) },
-        { title: 'Past Event', start: new Date(subDays(today, 3).setHours(10, 0, 0, 0)), end: new Date(subDays(today, 3).setHours(11, 0, 0, 0)) },
+        { title: 'Client Meeting', start: new Date(addDays(today, 2).setHours(11, 0, 0, 0)), end: new Date(addDays(today, 2).setHours(12, 0, 0, 0)) }, // Use imported addDays
+        { title: 'Past Event', start: new Date(subDays(today, 3).setHours(10, 0, 0, 0)), end: new Date(subDays(today, 3).setHours(11, 0, 0, 0)) }, // Use imported subDays
      ];
      // Filter if range is provided
      if (rangeStart && rangeEnd) {

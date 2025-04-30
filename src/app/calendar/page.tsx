@@ -2,12 +2,13 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, addHours, subDays, addDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, addHours, subDays, addDays } from 'date-fns'; // Import addDays and subDays
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input'; // Import Input component
 import { useToast } from '@/hooks/use-toast';
 import type { CalendarEvent } from '@/services/calendar'; // Import CalendarEvent type
 import { getCalendarEvents as fetchEvents } from '@/services/calendar'; // Import service function
@@ -25,10 +26,10 @@ const generateMockEvents = (start: Date, end: Date): CalendarEvent[] => {
     // Add events relative to today if within the requested range
      if (isSameMonth(todayStart, start) || isSameMonth(addDays(todayStart,7), start)) { // Check if current or next week might overlap
         mockEvents.push(
-            { title: 'Daily Standup', start: new Date(today.setHours(9, 0, 0, 0)), end: new Date(today.setHours(9, 15, 0, 0)), description: 'Quick team sync' },
-            { title: 'Project Work Block', start: new Date(today.setHours(14, 0, 0, 0)), end: new Date(today.setHours(16, 0, 0, 0)), description: 'Focus time on project X' },
+            { title: 'Daily Standup', start: new Date(new Date(today).setHours(9, 0, 0, 0)), end: new Date(new Date(today).setHours(9, 15, 0, 0)), description: 'Quick team sync' },
+            { title: 'Project Work Block', start: new Date(new Date(today).setHours(14, 0, 0, 0)), end: new Date(new Date(today).setHours(16, 0, 0, 0)), description: 'Focus time on project X' },
             { title: 'Meeting with Client', start: new Date(addDays(today, 2).setHours(11, 0, 0, 0)), end: new Date(addDays(today, 2).setHours(12, 0, 0, 0)), description: 'Discuss project milestones' },
-            { title: 'Lunch', start: new Date(today.setHours(12, 30, 0, 0)), end: new Date(today.setHours(13, 15, 0, 0)) },
+            { title: 'Lunch', start: new Date(new Date(today).setHours(12, 30, 0, 0)), end: new Date(new Date(today).setHours(13, 15, 0, 0)) },
             { title: 'Review Session', start: new Date(subDays(today, 1).setHours(15, 0, 0, 0)), end: new Date(subDays(today, 1).setHours(16, 30, 0, 0)) }, // Yesterday
             { title: 'Planning Session', start: new Date(addDays(today, 3).setHours(9, 30, 0, 0)), end: new Date(addDays(today, 3).setHours(10, 30, 0, 0)) }, // In 3 days
         );
@@ -37,9 +38,9 @@ const generateMockEvents = (start: Date, end: Date): CalendarEvent[] => {
     // Add some generic events spread across the month for visual testing
     const monthStart = startOfMonth(start);
     mockEvents.push(
-        { title: 'Generic Event 1', start: new Date(monthStart.setDate(5)), end: addHours(new Date(monthStart.setDate(5)), 1) },
-        { title: 'Generic Event 2', start: new Date(monthStart.setDate(15)), end: addHours(new Date(monthStart.setDate(15)), 2) },
-        { title: 'Generic Event 3', start: new Date(monthStart.setDate(25)), end: addHours(new Date(monthStart.setDate(25)), 1) }
+        { title: 'Generic Event 1', start: new Date(new Date(monthStart).setDate(5)), end: addHours(new Date(new Date(monthStart).setDate(5)), 1) },
+        { title: 'Generic Event 2', start: new Date(new Date(monthStart).setDate(15)), end: addHours(new Date(new Date(monthStart).setDate(15)), 2) },
+        { title: 'Generic Event 3', start: new Date(new Date(monthStart).setDate(25)), end: addHours(new Date(new Date(monthStart).setDate(25)), 1) }
     );
 
 
@@ -206,12 +207,14 @@ const CalendarPage: FC = () => {
           <div
             key={day.toString()}
             className={cn(
-              "relative border rounded-md min-h-[100px] p-1.5 flex flex-col group", // Added flex-col and group
+              "relative border rounded-md min-h-[100px] p-1.5 flex flex-col group cursor-pointer", // Added flex-col, group, and cursor-pointer
               !isCurrentMonth && "bg-muted/50 text-muted-foreground",
               isToday && "bg-accent border-primary"
             )}
              onClick={() => openEventDialog(day)} // Open dialog on day click
-             style={{ cursor: 'pointer' }} // Add pointer cursor
+             role="button" // Add role for accessibility
+             tabIndex={0} // Make it focusable
+             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEventDialog(day); }} // Trigger on key press
           >
              <div className="flex justify-between items-center mb-1">
                  <span
