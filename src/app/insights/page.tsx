@@ -5,7 +5,7 @@ import React, { useState, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, formatISO } from 'date-fns'; // Import formatISO
+import { format, formatISO, parseISO } from 'date-fns'; // Import formatISO and parseISO
 import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -40,10 +40,13 @@ import {
   analyzeTaskCompletion,
   AnalyzeTaskCompletionInput,
   AnalyzeTaskCompletionOutput,
+  // Re-import the Zod schema to infer the correct output type including string dates
+  AnalyzeTaskCompletionOutputSchema
 } from '@/ai/flows/analyze-task-completion';
 
-// Task type for display (assuming TaskSchemaForOutput defined in analyze-task-completion)
-type DisplayTask = z.infer<AnalyzeTaskCompletionOutputSchema['shape']['overdueTasks']['element']>;
+// Infer the DisplayTask type directly from the updated output schema
+// which now correctly defines overdueTasks with dueDate as string().datetime().optional()
+type DisplayTask = z.infer<typeof AnalyzeTaskCompletionOutputSchema['shape']['overdueTasks']['element']>;
 
 
 const insightsRequestSchema = z.object({
@@ -471,7 +474,7 @@ const InsightsPage: FC = () => {
                                     <ul className="list-disc list-inside mt-2 space-y-1">
                                         {taskCompletion.overdueTasks.map((task: DisplayTask) => ( // Use DisplayTask type
                                             <li key={task.id} className="text-sm">
-                                                {task.title} {task.dueDate && `(Due: ${format(new Date(task.dueDate), 'PP')})`} {/* Format Date object */}
+                                                {task.title} {task.dueDate && `(Due: ${format(parseISO(task.dueDate), 'PP')})`} {/* Parse ISO string before formatting */}
                                             </li>
                                         ))}
                                     </ul>
@@ -492,7 +495,7 @@ const InsightsPage: FC = () => {
                    <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary</CardTitle>
                     <CardDescription>
                         {`Summary for ${form.getValues("frequency") === 'weekly' ? 'This Week' : 'This Month'} (${diarySummary.entryCount} ${diarySummary.entryCount === 1 ? 'entry' : 'entries'})`}
-                        {diarySummary.dateRange && ` from ${format(diarySummary.dateRange.start, 'PPP')} to ${format(diarySummary.dateRange.end, 'PPP')}`}
+                        {diarySummary.dateRange && ` from ${format(parseISO(diarySummary.dateRange.start as unknown as string), 'PPP')} to ${format(parseISO(diarySummary.dateRange.end as unknown as string), 'PPP')}`} {/* Parse dates before formatting */}
                     </CardDescription>
                </CardHeader>
                <CardContent className="space-y-4">

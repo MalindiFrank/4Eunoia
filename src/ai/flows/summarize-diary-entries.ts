@@ -44,10 +44,10 @@ const SummarizeDiaryEntriesOutputSchema = z.object({
   emotions: z.array(z.string()).describe('A list of emotions expressed in the diary entries.'),
   reflections: z.array(z.string()).describe('A list of personal reflections found in the diary entries.'),
    entryCount: z.number().describe('The number of diary entries summarized.'),
-   // Keep Date objects in the final JS output
+   // Use string dates in the final Zod output schema to match JSON validation
    dateRange: z.object({
-       start: z.date().describe('Start date of the summarized period.'),
-       end: z.date().describe('End date of the summarized period.'),
+       start: z.string().datetime().describe('Start date (ISO 8601 format) of the summarized period.'),
+       end: z.string().datetime().describe('End date (ISO 8601 format) of the summarized period.'),
    }).describe('The date range covered by the summary.'),
 });
 export type SummarizeDiaryEntriesOutput = z.infer<typeof SummarizeDiaryEntriesOutputSchema>;
@@ -175,7 +175,7 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
             emotions: [],
             reflections: [],
             entryCount: 0,
-            dateRange: { start: startDate, end: endDate },
+            dateRange: { start: formatISO(startDate), end: formatISO(endDate) }, // Format as ISO string
         };
     }
 
@@ -194,13 +194,13 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
 
     const {output} = await prompt(promptInput);
 
-    // Combine AI output with calculated data (use original Date objects for dateRange)
+    // Combine AI output with calculated data (use ISO strings for dateRange)
     return {
         summary: output?.summary || "Could not generate summary.",
         keyEvents: output?.keyEvents || [],
         emotions: output?.emotions || [],
         reflections: output?.reflections || [],
         entryCount: diaryEntries.length,
-        dateRange: { start: startDate, end: endDate },
+        dateRange: { start: formatISO(startDate), end: formatISO(endDate) }, // Format as ISO string
     };
 });

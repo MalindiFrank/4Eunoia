@@ -74,20 +74,21 @@ export type AnalyzeTaskCompletionInput = z.infer<
 >;
 
 // Define Task structure for the actual output of the flow
+// Use string for date in the output type as well for consistency with the schema change
 interface OutputTask {
     id: string;
     title: string;
     description?: string;
-    dueDate?: Date; // Keep as Date in the final JS output
+    dueDate?: string; // Use string for date in the final JS output
     status: 'Pending' | 'In Progress' | 'Completed';
 }
 
-// Zod schema for tasks included *in the output*. Use Date for dueDate.
+// Zod schema for tasks included *in the output*. Use string().datetime() for dueDate.
 const TaskSchemaForOutput = z.object({
     id: z.string(),
     title: z.string(),
     description: z.string().optional(),
-    dueDate: z.date().optional().describe("The task's due date, if available."),
+    dueDate: z.string().datetime().optional().describe("The task's due date (ISO 8601 format), if available."),
     status: z.enum(['Pending', 'In Progress', 'Completed']).describe("The task's current status."),
 });
 
@@ -176,16 +177,16 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         t.status !== 'Completed' && t.dueDate && t.dueDate <= today // Due date is in the past or today, and not completed
     );
 
-    // Format overdue tasks for the final output (using Date objects)
+    // Format overdue tasks for the final output (using ISO strings for dates)
      const overdueTasksForOutput: OutputTask[] = overdueTasksRaw.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description,
-        dueDate: t.dueDate, // Keep as Date object
+        dueDate: t.dueDate ? formatISO(t.dueDate) : undefined, // Format as ISO string
         status: t.status,
      }));
 
-     // Format overdue tasks for prompt context (using string dates)
+     // Format overdue tasks for prompt context (using string dates - already correct)
      const overdueTasksJsonForPrompt = JSON.stringify(
          overdueTasksRaw.map(t => ({
              title: t.title,
@@ -236,12 +237,12 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
      }
 
 
-    // Construct the final output object using Date objects for dates
+    // Construct the final output object using ISO strings for dates in overdueTasks
     return {
         totalTasksConsidered: totalConsidered,
         completedTasks: completedInPeriod,
         completionRate: completionRate,
-        overdueTasks: overdueTasksForOutput, // Use the array with Date objects
+        overdueTasks: overdueTasksForOutput, // Use the array with ISO strings
         completionSummary: summary,
     };
   }
