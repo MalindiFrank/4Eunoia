@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -362,4 +363,6 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  type ChartConfig, // Export ChartConfig type
 }
+        

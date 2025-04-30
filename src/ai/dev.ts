@@ -1,1 +1,2 @@
-// Flows will be imported for their side effects in this file.
+import '@/ai/flows/summarize-diary-entries.ts';
+import '@/ai/flows/analyze-productivity-patterns.ts';
