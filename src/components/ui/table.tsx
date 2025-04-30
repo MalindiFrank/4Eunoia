@@ -51,10 +51,11 @@ const TableFooter = React.forwardRef<
 ))
 TableFooter.displayName = "TableFooter"
 
+// Updated TableRow implementation to avoid potential whitespace issues
 const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <tr
     ref={ref}
     className={cn(
@@ -62,9 +63,10 @@ const TableRow = React.forwardRef<
       className
     )}
     {...props}
-  />
+  >{children}</tr> // Ensure children are directly inside the tag
 ))
 TableRow.displayName = "TableRow"
+
 
 const TableHead = React.forwardRef<
   HTMLTableCellElement,

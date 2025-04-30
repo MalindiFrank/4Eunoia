@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -404,4 +405,4 @@ const VisualizationsPage: FC = () => {
 
 export default VisualizationsPage;
 
-    
+

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -390,7 +391,7 @@ const ExpensesPage: FC = () => {
                    <TableHead>Description</TableHead>
                    <TableHead>Category</TableHead>
                    <TableHead className="text-right">Amount</TableHead>
-                   <TableHead className="w-[80px] text-right">Actions</TableHead> {/* Align right */}
+                   <TableHead className="w-[80px] text-right">Actions</TableHead>{/* Align right */}
                  </TableRow>
                </TableHeader>
                <TableBody>
@@ -405,11 +406,11 @@ const ExpensesPage: FC = () => {
                  ) : (
                    expenses.map((expense) => (
                      <TableRow key={expense.id}>
-                       <TableCell>{format(expense.date, 'PP')}</TableCell> {/* Already Date */}
+                       <TableCell>{format(expense.date, 'PP')}</TableCell>{/* Already Date */}
                        <TableCell className="font-medium">{expense.description}</TableCell>
                        <TableCell><span className="text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground">{expense.category}</span></TableCell>
                        <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
-                       <TableCell className="text-right"> {/* Align right */}
+                       <TableCell className="text-right">{/* Align right */}
                          <div className="flex items-center justify-end gap-1">
                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(expense)}>
                                  <Edit className="h-4 w-4" />
@@ -434,3 +435,4 @@ const ExpensesPage: FC = () => {
 };
 
 export default ExpensesPage;
+
