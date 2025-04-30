@@ -116,17 +116,24 @@ const CalendarPage: FC = () => {
   const startDate = startOfWeek(monthStart);
   const endDate = endOfWeek(monthEnd);
 
+  // Convert dates to primitive values (timestamps) for the dependency array
+  const startTimestamp = startDate.getTime();
+  const endTimestamp = endDate.getTime();
+
   useEffect(() => {
     const loadEvents = async () => {
+        // Recreate Date objects from timestamps inside the effect
+        const currentStartDate = new Date(startTimestamp);
+        const currentEndDate = new Date(endTimestamp);
       try {
         setIsLoading(true);
-        // Fetch events for a slightly wider range to cover edge cases if needed
-        let fetchedEvents = await fetchEvents(startDate, endDate);
+        // Fetch events using the Date objects derived from timestamps
+        let fetchedEvents = await fetchEvents(currentStartDate, currentEndDate);
 
          // If fetchEvents returns empty (or fails silently), use mock data
          if (!fetchedEvents || fetchedEvents.length === 0) {
-              console.log("No events fetched from service, using mock data for range:", format(startDate, 'PP'), 'to', format(endDate, 'PP'));
-              fetchedEvents = generateMockEvents(startDate, endDate);
+              console.log("No events fetched from service, using mock data for range:", format(currentStartDate, 'PP'), 'to', format(currentEndDate, 'PP'));
+              fetchedEvents = generateMockEvents(currentStartDate, currentEndDate);
               // Optional: Save mock data if you intend to persist it later
          }
 
@@ -139,15 +146,16 @@ const CalendarPage: FC = () => {
           variant: "destructive",
         });
          // Use mock data on error
-         setEvents(generateMockEvents(startDate, endDate));
+         setEvents(generateMockEvents(currentStartDate, currentEndDate));
       } finally {
         setIsLoading(false);
       }
     };
     loadEvents();
-  }, [currentMonth, toast, startDate, endDate]); // Re-fetch when month changes
+    // Use stable primitive values in the dependency array
+  }, [currentMonth, toast, startTimestamp, endTimestamp]); // Re-fetch when month or timestamps change
 
-  const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
+  const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate }); // Use original Date objects for rendering
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
