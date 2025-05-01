@@ -1,4 +1,4 @@
-// Copyright 2024 Google LLC
+{// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Existing Flows
 import '@/ai/flows/summarize-diary-entries.ts';
 import '@/ai/flows/analyze-productivity-patterns.ts';
-import '@/ai/flows/analyze-expense-trends.ts'; // Added
-import '@/ai/flows/analyze-task-completion.ts'; // Added
+import '@/ai/flows/analyze-expense-trends.ts';
+import '@/ai/flows/analyze-task-completion.ts';
+
+// New Flows
+import '@/ai/flows/analyze-sentiment-trends.ts';
+import '@/ai/flows/assess-life-balance.ts';
+import '@/ai/flows/estimate-burnout-risk.ts';
+// Placeholder for Daily Feed flow (implement later)
+// import '@/ai/flows/generate-daily-feed.ts';

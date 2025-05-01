@@ -13,7 +13,10 @@ import {
   ListChecks,
   Menu,
   PieChart,
+  Settings,
+  Smile, // For Wellness
   StickyNote,
+  Target, // For Goals/Habits
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -32,12 +35,15 @@ const menuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/daily-log', label: 'Daily Log', icon: BookText },
   { href: '/tasks', label: 'Tasks', icon: ListChecks },
-  { href: '/reminders', label: 'Reminders', icon: StickyNote },
+  { href: '/reminders', label: 'Reminders', icon: StickyNote }, // Kept StickyNote for consistency
   { href: '/calendar', label: 'Calendar', icon: Calendar },
   { href: '/expenses', label: 'Expenses', icon: CreditCard },
   { href: '/notes', label: 'Notes', icon: StickyNote },
+  { href: '/goals-habits', label: 'Goals & Habits', icon: Target }, // New
+  { href: '/wellness', label: 'Wellness', icon: Smile }, // New
   { href: '/insights', label: 'Insights', icon: Lightbulb },
-  { href: '/visualizations', label: 'Visualizations', icon: PieChart }, // Added Visualization link
+  { href: '/visualizations', label: 'Visualizations', icon: PieChart },
+  { href: '/settings', label: 'Settings', icon: Settings }, // New
 ];
 
 export function AppSidebar() {
