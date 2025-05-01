@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress'; // Import Progress component
+import { Input } from '@/components/ui/input'; // Import Input component
 
 // Placeholder types - Replace with actual data structures later
 interface MoodLog {
