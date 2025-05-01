@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata } from 'next/metadata';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ProDev LifeTracker',
+  title: '4Eunoia - Your Personal OS',
   description: 'Track your productivity and personal development.',
 };
 
@@ -48,3 +48,4 @@ export default function RootLayout({
     </html>
   );
 }
+

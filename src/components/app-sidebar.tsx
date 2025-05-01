@@ -30,6 +30,16 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -54,7 +64,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center justify-between">
            <h1 className="text-lg font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-             ProDev
+             4Eunoia
            </h1>
            <SidebarTrigger className="md:hidden" />
         </div>
@@ -84,3 +94,4 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+
