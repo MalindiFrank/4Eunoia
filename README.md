@@ -1,9 +1,9 @@
 
-# ProDev LifeTracker - Personal Productivity & Wellness OS
+# 4Eunoia - Personal Productivity & Wellness OS
 
-ProDev LifeTracker is a comprehensive Next.js application designed to be your personal operating system for productivity, self-reflection, and overall well-being. It integrates various tracking tools with AI-powered insights to help you understand your patterns, optimize your routines, and achieve your goals.
+4Eunoia is a comprehensive Next.js application designed to be your personal operating system for productivity, self-reflection, and overall well-being. It integrates various tracking tools with AI-powered insights to help you understand your patterns, optimize your routines, and achieve your goals.
 
-![ProDev LifeTracker Dashboard (Conceptual)](https://picsum.photos/800/400?random=1&data-ai-hint=dashboard%20productivity)
+![4Eunoia Dashboard (Conceptual)](https://picsum.photos/800/400?random=1&data-ai-hint=dashboard%20productivity)
 *(Image is conceptual and may not represent the final UI)*
 
 ## ✨ Key Features
@@ -34,15 +34,15 @@ This application aims to provide a holistic view of your life and empower you wi
 *   **Diary Summarization:** Provides weekly or monthly summaries highlighting key events, emotions, and reflections.
 *   **Life Balance Assessment:** Scores focus across different life areas (Work, Health, Social, etc.) based on logged activities.
 *   **Burnout Risk Estimation:** Estimates potential burnout risk based on recent mood, activity, and task load.
-*   **(Conceptual) Daily Personal Assistant Feed:** A planned feature to provide a daily summary, mood forecast, suggestions, and motivation on the dashboard.
-*   **(Conceptual) AI Reflection Coach:** A planned feature for guided weekly reflections.
+*   **Daily Personal Assistant Feed:** Provides a daily summary, mood forecast, suggestions, and motivation on the dashboard.
+*   **AI Reflection Coach:** Guided weekly reflections.
 
-**Advanced & State-Aware Features (Partially Implemented/Conceptual):**
+**Advanced & State-Aware Features:**
 
-*   **Adaptive Goal/Habit Suggestions:** (Conceptual) Future AI feature to adjust goals based on progress and selected growth pace (Slow, Moderate, Aggressive).
-*   **Context-Aware Suggestions:** (Conceptual) Future AI feature to provide suggestions based on mood, weather, location etc.
-*   **Neurodivergent Mode:** (Basic Implementation) Settings available to enable features like task chunking suggestions and low-stimulation UI (functionality requires further development).
-*   **Visualizations:** Dedicated page displaying charts for task status, expenses by category, and weekly activity frequency.
+*   **Context-Aware Smart Suggestions:** Recommend routines, focus sessions, breaks, or self-care based on time, past behavior, location, and current mood. Example: If the user logs low mood + unproductive day + rainy weather → suggest a mindfulness audio session or journaling prompt.
+*   **Adaptive Goal & Habit Engine:** Use ML to adapt and suggest micro-goals or habit changes based on success/failure patterns. Allow toggling between aggressive, moderate, or slow-paced personal growth modes.
+*   **Emotionally-Informed Planning:** Use mood and behavior logs to help plan more realistic days. Example: If Monday mornings are always low energy, start slow and put easy tasks first.
+*   **Neurodivergent Mode:** Settings available to enable features like task chunking suggestions and low-stimulation UI.
 
 ## 🛠️ Tech Stack
 
