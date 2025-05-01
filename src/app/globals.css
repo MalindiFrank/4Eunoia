@@ -8,73 +8,85 @@ body {
 
 @layer base {
   :root {
-    --background: 210 20% 98%; /* Light Grayish Blue */
-    --foreground: 210 40% 9%; /* Dark Blue */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 210 40% 9%; /* Dark Blue */
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 210 40% 9%; /* Dark Blue */
-    --primary: 180 100% 25%; /* Teal (#008080) */
-    --primary-foreground: 180 100% 95%; /* Very Light Teal */
-    --secondary: 210 60% 95%; /* Soft Blue */
-    --secondary-foreground: 210 40% 20%; /* Darker Soft Blue */
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 210 30% 50%;
-    --accent: 210 50% 90%; /* Lighter Soft Blue */
-    --accent-foreground: 210 40% 15%; /* Darkest Soft Blue */
-    --destructive: 0 84.2% 60.2%;
+    /* Brown Theme - Light Mode */
+    --background: 40 30% 96%; /* Very Light Warm Gray/Beige */
+    --foreground: 40 60% 15%; /* Dark Rich Brown */
+    --card: 40 20% 100%; /* Off-White */
+    --card-foreground: 40 60% 15%; /* Dark Rich Brown */
+    --popover: 40 20% 100%; /* Off-White */
+    --popover-foreground: 40 60% 15%; /* Dark Rich Brown */
+    --primary: 30 70% 45%; /* Medium Warm Brown (Saddle Brown) */
+    --primary-foreground: 30 50% 96%; /* Very Light Brown/Cream */
+    --secondary: 35 40% 90%; /* Light Tan/Beige */
+    --secondary-foreground: 35 50% 25%; /* Medium-Dark Brown */
+    --muted: 40 25% 94%; /* Lighter Beige/Gray */
+    --muted-foreground: 40 30% 50%; /* Medium Grayish Brown */
+    --accent: 35 50% 85%; /* Soft Warm Beige */
+    --accent-foreground: 30 60% 20%; /* Darker Warm Brown */
+    --destructive: 0 84.2% 60.2%; /* Keep Red for Destructive */
     --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 90%;
-    --input: 210 20% 90%;
-    --ring: 180 100% 35%; /* Slightly lighter Teal */
-    --chart-1: 180 76% 61%;
-    --chart-2: 210 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --border: 40 20% 88%; /* Light Grayish Brown Border */
+    --input: 40 20% 88%; /* Light Grayish Brown Input Border */
+    --ring: 30 70% 55%; /* Slightly Lighter Warm Brown for Focus Ring */
+
+    /* Earthy Chart Colors */
+    --chart-1: 120 40% 45%; /* Muted Green */
+    --chart-2: 30 60% 55%; /* Warm Orange/Brown */
+    --chart-3: 200 30% 50%; /* Muted Blue/Gray */
+    --chart-4: 45 50% 60%; /* Soft Gold/Yellow */
+    --chart-5: 10 40% 50%; /* Terracotta/Reddish Brown */
+
     --radius: 0.5rem;
-    --sidebar-background: 210 20% 96%; /* Slightly darker than background */
-    --sidebar-foreground: 210 40% 9%; /* Dark Blue */
-    --sidebar-primary: 180 100% 25%; /* Teal */
-    --sidebar-primary-foreground: 180 100% 95%; /* Very Light Teal */
-    --sidebar-accent: 210 50% 90%; /* Lighter Soft Blue */
-    --sidebar-accent-foreground: 180 100% 20%; /* Darker Teal for contrast */
-    --sidebar-border: 210 20% 88%;
-    --sidebar-ring: 180 100% 35%; /* Teal */
+
+    /* Sidebar - Light Mode */
+    --sidebar-background: 40 25% 94%; /* Slightly darker than main background */
+    --sidebar-foreground: 40 60% 15%; /* Dark Rich Brown */
+    --sidebar-primary: 30 70% 45%; /* Medium Warm Brown */
+    --sidebar-primary-foreground: 30 50% 96%; /* Very Light Brown/Cream */
+    --sidebar-accent: 35 50% 85%; /* Soft Warm Beige */
+    --sidebar-accent-foreground: 30 70% 35%; /* Darker Primary Brown */
+    --sidebar-border: 40 20% 85%; /* Slightly darker border */
+    --sidebar-ring: 30 70% 55%; /* Slightly Lighter Warm Brown */
   }
+
   .dark {
-    --background: 210 20% 5%; /* Dark Blue/Gray */
-    --foreground: 210 20% 95%; /* Light Grayish Blue */
-    --card: 210 20% 10%; /* Slightly Lighter Dark Blue/Gray */
-    --card-foreground: 210 20% 95%; /* Light Grayish Blue */
-    --popover: 210 20% 5%; /* Dark Blue/Gray */
-    --popover-foreground: 210 20% 95%; /* Light Grayish Blue */
-    --primary: 180 100% 35%; /* Lighter Teal */
-    --primary-foreground: 180 100% 5%; /* Dark Teal */
-    --secondary: 210 30% 20%; /* Dark Soft Blue */
-    --secondary-foreground: 210 20% 95%; /* Light Grayish Blue */
-    --muted: 210 20% 15%;
-    --muted-foreground: 210 20% 65%;
-    --accent: 210 30% 25%; /* Darker Soft Blue */
-    --accent-foreground: 210 20% 95%; /* Light Grayish Blue */
-    --destructive: 0 62.8% 30.6%;
+    /* Brown Theme - Dark Mode */
+    --background: 35 20% 8%; /* Very Dark Brown */
+    --foreground: 35 15% 85%; /* Light Beige/Gray */
+    --card: 35 20% 12%; /* Slightly Lighter Dark Brown */
+    --card-foreground: 35 15% 85%; /* Light Beige/Gray */
+    --popover: 35 20% 5%; /* Darkest Brown */
+    --popover-foreground: 35 15% 85%; /* Light Beige/Gray */
+    --primary: 30 65% 60%; /* Lighter Warm Brown */
+    --primary-foreground: 30 80% 15%; /* Darkest Warm Brown */
+    --secondary: 35 25% 20%; /* Dark Desaturated Brown */
+    --secondary-foreground: 35 15% 85%; /* Light Beige/Gray */
+    --muted: 35 20% 15%; /* Darker Grayish Brown */
+    --muted-foreground: 35 15% 65%; /* Medium Grayish Beige */
+    --accent: 35 30% 25%; /* Medium Dark Brown */
+    --accent-foreground: 35 15% 95%; /* Lighter Beige/Gray */
+    --destructive: 0 62.8% 45%; /* Darker Red for Destructive */
     --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 20%;
-    --input: 210 20% 20%;
-    --ring: 180 100% 45%; /* Brighter Teal */
-    --chart-1: 180 70% 50%;
-    --chart-2: 210 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 210 20% 10%; /* Slightly Lighter Dark Blue/Gray */
-    --sidebar-foreground: 210 20% 95%; /* Light Grayish Blue */
-    --sidebar-primary: 180 100% 35%; /* Lighter Teal */
-    --sidebar-primary-foreground: 180 100% 5%; /* Dark Teal */
-    --sidebar-accent: 210 30% 25%; /* Darker Soft Blue */
-    --sidebar-accent-foreground: 180 100% 75%; /* Lighter Teal for Accent FG */
-    --sidebar-border: 210 20% 20%;
-    --sidebar-ring: 180 100% 45%; /* Brighter Teal */
+    --border: 35 20% 25%; /* Medium Dark Brown Border */
+    --input: 35 20% 25%; /* Medium Dark Brown Input Border */
+    --ring: 30 65% 70%; /* Brighter Warm Brown for Focus Ring */
+
+    /* Earthy Chart Colors - Dark Mode */
+    --chart-1: 120 35% 55%; /* Slightly Lighter Muted Green */
+    --chart-2: 30 55% 65%; /* Lighter Warm Orange/Brown */
+    --chart-3: 200 35% 60%; /* Lighter Muted Blue/Gray */
+    --chart-4: 45 55% 70%; /* Lighter Soft Gold/Yellow */
+    --chart-5: 10 45% 60%; /* Lighter Terracotta/Reddish Brown */
+
+    /* Sidebar - Dark Mode */
+    --sidebar-background: 35 20% 12%; /* Slightly Lighter Dark Brown */
+    --sidebar-foreground: 35 15% 85%; /* Light Beige/Gray */
+    --sidebar-primary: 30 65% 60%; /* Lighter Warm Brown */
+    --sidebar-primary-foreground: 30 80% 15%; /* Darkest Warm Brown */
+    --sidebar-accent: 35 30% 25%; /* Medium Dark Brown */
+    --sidebar-accent-foreground: 30 70% 75%; /* Brighter Warm Brown */
+    --sidebar-border: 35 20% 25%; /* Medium Dark Brown Border */
+    --sidebar-ring: 30 65% 70%; /* Brighter Warm Brown */
   }
 }
 
