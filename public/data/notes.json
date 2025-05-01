@@ -1,0 +1,51 @@
+[
+  {
+    "id": "note-mock-1",
+    "title": "Meeting Notes - Project Phoenix",
+    "content": "Discussed timeline adjustments. John to update Gantt chart. Need to clarify budget allocation for Q4.",
+    "createdAt": "2025-04-29T10:30:00.000Z",
+    "updatedAt": "2025-04-29T11:00:00.000Z"
+  },
+  {
+    "id": "note-mock-2",
+    "title": "Brainstorming Ideas - New Feature",
+    "content": "- User profiles\n- Gamification elements\n- Integration with Slack",
+    "createdAt": "2025-04-27T15:00:00.000Z",
+    "updatedAt": "2025-04-28T09:15:00.000Z"
+  },
+  {
+    "id": "note-mock-3",
+    "title": "Book Summary - Atomic Habits",
+    "content": "Focus on small, consistent improvements. Habit stacking is key. Make it obvious, attractive, easy, satisfying.",
+    "createdAt": "2025-04-23T14:00:00.000Z",
+    "updatedAt": "2025-04-23T14:00:00.000Z"
+  },
+  {
+    "id": "note-mock-4",
+    "title": "Recipe - Pasta Carbonara",
+    "content": "Ingredients: Guanciale, eggs, Pecorino Romano, black pepper, pasta.\nSteps: Cook guanciale, whisk eggs and cheese, cook pasta, combine.",
+    "createdAt": "2025-04-20T19:00:00.000Z",
+    "updatedAt": "2025-04-20T19:00:00.000Z"
+  },
+  {
+    "id": "note-mock-5",
+    "title": "Quick Thoughts",
+    "content": "Need to remember to follow up with Sarah about the presentation slides.",
+    "createdAt": "2025-04-30T08:45:00.000Z",
+    "updatedAt": "2025-04-30T08:45:00.000Z"
+  },
+  {
+    "id": "note-mock-s1",
+    "title": "Meeting Feedback",
+    "content": "Received positive feedback on the presentation. Very encouraging.",
+    "createdAt": "2025-04-28T00:00:00.000Z",
+    "updatedAt": "2025-04-28T00:00:00.000Z"
+  },
+  {
+    "id": "note-mock-s2",
+    "title": "Project Concerns",
+    "content": "Worried about the upcoming deadline. Need to manage time better.",
+    "createdAt": "2025-04-26T00:00:00.000Z",
+    "updatedAt": "2025-04-26T00:00:00.000Z"
+  }
+]

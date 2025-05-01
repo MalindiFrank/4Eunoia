@@ -1,0 +1,70 @@
+[
+  {
+    "id": "habit-mock-1",
+    "title": "Meditate Daily",
+    "description": "Practice mindfulness for 10 minutes each morning.",
+    "frequency": "Daily",
+    "streak": 15,
+    "lastCompleted": "2025-04-29T08:00:00.000Z",
+    "createdAt": "2025-04-01T07:00:00.000Z",
+    "updatedAt": "2025-04-29T08:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-2",
+    "title": "Weekly Review",
+    "description": "Review the past week and plan the next one every Sunday.",
+    "frequency": "Weekly",
+    "streak": 4,
+    "lastCompleted": "2025-04-28T18:00:00.000Z",
+    "createdAt": "2025-04-01T10:00:00.000Z",
+    "updatedAt": "2025-04-28T18:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-3",
+    "title": "Drink 8 Glasses of Water",
+    "description": "Stay hydrated throughout the day.",
+    "frequency": "Daily",
+    "streak": 3,
+    "lastCompleted": "2025-04-28T20:00:00.000Z",
+    "createdAt": "2025-04-10T09:00:00.000Z",
+    "updatedAt": "2025-04-28T20:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-4",
+    "title": "Exercise 3 Times a Week",
+    "description": "Go to the gym or do a home workout.",
+    "frequency": "Specific Days",
+    "specificDays": [1, 3, 5],
+    "streak": 6,
+    "lastCompleted": "2025-04-26T17:00:00.000Z",
+    "createdAt": "2025-03-01T16:00:00.000Z",
+    "updatedAt": "2025-04-26T17:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-5",
+    "title": "Monthly Budget Check",
+    "description": "Review monthly spending against budget.",
+    "frequency": "Monthly",
+    "streak": 2,
+    "lastCompleted": "2025-03-31T19:00:00.000Z",
+    "createdAt": "2025-02-01T11:00:00.000Z",
+    "updatedAt": "2025-03-31T19:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-lb3",
+    "title": "Gym workout plan",
+    "frequency": "Weekly",
+    "streak": 1,
+    "lastCompleted": "2025-04-27T00:00:00.000Z",
+    "createdAt": "2025-04-27T00:00:00.000Z",
+    "updatedAt": "2025-04-27T00:00:00.000Z"
+  },
+  {
+    "id": "habit-mock-lb4",
+    "title": "Call family",
+    "frequency": "Weekly",
+    "streak": 0,
+    "createdAt": "2025-04-26T00:00:00.000Z",
+    "updatedAt": "2025-04-26T00:00:00.000Z"
+  }
+]

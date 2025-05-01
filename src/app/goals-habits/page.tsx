@@ -13,49 +13,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Import Label component
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
+// import { Progress } from '@/components/ui/progress'; // Progress removed for now
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+import { getGoals, addUserGoal, updateUserGoal, deleteUserGoal, type Goal, type GoalStatus } from '@/services/goal'; // Import Goal services
+import { getHabits, addUserHabit, updateUserHabit, deleteUserHabit, markUserHabitComplete, type Habit, type HabitFrequency } from '@/services/habit'; // Import Habit services
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
 // --- Types and Schemas ---
 
-type GoalStatus = 'Not Started' | 'In Progress' | 'Achieved' | 'On Hold';
-type HabitFrequency = 'Daily' | 'Weekly' | 'Monthly' | 'Specific Days'; // Added Specific Days
+// GoalStatus and HabitFrequency types are now imported from services
 type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
-
-interface Goal {
-  id: string;
-  title: string;
-  description?: string;
-  status: GoalStatus;
-  targetDate?: Date; // Optional target completion date
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface Habit {
-  id: string;
-  title: string;
-  description?: string;
-  frequency: HabitFrequency;
-  specificDays?: number[]; // 0=Sun, 1=Mon, ... 6=Sat (only used if frequency is 'Specific Days')
-  streak: number; // Current consecutive days/weeks/months achieved
-  lastCompleted?: Date; // Last time the habit was marked complete
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 const goalSchema = z.object({
   title: z.string().min(1, 'Goal title cannot be empty.'),
   description: z.string().optional(),
   status: z.enum(['Not Started', 'In Progress', 'Achieved', 'On Hold']).default('Not Started'),
-  // targetDate: z.date().optional(), // Date picker needed for this
+  // targetDate: z.date().optional(), // TODO: Add Date Picker input later
 });
 
 const habitSchema = z.object({
@@ -69,59 +50,8 @@ type GoalFormValues = z.infer<typeof goalSchema>;
 type HabitFormValues = z.infer<typeof habitSchema>;
 
 // --- Local Storage ---
-
-const GOALS_STORAGE_KEY = 'prodev-goals';
-const HABITS_STORAGE_KEY = 'prodev-habits';
+// Keys are now exported from service files
 const SETTINGS_STORAGE_KEY = 'prodev-growth-settings';
-
-// Helper functions (reuse patterns from other pages)
-const loadFromLocalStorage = <T,>(key: string, dateFields: (keyof T)[] = []): T[] => {
-    if (typeof window === 'undefined') return [];
-    const storedData = localStorage.getItem(key);
-    if (storedData) {
-        try {
-            const parsedData = JSON.parse(storedData).map((item: any) => {
-                const newItem = { ...item };
-                dateFields.forEach(field => {
-                    if (newItem[field]) {
-                        newItem[field] = parseISO(newItem[field]);
-                    }
-                });
-                return newItem;
-            });
-            // Sort goals/habits by update time or creation time
-             if (parsedData.length > 0 && ('updatedAt' in parsedData[0] || 'createdAt' in parsedData[0])) {
-                return parsedData.sort((a: any, b: any) =>
-                    (b.updatedAt || b.createdAt).getTime() - (a.updatedAt || a.createdAt).getTime()
-                );
-            }
-            return parsedData;
-        } catch (e) {
-            console.error(`Error parsing ${key} from localStorage:`, e);
-            return [];
-        }
-    }
-    return [];
-};
-
-const saveToLocalStorage = <T,>(key: string, data: T[], dateFields: (keyof T)[] = []) => {
-    if (typeof window === 'undefined') return;
-    try {
-        const dataToStore = data.map(item => {
-             const newItem = { ...item };
-             dateFields.forEach(field => {
-                 const dateValue = newItem[field] as Date | undefined;
-                 if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
-                    (newItem as any)[field] = dateValue.toISOString();
-                 }
-             });
-             return newItem;
-         });
-        localStorage.setItem(key, JSON.stringify(dataToStore));
-    } catch (e) {
-        console.error(`Error saving ${key} to localStorage:`, e);
-    }
-};
 
 // --- Component ---
 
@@ -133,40 +63,69 @@ const GoalsHabitsPage: FC = () => {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
   const [isHabitDialogOpen, setIsHabitDialogOpen] = useState(false);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [isLoadingHabits, setIsLoadingHabits] = useState(true);
   const { toast } = useToast();
+  const { dataMode } = useDataMode(); // Use data mode context
 
-  const goalForm = useForm<GoalFormValues>({
-    resolver: zodResolver(goalSchema),
-    defaultValues: { title: '', description: '', status: 'Not Started' },
-  });
-
-  const habitForm = useForm<HabitFormValues>({
-    resolver: zodResolver(habitSchema),
-    defaultValues: { title: '', description: '', frequency: 'Daily' },
-  });
-
-  // Load data and settings on mount
+  // Load data and settings on mount or when dataMode changes
   useEffect(() => {
-    setGoals(loadFromLocalStorage<Goal>(GOALS_STORAGE_KEY, ['targetDate', 'createdAt', 'updatedAt']));
-    setHabits(loadFromLocalStorage<Habit>(HABITS_STORAGE_KEY, ['lastCompleted', 'createdAt', 'updatedAt']));
+    const loadData = async () => {
+      setIsLoadingGoals(true);
+      setIsLoadingHabits(true);
+      try {
+        const [loadedGoals, loadedHabits] = await Promise.all([
+          getGoals(dataMode),
+          getHabits(dataMode),
+        ]);
+        setGoals(loadedGoals);
+        setHabits(loadedHabits);
+      } catch (error) {
+         console.error("Error loading goals/habits:", error);
+         toast({ title: "Error", description: "Could not load goals or habits.", variant: "destructive" });
+         setGoals([]);
+         setHabits([]);
+      } finally {
+         setIsLoadingGoals(false);
+         setIsLoadingHabits(false);
+      }
+    };
+
+    loadData();
+
     const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (storedSettings) {
         try {
-            const { pace } = JSON.parse(storedSettings);
-            if (['Slow', 'Moderate', 'Aggressive'].includes(pace)) {
-                setGrowthPace(pace);
+            // Settings are stored as [{pace: 'Moderate'}], access the first element
+            const settingsArray = JSON.parse(storedSettings);
+             if (Array.isArray(settingsArray) && settingsArray.length > 0) {
+                const { pace } = settingsArray[0];
+                if (['Slow', 'Moderate', 'Aggressive'].includes(pace)) {
+                    setGrowthPace(pace);
+                }
             }
         } catch (e) { console.error("Error parsing settings:", e); }
     }
-  }, []);
+  }, [dataMode, toast]);
 
    // Save settings when growthPace changes
    useEffect(() => {
         if (typeof window !== 'undefined') {
-           saveToLocalStorage(SETTINGS_STORAGE_KEY, [{ pace: growthPace }]); // Store as an object in an array for consistency
+           // Save as an array containing the settings object
+           localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify([{ pace: growthPace }]));
         }
    }, [growthPace]);
 
+
+    const goalForm = useForm<GoalFormValues>({
+        resolver: zodResolver(goalSchema),
+        defaultValues: { title: '', description: '', status: 'Not Started' },
+    });
+
+    const habitForm = useForm<HabitFormValues>({
+        resolver: zodResolver(habitSchema),
+        defaultValues: { title: '', description: '', frequency: 'Daily' },
+    });
 
   // --- Goal Handlers ---
   const openGoalDialog = (goal: Goal | null = null) => {
@@ -183,32 +142,56 @@ const GoalsHabitsPage: FC = () => {
   const closeGoalDialog = () => {
     setIsGoalDialogOpen(false);
     setEditingGoal(null);
+    goalForm.reset(); // Reset form on close
   };
 
   const onGoalSubmit = (data: GoalFormValues) => {
-    let updatedGoals;
-    const now = new Date();
-    if (editingGoal) {
-        const updatedGoal: Goal = { ...editingGoal, ...data, updatedAt: now };
-        updatedGoals = goals.map(g => g.id === editingGoal.id ? updatedGoal : g);
-        toast({ title: "Goal Updated", description: `Goal "${data.title}" updated.` });
-    } else {
-        const newGoal: Goal = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now };
-        updatedGoals = [newGoal, ...goals];
-        toast({ title: "Goal Added", description: `Goal "${data.title}" created.` });
+      if (dataMode === 'mock') {
+          toast({ title: "Read-only Mode", description: "Cannot add or edit goals in mock data mode.", variant: "destructive"});
+          closeGoalDialog();
+          return;
+      }
+    try {
+        let savedGoal: Goal | undefined;
+        if (editingGoal) {
+            savedGoal = updateUserGoal({ ...data, id: editingGoal.id });
+            if (savedGoal) {
+                setGoals(prev => prev.map(g => g.id === savedGoal!.id ? savedGoal! : g).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                toast({ title: "Goal Updated", description: `Goal "${data.title}" updated.` });
+            } else {
+                 throw new Error("Failed to find goal to update.");
+            }
+        } else {
+            savedGoal = addUserGoal(data);
+            setGoals(prev => [savedGoal, ...prev].sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+            toast({ title: "Goal Added", description: `Goal "${data.title}" created.` });
+        }
+    } catch (error) {
+         console.error("Error saving goal:", error);
+         toast({ title: "Error", description: "Could not save goal.", variant: "destructive"});
+    } finally {
+        closeGoalDialog();
     }
-    updatedGoals.sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-    setGoals(updatedGoals);
-    saveToLocalStorage<Goal>(GOALS_STORAGE_KEY, updatedGoals, ['targetDate', 'createdAt', 'updatedAt']);
-    closeGoalDialog();
   };
 
   const deleteGoal = (goalId: string) => {
+     if (dataMode === 'mock') {
+        toast({ title: "Read-only Mode", description: "Cannot delete goals in mock data mode.", variant: "destructive"});
+        return;
+     }
     const goalToDelete = goals.find(g => g.id === goalId);
-    const remainingGoals = goals.filter(g => g.id !== goalId);
-    setGoals(remainingGoals);
-    saveToLocalStorage<Goal>(GOALS_STORAGE_KEY, remainingGoals, ['targetDate', 'createdAt', 'updatedAt']);
-    toast({ title: "Goal Deleted", description: `Goal "${goalToDelete?.title}" deleted.`, variant: "destructive" });
+     try {
+         const success = deleteUserGoal(goalId);
+         if (success) {
+            setGoals(prev => prev.filter(g => g.id !== goalId));
+            toast({ title: "Goal Deleted", description: `Goal "${goalToDelete?.title}" deleted.`, variant: "default" }); // Use default variant
+         } else {
+              throw new Error("Failed to find goal to delete.");
+         }
+     } catch (error) {
+          console.error("Error deleting goal:", error);
+          toast({ title: "Error", description: "Could not delete goal.", variant: "destructive"});
+     }
   };
 
   // --- Habit Handlers ---
@@ -226,70 +209,78 @@ const GoalsHabitsPage: FC = () => {
    const closeHabitDialog = () => {
      setIsHabitDialogOpen(false);
      setEditingHabit(null);
+     habitForm.reset(); // Reset form on close
    };
 
    const onHabitSubmit = (data: HabitFormValues) => {
-     let updatedHabits;
-     const now = new Date();
-     if (editingHabit) {
-         const updatedHabit: Habit = { ...editingHabit, ...data, updatedAt: now };
-         updatedHabits = habits.map(h => h.id === editingHabit.id ? updatedHabit : h);
-         toast({ title: "Habit Updated", description: `Habit "${data.title}" updated.` });
-     } else {
-         const newHabit: Habit = {
-             id: crypto.randomUUID(),
-             ...data,
-             streak: 0, // Start with 0 streak
-             createdAt: now,
-             updatedAt: now
-         };
-         updatedHabits = [newHabit, ...habits];
-         toast({ title: "Habit Added", description: `Habit "${data.title}" created.` });
-     }
-     updatedHabits.sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-     setHabits(updatedHabits);
-     saveToLocalStorage<Habit>(HABITS_STORAGE_KEY, updatedHabits, ['lastCompleted', 'createdAt', 'updatedAt']);
-     closeHabitDialog();
+        if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot add or edit habits in mock data mode.", variant: "destructive"});
+            closeHabitDialog();
+            return;
+        }
+        try {
+             let savedHabit: Habit | undefined;
+             if (editingHabit) {
+                 savedHabit = updateUserHabit({ ...data, id: editingHabit.id });
+                  if (savedHabit) {
+                     setHabits(prev => prev.map(h => h.id === savedHabit!.id ? savedHabit! : h).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                     toast({ title: "Habit Updated", description: `Habit "${data.title}" updated.` });
+                 } else {
+                     throw new Error("Failed to find habit to update.");
+                 }
+             } else {
+                 savedHabit = addUserHabit(data);
+                 setHabits(prev => [savedHabit, ...prev].sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                 toast({ title: "Habit Added", description: `Habit "${data.title}" created.` });
+             }
+        } catch(error) {
+             console.error("Error saving habit:", error);
+             toast({ title: "Error", description: "Could not save habit.", variant: "destructive"});
+        } finally {
+             closeHabitDialog();
+        }
    };
 
    const deleteHabit = (habitId: string) => {
+        if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot delete habits in mock data mode.", variant: "destructive"});
+            return;
+        }
      const habitToDelete = habits.find(h => h.id === habitId);
-     const remainingHabits = habits.filter(h => h.id !== habitId);
-     setHabits(remainingHabits);
-     saveToLocalStorage<Habit>(HABITS_STORAGE_KEY, remainingHabits, ['lastCompleted', 'createdAt', 'updatedAt']);
-     toast({ title: "Habit Deleted", description: `Habit "${habitToDelete?.title}" deleted.`, variant: "destructive" });
+     try {
+         const success = deleteUserHabit(habitId);
+          if (success) {
+             setHabits(prev => prev.filter(h => h.id !== habitId));
+             toast({ title: "Habit Deleted", description: `Habit "${habitToDelete?.title}" deleted.`, variant: "default" }); // Use default variant
+         } else {
+              throw new Error("Failed to find habit to delete.");
+         }
+     } catch (error) {
+          console.error("Error deleting habit:", error);
+          toast({ title: "Error", description: "Could not delete habit.", variant: "destructive"});
+     }
    };
 
-   const markHabitComplete = (habitId: string) => {
-        // Basic completion logic - real implementation needs checking frequency, dates etc.
-        // This is a simplified version for demonstration.
-        const today = startOfDay(new Date());
-        let habitTitle = '';
-        const updatedHabits = habits.map(h => {
-            if (h.id === habitId) {
-                habitTitle = h.title;
-                // Crude check: only update if not completed today already
-                if (!h.lastCompleted || startOfDay(h.lastCompleted) < today) {
-                    return { ...h, streak: (h.streak || 0) + 1, lastCompleted: new Date(), updatedAt: new Date() };
-                } else {
-                     // Optionally provide feedback that it's already done today
-                     toast({ title: "Already Completed", description: `Habit "${h.title}" marked complete today.`, variant: "default"});
-                     return h; // No change
-                 }
-            }
-            return h;
-        }).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()); // Resort after update
-
-         setHabits(updatedHabits);
-         saveToLocalStorage<Habit>(HABITS_STORAGE_KEY, updatedHabits, ['lastCompleted', 'createdAt', 'updatedAt']);
-
-         // Only show toast if the habit was actually marked complete now
-         const updatedHabit = updatedHabits.find(h => h.id === habitId);
-         // Check if the habit was updated by comparing lastCompleted timestamp or checking if it was previously null
-         const wasJustCompleted = updatedHabit && (!editingHabit?.lastCompleted || editingHabit.lastCompleted !== updatedHabit.lastCompleted);
-
-         if (updatedHabit && wasJustCompleted) {
-              toast({ title: "Habit Completed!", description: `Great job on "${habitTitle}"! Streak: ${updatedHabit.streak}` });
+   const markHabitCompleteHandler = (habitId: string) => {
+         if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot complete habits in mock data mode.", variant: "destructive"});
+            return;
+         }
+         try {
+             const updatedHabit = markUserHabitComplete(habitId);
+             if (updatedHabit) {
+                 setHabits(prev => prev.map(h => h.id === habitId ? updatedHabit : h).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
+                 toast({ title: "Habit Completed!", description: `Great job on "${updatedHabit.title}"! Streak: ${updatedHabit.streak}` });
+             } else {
+                  // Habit might already be completed today
+                  const habit = habits.find(h => h.id === habitId);
+                  if (habit) {
+                      toast({ title: "Already Completed", description: `Habit "${habit.title}" marked complete today.`, variant: "default"});
+                  }
+             }
+         } catch (error) {
+              console.error("Error marking habit complete:", error);
+              toast({ title: "Error", description: "Could not mark habit complete.", variant: "destructive"});
          }
    };
 
@@ -297,13 +288,13 @@ const GoalsHabitsPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold flex items-center gap-2">
             <Target className="h-8 w-8 text-primary" /> Goals & Habits
         </h1>
         {/* Growth Pace Setting */}
          <div className="flex items-center gap-2">
-             <Label htmlFor="growth-pace" className="text-sm font-medium">Growth Pace:</Label>
+             <Label htmlFor="growth-pace" className="text-sm font-medium flex-shrink-0">Growth Pace:</Label>
              <Select value={growthPace} onValueChange={(value: GrowthPace) => setGrowthPace(value)}>
                <SelectTrigger id="growth-pace" className="w-[150px] h-9">
                  <SelectValue placeholder="Select pace" />
@@ -317,16 +308,8 @@ const GoalsHabitsPage: FC = () => {
          </div>
       </div>
 
-        {/* AI Suggestions Placeholder */}
-       {/* <Card className="bg-primary/10 border-primary/30">
-           <CardHeader className="pb-2">
-               <CardTitle className="text-base flex items-center gap-2"><Zap className="h-4 w-4 text-primary" /> Smart Suggestions</CardTitle>
-           </CardHeader>
-           <CardContent>
-               <p className="text-sm text-primary/80">Consider breaking down 'Learn Advanced JS' goal into smaller steps like 'Master Promises' this week.</p>
-               {/* TODO: Add AI suggestion flow here */}
-           {/* </CardContent>
-       </Card> */}
+        {/* AI Suggestions Placeholder (Can be re-enabled later) */}
+       {/* <Card className="bg-primary/10 border-primary/30"> ... </Card> */}
 
 
       <Tabs defaultValue="goals" className="w-full">
@@ -361,7 +344,7 @@ const GoalsHabitsPage: FC = () => {
                                  {/* TODO: Add Date Picker for targetDate */}
                                  <DialogFooter>
                                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                     <Button type="submit">{editingGoal ? 'Update Goal' : 'Create Goal'}</Button>
+                                     <Button type="submit" disabled={dataMode === 'mock'}>{editingGoal ? 'Update Goal' : 'Create Goal'}</Button>
                                  </DialogFooter>
                             </form>
                         </Form>
@@ -370,19 +353,25 @@ const GoalsHabitsPage: FC = () => {
             </CardHeader>
             <CardContent>
                <ScrollArea className="h-[400px] w-full">
-                    {goals.length === 0 ? (
-                         <p className="text-center text-muted-foreground py-10">No goals defined yet. Add your first goal!</p>
+                    {isLoadingGoals ? (
+                         <div className="space-y-3">
+                            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                         </div>
+                    ) : goals.length === 0 ? (
+                         <p className="text-center text-muted-foreground py-10">
+                             {dataMode === 'mock' ? 'No mock goals loaded.' : 'No goals defined yet. Add your first goal!'}
+                         </p>
                     ) : (
                          <div className="space-y-3">
                             {goals.map(goal => (
-                                <div key={goal.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent">
+                                <div key={goal.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors">
                                     <div className="flex-grow overflow-hidden pr-4">
                                         <p className="font-medium truncate">{goal.title}</p>
                                         <p className="text-xs text-muted-foreground truncate">{goal.description || 'No description'}</p>
-                                        <p className="text-xs mt-1">Status: <span className={`font-medium ${goal.status === 'Achieved' ? 'text-green-600' : goal.status === 'In Progress' ? 'text-blue-600' : 'text-muted-foreground'}`}>{goal.status}</span></p>
-                                        {/* <Progress value={goal.status === 'Achieved' ? 100 : goal.status === 'In Progress' ? 50 : 0} className="h-1.5 mt-1" /> */}
+                                        <p className="text-xs mt-1">Status: <span className={`font-medium ${goal.status === 'Achieved' ? 'text-green-600 dark:text-green-400' : goal.status === 'In Progress' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{goal.status}</span></p>
+                                        {goal.targetDate && <p className="text-xs text-muted-foreground">Target: {format(goal.targetDate, 'PP')}</p>}
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openGoalDialog(goal)}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
@@ -427,7 +416,7 @@ const GoalsHabitsPage: FC = () => {
                                 {/* TODO: Add multi-select day picker if frequency is 'Specific Days' */}
                                 <DialogFooter>
                                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                    <Button type="submit">{editingHabit ? 'Update Habit' : 'Create Habit'}</Button>
+                                    <Button type="submit" disabled={dataMode === 'mock'}>{editingHabit ? 'Update Habit' : 'Create Habit'}</Button>
                                 </DialogFooter>
                             </form>
                         </Form>
@@ -436,14 +425,20 @@ const GoalsHabitsPage: FC = () => {
              </CardHeader>
             <CardContent>
                 <ScrollArea className="h-[400px] w-full">
-                    {habits.length === 0 ? (
-                         <p className="text-center text-muted-foreground py-10">No habits defined yet. Add your first habit!</p>
+                    {isLoadingHabits ? (
+                        <div className="space-y-3">
+                             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                         </div>
+                     ) : habits.length === 0 ? (
+                         <p className="text-center text-muted-foreground py-10">
+                            {dataMode === 'mock' ? 'No mock habits loaded.' : 'No habits defined yet. Add your first habit!'}
+                         </p>
                      ) : (
                         <div className="space-y-3">
                             {habits.map(habit => {
                                 const isCompletedToday = habit.lastCompleted && startOfDay(habit.lastCompleted) >= startOfDay(new Date());
                                 return (
-                                    <div key={habit.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent">
+                                    <div key={habit.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors">
                                         <div className="flex-grow overflow-hidden pr-2">
                                             <p className="font-medium truncate">{habit.title}</p>
                                             <p className="text-xs text-muted-foreground truncate">{habit.description || 'No description'}</p>
@@ -457,8 +452,8 @@ const GoalsHabitsPage: FC = () => {
                                                  variant={isCompletedToday ? "secondary" : "outline"}
                                                  size="icon"
                                                  className="h-7 w-7"
-                                                 onClick={() => markHabitComplete(habit.id)}
-                                                 disabled={isCompletedToday}
+                                                 onClick={() => markHabitCompleteHandler(habit.id)}
+                                                 disabled={isCompletedToday || dataMode === 'mock'}
                                                  title={isCompletedToday ? "Completed Today" : "Mark Complete"}
                                              >
                                                 <Check className="h-4 w-4" />

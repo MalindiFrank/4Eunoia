@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Toaster } from '@/components/ui/toaster';
+import { DataModeProvider } from '@/context/data-mode-context'; // Import DataModeProvider
+import { DataModeSwitcher } from '@/components/data-mode-switcher'; // Import the switcher
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -35,17 +37,22 @@ export default function RootLayout({
           geistMono.variable
         )}
       >
-        <SidebarProvider>
-          <div className="flex">
-            <AppSidebar />
-            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-              {children}
-            </main>
-          </div>
-        </SidebarProvider>
+         <DataModeProvider> {/* Wrap with DataModeProvider */}
+           <SidebarProvider>
+             <div className="flex">
+               <AppSidebar />
+               <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                 {/* Add the switcher component, maybe conditionally or always visible */}
+                 <DataModeSwitcher />
+                 <div className="mt-4"> {/* Add some space below the switcher */}
+                    {children}
+                 </div>
+               </main>
+             </div>
+           </SidebarProvider>
+         </DataModeProvider>
         <Toaster />
       </body>
     </html>
   );
 }
-

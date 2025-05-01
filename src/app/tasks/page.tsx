@@ -5,14 +5,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO, addDays, subDays } from 'date-fns';
+import { format, parseISO } from 'date-fns'; // Removed addDays, subDays
 import { Calendar as CalendarIcon, Check, Edit, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added Footer, Close
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -23,11 +23,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import type { Task } from '@/services/task'; // Import Task type
-// import { getTasks as fetchTasks } from '@/services/task'; // Import service function - We'll use localStorage now
+import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task'; // Import service functions
+import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
-// Local storage key
-const LOCAL_STORAGE_KEY = 'prodev-tasks';
-
+// Task Schema
 const taskSchema = z.object({
   title: z.string().min(1, 'Task title cannot be empty.'),
   description: z.string().optional(),
@@ -37,174 +38,192 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-// Mock Data Generation
-const generateMockTasks = (): Task[] => {
-    const today = new Date();
-    return [
-        { id: 'task-mock-1', title: 'Finalize Q3 report', description: 'Compile data and write summary', dueDate: addDays(today, 2), status: 'In Progress' },
-        { id: 'task-mock-2', title: 'Schedule team sync meeting', description: 'Find a time that works for everyone', dueDate: addDays(today, 1), status: 'Pending' },
-        { id: 'task-mock-3', title: 'Review design mockups', description: 'Provide feedback on the new UI', dueDate: subDays(today, 1), status: 'Completed' }, // Completed past task
-        { id: 'task-mock-4', title: 'Update project documentation', description: '', dueDate: addDays(today, 7), status: 'Pending' },
-        { id: 'task-mock-5', title: 'Pay electricity bill', description: 'Due by the 15th', dueDate: addDays(today, 5), status: 'Pending' },
-        { id: 'task-mock-6', title: 'Research competitor features', description: '', status: 'In Progress' }, // No due date
-        { id: 'task-mock-7', title: 'Book flight for conference', description: 'Check prices and book', status: 'Pending' }, // No due date
-        { id: 'task-mock-8', title: 'Submit expense report', description: 'For last month\'s travel', dueDate: subDays(today, 3), status: 'Completed' }, // Completed past task
-    ];
-};
 
+// Task Form Component
+const TaskForm: FC<{
+    onClose: () => void;
+    initialData?: Task | null;
+    onSave: (task: Task) => void;
+}> = ({ onClose, initialData, onSave }) => {
+    const { dataMode } = useDataMode();
+    const { toast } = useToast();
 
-// Function to load tasks from localStorage or generate mock data
-const loadTasksFromLocalStorage = (): Task[] => {
-    if (typeof window === 'undefined') return [];
-    const storedTasks = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (storedTasks) {
-        try {
-            // Parse and ensure dates are Date objects
-            return JSON.parse(storedTasks).map((task: any) => ({
-                ...task,
-                dueDate: task.dueDate ? parseISO(task.dueDate) : undefined, // Convert string back to Date or undefined
-            }));
-        } catch (e) {
-            console.error("Error parsing tasks from localStorage:", e);
-             // Fallback to mock data if parsing fails
-            return generateMockTasks();
+    const form = useForm<TaskFormValues>({
+        resolver: zodResolver(taskSchema),
+        defaultValues: initialData ? {
+            title: initialData.title,
+            description: initialData.description || '',
+            dueDate: initialData.dueDate,
+            status: initialData.status,
+        } : {
+            title: '',
+            description: '',
+            dueDate: undefined,
+            status: 'Pending',
+        },
+    });
+
+    const onSubmit = (data: TaskFormValues) => {
+        if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot add or edit tasks in mock data mode.", variant: "destructive"});
+            onClose();
+            return;
         }
-    }
-    // If no stored tasks, generate mock data
-    const mockTasks = generateMockTasks();
-    saveTasksToLocalStorage(mockTasks); // Save mock data initially
-    return mockTasks;
-};
 
-// Function to save tasks to localStorage
-const saveTasksToLocalStorage = (tasks: Task[]) => {
-     if (typeof window === 'undefined') return;
-    try {
-        // Store dates as ISO strings for JSON compatibility
-        const tasksToStore = tasks.map(task => ({
-            ...task,
-            dueDate: task.dueDate ? task.dueDate.toISOString() : undefined,
-        }));
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tasksToStore));
-    } catch (e) {
-        console.error("Error saving tasks to localStorage:", e);
-    }
+        const taskData: Omit<Task, 'id' | 'createdAt'> = data; // Exclude id and createdAt
+
+        try {
+            let savedTask: Task | undefined;
+            if (initialData?.id) {
+                 // Pass the existing task merged with form data
+                savedTask = updateUserTask({ ...initialData, ...taskData });
+                 if (savedTask) {
+                    toast({ title: "Task Updated", description: `Task "${data.title}" updated.` });
+                 } else {
+                     throw new Error("Failed to find task to update.");
+                 }
+            } else {
+                savedTask = addUserTask(taskData);
+                toast({ title: "Task Added", description: `Task "${data.title}" added.` });
+            }
+            if (savedTask) {
+                 onSave(savedTask);
+            }
+        } catch (error) {
+             console.error("Error saving task:", error);
+             toast({ title: "Error", description: "Could not save task.", variant: "destructive"});
+        } finally {
+             onClose();
+        }
+    };
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                <FormField control={form.control} name="title" render={({ field }) => ( <FormItem> <FormLabel>Title</FormLabel> <FormControl> <Input placeholder="Task title" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem> <FormLabel>Description (Optional)</FormLabel> <FormControl> <Textarea placeholder="Add more details about the task" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Due Date (Optional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={'outline'} className={cn( 'w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground' )}> {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="status" render={({ field }) => ( <FormItem> <FormLabel>Status</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Select status" /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value="Pending">Pending</SelectItem> <SelectItem value="In Progress">In Progress</SelectItem> <SelectItem value="Completed">Completed</SelectItem> </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                    <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Task' : 'Add Task'}</Button>
+                </DialogFooter>
+            </form>
+        </Form>
+    );
 };
 
 
 const TasksPage: FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // Not really loading from API anymore
+  const [isLoading, setIsLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { dataMode } = useDataMode(); // Use data mode context
 
-  // Load tasks on initial render
+  // Load tasks based on dataMode
   useEffect(() => {
-    setTasks(loadTasksFromLocalStorage());
-  }, []);
+    const loadTasks = async () => {
+      setIsLoading(true);
+      try {
+        const loadedTasks = await getTasks(dataMode);
+        setTasks(loadedTasks);
+      } catch (error) {
+        console.error("Failed to load tasks:", error);
+        toast({ title: "Error", description: "Could not load tasks.", variant: "destructive" });
+         setTasks([]); // Clear on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadTasks();
+  }, [dataMode, toast]);
 
-  const form = useForm<TaskFormValues>({
-    resolver: zodResolver(taskSchema),
-    defaultValues: {
-      title: '',
-      description: '',
-      dueDate: undefined,
-      status: 'Pending',
-    },
-  });
 
    const openDialog = (task: Task | null = null) => {
      setEditingTask(task);
-     if (task) {
-       form.reset({
-         title: task.title,
-         description: task.description || '',
-         dueDate: task.dueDate, // Already Date object from loading
-         status: task.status,
-       });
-     } else {
-       form.reset({
-         title: '',
-         description: '',
-         dueDate: undefined,
-         status: 'Pending',
-       });
-     }
      setIsDialogOpen(true);
    };
 
   const closeDialog = () => {
      setIsDialogOpen(false);
      setEditingTask(null);
-     form.reset();
    };
 
+    const handleSaveTask = (savedTask: Task) => {
+        setTasks(prev => {
+             const existing = prev.find(t => t.id === savedTask.id);
+             if (existing) {
+                 return prev.map(t => t.id === savedTask.id ? savedTask : t);
+             } else {
+                 return [savedTask, ...prev];
+             }
+        });
+        // No need to sort here if relying on sortedTasks memo
+        closeDialog();
+    };
 
-  const onSubmit = (data: TaskFormValues) => {
-    let updatedTasks: Task[];
-    if (editingTask) {
-      // Update existing task
-      const updatedTask: Task = { ...editingTask, ...data };
-      updatedTasks = tasks.map((t) => (t.id === editingTask.id ? updatedTask : t));
-      toast({ title: "Task Updated", description: `Task "${data.title}" has been updated.` });
-      console.log('Updated Task:', updatedTask);
-    } else {
-      // Add new task
-      const newTask: Task = {
-        id: crypto.randomUUID(),
-        ...data,
-      };
-      updatedTasks = [newTask, ...tasks]; // Prepend new task
-       toast({ title: "Task Added", description: `Task "${data.title}" has been added.` });
-      console.log('New Task:', newTask);
-    }
-     setTasks(updatedTasks);
-     saveTasksToLocalStorage(updatedTasks); // Save changes
-     closeDialog();
-  };
-
-  const deleteTask = (taskId: string) => {
-    const taskToDelete = tasks.find(t => t.id === taskId);
-    const updatedTasks = tasks.filter((t) => t.id !== taskId);
-    setTasks(updatedTasks);
-    saveTasksToLocalStorage(updatedTasks); // Save changes
-    toast({ title: "Task Deleted", description: `Task "${taskToDelete?.title}" has been deleted.`, variant: "destructive" });
-     console.log('Deleted Task ID:', taskId);
-  };
-
-  const toggleTaskStatus = (taskId: string) => {
-    let updatedTaskTitle = '';
-    const updatedTasks = tasks.map((task) => {
-        if (task.id === taskId) {
-            const newStatus = task.status === 'Completed' ? 'Pending' : 'Completed';
-            updatedTaskTitle = task.title; // Capture title before update
-             return { ...task, status: newStatus };
+    const handleDeleteTask = (taskId: string) => {
+        if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot delete tasks in mock data mode.", variant: "destructive"});
+            return;
         }
-        return task;
-     });
+       const taskToDelete = tasks.find(t => t.id === taskId);
+       try {
+           const success = deleteUserTask(taskId);
+            if (success) {
+               setTasks(prev => prev.filter(t => t.id !== taskId));
+               toast({ title: "Task Deleted", description: `Task "${taskToDelete?.title}" deleted.`, variant: "default" });
+            } else {
+                 throw new Error("Failed to find task to delete.");
+            }
+       } catch (error) {
+            console.error("Error deleting task:", error);
+            toast({ title: "Error", description: "Could not delete task.", variant: "destructive"});
+       }
+   };
 
-    setTasks(updatedTasks);
-    saveTasksToLocalStorage(updatedTasks); // Save changes
+    const handleToggleTaskStatus = (taskId: string) => {
+        if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot change task status in mock data mode.", variant: "destructive"});
+            return;
+        }
+        try {
+            const updatedTask = toggleUserTaskStatus(taskId);
+            if (updatedTask) {
+                 setTasks(prevTasks =>
+                     prevTasks.map(task =>
+                         task.id === taskId ? updatedTask : task
+                     )
+                 );
+                 toast({ title: "Task Status Updated", description: `Task "${updatedTask.title}" marked as ${updatedTask.status}.` });
+            } else {
+                 throw new Error("Failed to toggle task status.");
+            }
+        } catch(error) {
+             console.error("Error toggling task status:", error);
+             toast({ title: "Error", description: "Could not update task status.", variant: "destructive"});
+        }
+    };
 
-     const changedTask = updatedTasks.find(t => t.id === taskId);
-     if (changedTask) {
-       toast({ title: "Task Status Updated", description: `Task "${updatedTaskTitle}" marked as ${changedTask.status}.` });
-       console.log('Toggled Task Status:', changedTask);
-     }
-  };
 
-  // Simple sort function (optional, can be done on render)
+  // Memoized sorted tasks
    const sortedTasks = useMemo(() => {
      return [...tasks].sort((a, b) => {
-       // Sort by status (Pending > In Progress > Completed), then by due date (earlier first)
        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Completed': 2 };
        if (statusOrder[a.status] !== statusOrder[b.status]) {
          return statusOrder[a.status] - statusOrder[b.status];
        }
-       const dateA = a.dueDate?.getTime() ?? Infinity;
+       const dateA = a.dueDate?.getTime() ?? Infinity; // Treat no due date as lowest priority (far future)
        const dateB = b.dueDate?.getTime() ?? Infinity;
-       return dateA - dateB;
+        if (dateA !== dateB) {
+            return dateA - dateB; // Sort by due date ascending
+        }
+        // If due dates are same (or both missing), sort by creation date descending (newer first)
+        const createdA = a.createdAt?.getTime() ?? 0;
+        const createdB = b.createdAt?.getTime() ?? 0;
+        return createdB - createdA;
      });
    }, [tasks]);
 
@@ -223,97 +242,11 @@ const TasksPage: FC = () => {
              <DialogHeader>
                <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
              </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-                     <FormField
-                       control={form.control}
-                       name="title"
-                       render={({ field }) => (
-                         <FormItem>
-                           <FormLabel>Title</FormLabel>
-                           <FormControl>
-                             <Input placeholder="Task title" {...field} />
-                           </FormControl>
-                           <FormMessage />
-                         </FormItem>
-                       )}
-                     />
-                      <FormField
-                         control={form.control}
-                         name="description"
-                         render={({ field }) => (
-                           <FormItem>
-                             <FormLabel>Description (Optional)</FormLabel>
-                             <FormControl>
-                               <Textarea placeholder="Add more details about the task" {...field} />
-                             </FormControl>
-                             <FormMessage />
-                           </FormItem>
-                         )}
-                       />
-                    <FormField
-                        control={form.control}
-                        name="dueDate"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>Due Date (Optional)</FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant={'outline'}
-                                    className={cn(
-                                      'w-[240px] pl-3 text-left font-normal',
-                                      !field.value && 'text-muted-foreground'
-                                    )}
-                                  >
-                                    {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                   // Allow selecting past dates if needed for editing
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                             <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}> {/* Controlled component */}
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Pending">Pending</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                     <div className="flex justify-end gap-2 pt-4">
-                         <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-                         <Button type="submit">{editingTask ? 'Update Task' : 'Add Task'}</Button>
-                     </div>
-                  </form>
-                </Form>
+               <TaskForm
+                    onClose={closeDialog}
+                    initialData={editingTask}
+                    onSave={handleSaveTask}
+                />
            </DialogContent>
          </Dialog>
       </div>
@@ -325,44 +258,49 @@ const TasksPage: FC = () => {
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-[500px] w-full">
-                    {isLoading ? ( // Can remove this or adapt if needed
-                        <p className="text-center text-muted-foreground">Loading tasks...</p>
+                    {isLoading ? (
+                         <div className="space-y-4 p-2">
+                            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                         </div>
                     ) : sortedTasks.length === 0 ? (
-                        <p className="text-center text-muted-foreground">No tasks yet. Add your first task!</p>
+                        <p className="text-center text-muted-foreground pt-10">
+                           {dataMode === 'mock' ? 'No mock tasks loaded.' : 'No tasks yet. Add your first task!'}
+                        </p>
                     ) : (
                         sortedTasks.map((task, index) => (
                             <React.Fragment key={task.id}>
-                                <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-accent group"> {/* Added group */}
-                                    <div className="flex items-start gap-3"> {/* Changed items-center to items-start */}
+                                <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-accent group">
+                                    <div className="flex items-start gap-3 flex-grow overflow-hidden"> {/* Changed items-center to items-start */}
                                         <Checkbox
                                             id={`task-${task.id}`}
                                             checked={task.status === 'Completed'}
-                                            onCheckedChange={() => toggleTaskStatus(task.id)}
-                                            className="mt-1" // Align checkbox with first line of text
+                                            onCheckedChange={() => handleToggleTaskStatus(task.id)}
+                                            className="mt-1 flex-shrink-0" // Align checkbox
+                                            disabled={dataMode === 'mock'}
                                         />
-                                        <div className="grid gap-0.5">
+                                        <div className="grid gap-0.5 flex-grow">
                                             <label
                                                 htmlFor={`task-${task.id}`}
                                                 className={cn(
-                                                    "text-sm font-medium leading-tight cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70", // Added cursor-pointer
+                                                    "text-sm font-medium leading-tight cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
                                                     task.status === 'Completed' && 'line-through text-muted-foreground'
                                                 )}
-                                                onClick={() => toggleTaskStatus(task.id)} // Allow toggling by clicking label
+                                                onClick={() => handleToggleTaskStatus(task.id)} // Allow toggling by clicking label
                                             >
                                                 {task.title}
                                             </label>
                                             {task.description && (
-                                                <p className={cn("text-xs text-muted-foreground", task.status === 'Completed' && 'line-through')}>
+                                                <p className={cn("text-xs text-muted-foreground break-words", task.status === 'Completed' && 'line-through')}> {/* Added break-words */}
                                                     {task.description}
                                                 </p>
                                             )}
                                              {task.dueDate && (
                                                <p className={cn("text-xs text-muted-foreground", task.status === 'Completed' && 'line-through')}>
-                                                 Due: {format(task.dueDate, 'PPP')} {/* Already Date object */}
+                                                 Due: {format(task.dueDate, 'PPP')}
                                                </p>
                                               )}
-                                            <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit mt-1 ${
-                                                  task.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : // Added dark mode styles
+                                             <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit mt-1 ${
+                                                  task.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
                                                   task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' :
                                                   'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                               }`}>
@@ -370,15 +308,23 @@ const TasksPage: FC = () => {
                                               </span>
                                         </div>
                                     </div>
-                                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"> {/* Show on hover/focus */}
+                                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(task)}>
                                             <Edit className="h-4 w-4" />
                                             <span className="sr-only">Edit Task</span>
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteTask(task.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                             <span className="sr-only">Delete Task</span>
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                    <span className="sr-only">Delete Task</span>
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader><AlertDialogTitle>Delete Task?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the task "{task.title}"?</AlertDialogDescription></AlertDialogHeader>
+                                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTask(task.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete</AlertDialogAction></AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </div>
                                 {index < sortedTasks.length - 1 && <Separator />}

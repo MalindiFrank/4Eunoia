@@ -1,0 +1,124 @@
+[
+  {
+    "id": "task-mock-1",
+    "title": "Finalize Q3 report",
+    "description": "Compile data and write summary",
+    "dueDate": "2025-05-02T23:59:59.000Z",
+    "status": "In Progress",
+    "createdAt": "2025-04-29T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-2",
+    "title": "Schedule team sync meeting",
+    "description": "Find a time that works for everyone",
+    "dueDate": "2025-05-01T23:59:59.000Z",
+    "status": "Pending",
+    "createdAt": "2025-04-30T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-3",
+    "title": "Review design mockups",
+    "description": "Provide feedback on the new UI",
+    "dueDate": "2025-04-29T23:59:59.000Z",
+    "status": "Completed",
+    "createdAt": "2025-04-27T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-4",
+    "title": "Update project documentation",
+    "description": "",
+    "dueDate": "2025-05-07T23:59:59.000Z",
+    "status": "Pending",
+    "createdAt": "2025-04-28T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-5",
+    "title": "Pay electricity bill",
+    "description": "Due by the 15th",
+    "dueDate": "2025-05-05T23:59:59.000Z",
+    "status": "Pending",
+    "createdAt": "2025-04-20T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-6",
+    "title": "Research competitor features",
+    "description": "",
+    "status": "In Progress",
+    "createdAt": "2025-04-25T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-7",
+    "title": "Book flight for conference",
+    "description": "Check prices and book",
+    "status": "Pending",
+    "createdAt": "2025-04-22T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-8",
+    "title": "Submit expense report",
+    "description": "For last month's travel",
+    "dueDate": "2025-04-27T23:59:59.000Z",
+    "status": "Completed",
+    "createdAt": "2025-04-25T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-9",
+    "title": "Overdue Task Example",
+    "description": "",
+    "dueDate": "2025-04-25T23:59:59.000Z",
+    "status": "Pending",
+    "createdAt": "2025-04-20T00:00:00.000Z"
+  },
+   {
+    "id": "task-mock-lb1",
+    "title": "Finalize Q3 report",
+    "status": "Completed",
+    "createdAt": "2025-04-28T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-lb2",
+    "title": "Schedule team sync",
+    "status": "Completed",
+    "createdAt": "2025-04-29T00:00:00.000Z"
+  },
+  {
+    "id": "task-mock-b1",
+    "status": "In Progress",
+    "title": "Project Beta Setup",
+    "dueDate": "2025-05-01T23:59:59.000Z"
+  },
+  {
+    "id": "task-mock-b2",
+    "status": "Pending",
+    "title": "Review Marketing Plan",
+    "dueDate": "2025-04-28T23:59:59.000Z"
+  },
+  {
+    "id": "task-mock-b3",
+    "status": "Pending",
+    "title": "Outline Blog Post",
+    "dueDate": "2025-05-05T23:59:59.000Z"
+  },
+  {
+    "id": "task-mock-b4",
+    "status": "Pending",
+    "title": "Update Resume",
+    "dueDate": "2025-04-25T23:59:59.000Z"
+  },
+  {
+    "id": "task-mock-b5",
+    "status": "In Progress",
+    "title": "Learn TypeScript Basics"
+  },
+  {
+    "id": "task-mock-b6",
+    "status": "Pending",
+    "title": "Organize Cloud Drive"
+  },
+  {
+    "id": "task-mock-b7",
+    "status": "Completed",
+    "title": "Clean Desk Area",
+    "dueDate": "2025-04-27T23:59:59.000Z"
+  }
+]

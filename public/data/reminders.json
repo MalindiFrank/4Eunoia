@@ -1,0 +1,32 @@
+[
+  {
+    "id": "rem-mock-1",
+    "title": "Call Mom",
+    "dateTime": "2025-04-30T18:00:00.000Z",
+    "description": "Check in for the week"
+  },
+  {
+    "id": "rem-mock-2",
+    "title": "Doctor Appointment",
+    "dateTime": "2025-05-03T10:00:00.000Z",
+    "description": "Annual check-up"
+  },
+  {
+    "id": "rem-mock-3",
+    "title": "Project Deadline",
+    "dateTime": "2025-05-07T17:00:00.000Z",
+    "description": "Submit final version of Project Alpha"
+  },
+  {
+    "id": "rem-mock-4",
+    "title": "Water Plants",
+    "dateTime": "2025-05-01T09:00:00.000Z",
+    "description": ""
+  },
+  {
+    "id": "rem-mock-5",
+    "title": "Gym Session",
+    "dateTime": "2025-04-29T19:00:00.000Z",
+    "description": "Leg day"
+  }
+]

@@ -1,0 +1,53 @@
+[
+  {
+    "id": "goal-mock-1",
+    "title": "Learn Advanced JavaScript",
+    "description": "Complete the advanced JS course on Udemy and build a small project.",
+    "status": "In Progress",
+    "targetDate": "2025-08-31T23:59:59.000Z",
+    "createdAt": "2025-03-15T10:00:00.000Z",
+    "updatedAt": "2025-04-20T14:30:00.000Z"
+  },
+  {
+    "id": "goal-mock-2",
+    "title": "Run a 5k Race",
+    "description": "Train consistently and participate in a local 5k race.",
+    "status": "Not Started",
+    "targetDate": "2025-09-15T23:59:59.000Z",
+    "createdAt": "2025-04-01T09:00:00.000Z",
+    "updatedAt": "2025-04-01T09:00:00.000Z"
+  },
+  {
+    "id": "goal-mock-3",
+    "title": "Read 12 Books This Year",
+    "description": "Read at least one book per month.",
+    "status": "In Progress",
+    "targetDate": "2025-12-31T23:59:59.000Z",
+    "createdAt": "2025-01-01T08:00:00.000Z",
+    "updatedAt": "2025-04-28T11:00:00.000Z"
+  },
+  {
+    "id": "goal-mock-4",
+    "title": "Save $5000",
+    "description": "Set aside money each month towards the savings goal.",
+    "status": "In Progress",
+    "createdAt": "2025-02-01T12:00:00.000Z",
+    "updatedAt": "2025-04-25T08:00:00.000Z"
+  },
+  {
+    "id": "goal-mock-5",
+    "title": "Complete Website Redesign",
+    "description": "Finish the redesign project for the client.",
+    "status": "Achieved",
+    "targetDate": "2025-04-15T23:59:59.000Z",
+    "createdAt": "2025-02-10T15:00:00.000Z",
+    "updatedAt": "2025-04-14T16:00:00.000Z"
+  },
+  {
+    "id": "goal-mock-lb1",
+    "title": "Finalize Q3 report",
+    "status": "Achieved",
+    "createdAt": "2025-04-28T00:00:00.000Z",
+    "updatedAt": "2025-04-28T00:00:00.000Z"
+  }
+]

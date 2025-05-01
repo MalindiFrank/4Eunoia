@@ -1,0 +1,100 @@
+[
+  {
+    "id": "exp-mock-1",
+    "description": "Groceries",
+    "amount": 75.50,
+    "date": "2025-04-28T00:00:00.000Z",
+    "category": "Food"
+  },
+  {
+    "id": "exp-mock-2",
+    "description": "Coffee",
+    "amount": 4.75,
+    "date": "2025-04-29T00:00:00.000Z",
+    "category": "Food"
+  },
+  {
+    "id": "exp-mock-3",
+    "description": "Gasoline",
+    "amount": 55.00,
+    "date": "2025-04-27T00:00:00.000Z",
+    "category": "Transport"
+  },
+  {
+    "id": "exp-mock-4",
+    "description": "Movie Tickets",
+    "amount": 30.00,
+    "date": "2025-04-25T00:00:00.000Z",
+    "category": "Entertainment"
+  },
+  {
+    "id": "exp-mock-5",
+    "description": "Electricity Bill",
+    "amount": 120.30,
+    "date": "2025-03-27T00:00:00.000Z",
+    "category": "Utilities"
+  },
+  {
+    "id": "exp-mock-6",
+    "description": "New Shirt",
+    "amount": 45.99,
+    "date": "2025-04-23T00:00:00.000Z",
+    "category": "Shopping"
+  },
+  {
+    "id": "exp-mock-7",
+    "description": "Bus Fare",
+    "amount": 2.75,
+    "date": "2025-04-29T00:00:00.000Z",
+    "category": "Transport"
+  },
+  {
+    "id": "exp-mock-8",
+    "description": "Lunch Out",
+    "amount": 18.20,
+    "date": "2025-04-26T00:00:00.000Z",
+    "category": "Food"
+  },
+  {
+    "id": "exp-mock-9",
+    "description": "Pharmacy",
+    "amount": 22.50,
+    "date": "2025-04-20T00:00:00.000Z",
+    "category": "Health"
+  },
+  {
+    "id": "exp-mock-10",
+    "description": "Streaming Subscription",
+    "amount": 15.99,
+    "date": "2025-04-01T00:00:00.000Z",
+    "category": "Entertainment"
+  },
+  {
+    "id": "exp-mock-11",
+    "description": "Rent",
+    "amount": 1200.00,
+    "date": "2025-04-01T00:00:00.000Z",
+    "category": "Housing"
+  },
+  {
+    "id": "exp-mock-12",
+    "description": "Hardware Store",
+    "amount": 35.10,
+    "date": "2025-04-24T00:00:00.000Z",
+    "category": "Other"
+  },
+  {
+    "id": "exp-mock-13",
+    "description": "Dinner",
+    "amount": 60.00,
+    "date": "2025-04-21T00:00:00.000Z",
+    "category": "Food"
+  },
+  {
+    "id": "exp-mock-14",
+    "description": "Train Ticket",
+    "amount": 25.00,
+    "date": "2025-04-15T00:00:00.000Z",
+    "category": "Transport"
+  }
+]

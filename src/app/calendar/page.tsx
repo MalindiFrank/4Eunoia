@@ -2,103 +2,217 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, addHours, subDays, addDays } from 'date-fns'; // Import addDays and subDays
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns'; // Removed addDays, subDays, addHours
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2 } from 'lucide-react'; // Added Edit, Trash2
+import { zodResolver } from '@hookform/resolvers/zod'; // Added zodResolver
+import { useForm } from 'react-hook-form'; // Added useForm
+import { z } from 'zod'; // Added z
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input'; // Import Input component
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added DialogFooter, DialogClose
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'; // Added Form components
+import { Input } from '@/components/ui/input';
+import { Calendar as CalendarIcon } from 'lucide-react'; // Renamed import
+import { Calendar as ShadCalendar } from '@/components/ui/calendar'; // Renamed import
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'; // Added Popover
+import { Textarea } from '@/components/ui/textarea'; // Added Textarea
 import { useToast } from '@/hooks/use-toast';
 import type { CalendarEvent } from '@/services/calendar'; // Import CalendarEvent type
-import { getCalendarEvents as fetchEvents } from '@/services/calendar'; // Import service function
+import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent } from '@/services/calendar'; // Import service functions
+import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
 
-// Mock Data Generation
-const generateMockEvents = (start: Date, end: Date): CalendarEvent[] => {
-    const mockEvents: CalendarEvent[] = [];
-    const today = new Date();
-    const todayStart = new Date(today.setHours(10, 0, 0, 0));
-    const tomorrowStart = addDays(today, 1);
-    const yesterdayStart = subDays(today, 1);
+// Event Form Schema
+const eventSchema = z.object({
+  title: z.string().min(1, 'Event title cannot be empty.'),
+  startDateTime: z.date({ required_error: 'Start date and time are required.' }),
+  endDateTime: z.date({ required_error: 'End date and time are required.' }),
+  description: z.string().optional(),
+}).refine(data => data.endDateTime >= data.startDateTime, {
+    message: "End time cannot be before start time.",
+    path: ["endDateTime"],
+});
 
-    // Add events relative to today if within the requested range
-     if (isSameMonth(todayStart, start) || isSameMonth(addDays(todayStart,7), start)) { // Check if current or next week might overlap
-        mockEvents.push(
-            { title: 'Daily Standup', start: new Date(new Date(today).setHours(9, 0, 0, 0)), end: new Date(new Date(today).setHours(9, 15, 0, 0)), description: 'Quick team sync' },
-            { title: 'Project Work Block', start: new Date(new Date(today).setHours(14, 0, 0, 0)), end: new Date(new Date(today).setHours(16, 0, 0, 0)), description: 'Focus time on project X' },
-            { title: 'Meeting with Client', start: new Date(addDays(today, 2).setHours(11, 0, 0, 0)), end: new Date(addDays(today, 2).setHours(12, 0, 0, 0)), description: 'Discuss project milestones' },
-            { title: 'Lunch', start: new Date(new Date(today).setHours(12, 30, 0, 0)), end: new Date(new Date(today).setHours(13, 15, 0, 0)) },
-            { title: 'Review Session', start: new Date(subDays(today, 1).setHours(15, 0, 0, 0)), end: new Date(subDays(today, 1).setHours(16, 30, 0, 0)) }, // Yesterday
-            { title: 'Planning Session', start: new Date(addDays(today, 3).setHours(9, 30, 0, 0)), end: new Date(addDays(today, 3).setHours(10, 30, 0, 0)) }, // In 3 days
-        );
-    }
-
-    // Add some generic events spread across the month for visual testing
-    const monthStart = startOfMonth(start);
-    mockEvents.push(
-        { title: 'Generic Event 1', start: new Date(new Date(monthStart).setDate(5)), end: addHours(new Date(new Date(monthStart).setDate(5)), 1) },
-        { title: 'Generic Event 2', start: new Date(new Date(monthStart).setDate(15)), end: addHours(new Date(new Date(monthStart).setDate(15)), 2) },
-        { title: 'Generic Event 3', start: new Date(new Date(monthStart).setDate(25)), end: addHours(new Date(new Date(monthStart).setDate(25)), 1) }
-    );
+type EventFormValues = z.infer<typeof eventSchema>;
 
 
-    // Filter events to only include those within the requested startDate and endDate
-    return mockEvents.filter(event =>
-        (event.start >= start && event.start <= end) ||
-        (event.end >= start && event.end <= end) ||
-        (event.start < start && event.end > end)
-    );
-};
-
-
-// Basic Event Form (Placeholder - replace with a proper form component later)
-const EventForm: FC<{ onClose: () => void; date: Date }> = ({ onClose, date }) => {
-  const [title, setTitle] = useState('');
+// Event Form Component
+const EventForm: FC<{
+    onClose: () => void;
+    initialData?: CalendarEvent | null;
+    selectedDate?: Date;
+    onSave: (event: CalendarEvent) => void; // Callback after save
+}> = ({ onClose, initialData, selectedDate, onSave }) => {
   const { toast } = useToast();
+  const { dataMode } = useDataMode(); // Get data mode
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title) {
-        toast({ title: "Error", description: "Event title is required.", variant: "destructive"});
-        return;
-    }
-    // TODO: Implement event creation logic (call API/save to state/localStorage)
-    const newEvent: CalendarEvent = {
-        title,
-        start: new Date(date.setHours(9, 0, 0, 0)), // Default to 9 AM for now
-        end: new Date(date.setHours(10, 0, 0, 0)), // Default to 1 hour duration
-        description: ''
+  const form = useForm<EventFormValues>({
+    resolver: zodResolver(eventSchema),
+    defaultValues: {
+        title: initialData?.title || '',
+        // Combine selected date with default time or existing event time
+        startDateTime: initialData?.start || (selectedDate ? new Date(selectedDate.setHours(9, 0, 0, 0)) : new Date(new Date().setHours(9, 0, 0, 0))),
+        endDateTime: initialData?.end || (selectedDate ? new Date(selectedDate.setHours(10, 0, 0, 0)) : new Date(new Date().setHours(10, 0, 0, 0))),
+        description: initialData?.description || '',
+    },
+  });
+
+  const onSubmit = (data: EventFormValues) => {
+     if (dataMode === 'mock') {
+         toast({ title: "Read-only Mode", description: "Cannot add or edit events in mock data mode.", variant: "destructive"});
+         onClose();
+         return;
+     }
+
+    const eventData: Omit<CalendarEvent, 'id'> = {
+        title: data.title,
+        start: data.startDateTime,
+        end: data.endDateTime,
+        description: data.description,
     };
-    console.log('New Event:', newEvent);
-    toast({ title: "Event Added (Mock)", description: `Event "${title}" scheduled for ${format(newEvent.start, 'PPP p')}. (Not saved)`});
-    // Call a function here to update the main event state if managing locally
-    onClose();
+
+    try {
+      let savedEvent: CalendarEvent | undefined;
+      if (initialData?.id) {
+        // Update existing event
+        savedEvent = updateUserEvent({ ...eventData, id: initialData.id });
+        if (savedEvent) {
+            toast({ title: "Event Updated", description: `Event "${data.title}" updated.` });
+        } else {
+             throw new Error("Failed to find event to update.");
+        }
+      } else {
+        // Add new event
+        savedEvent = addUserEvent(eventData);
+         toast({ title: "Event Added", description: `Event "${data.title}" added.` });
+      }
+      if (savedEvent) {
+          onSave(savedEvent); // Trigger callback to update parent state
+      }
+    } catch (error) {
+        console.error("Error saving event:", error);
+        toast({ title: "Error", description: "Could not save event.", variant: "destructive"});
+    } finally {
+        onClose();
+    }
   };
 
+   const handleDateTimeChange = (field: keyof EventFormValues, date: Date | undefined, time: string) => {
+        if (!date) return;
+        const [hours, minutes] = time.split(':').map(Number);
+        const newDateTime = new Date(date);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+            newDateTime.setHours(hours, minutes, 0, 0);
+            form.setValue(field, newDateTime, { shouldValidate: true }); // Update form value and trigger validation
+        }
+   };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="eventTitle" className="block text-sm font-medium text-foreground">Event Title</label>
-        <Input
-          type="text"
-          id="eventTitle"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 block w-full"
-          placeholder="Enter event title"
+    <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter event title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-       <div>
-           <p className="text-sm text-muted-foreground">Date: {format(date, 'PPP')}</p>
-           {/* TODO: Add start/end time inputs here */}
-       </div>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit">Add Event</Button>
-      </div>
-    </form>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* Start Date/Time */}
+            <FormField
+                control={form.control}
+                name="startDateTime"
+                render={({ field }) => (
+                <FormItem className="flex flex-col">
+                    <FormLabel>Start Date & Time</FormLabel>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <FormControl>
+                        <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP p') : <span>Pick start date & time</span>}
+                        </Button>
+                        </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <ShadCalendar mode="single" selected={field.value} onSelect={(date) => handleDateTimeChange('startDateTime', date, format(field.value || new Date(), 'HH:mm'))} initialFocus />
+                         <div className="p-3 border-t border-border">
+                            <Input
+                                type="time"
+                                value={field.value ? format(field.value, 'HH:mm') : '09:00'}
+                                onChange={(e) => handleDateTimeChange('startDateTime', field.value, e.target.value)}
+                             />
+                         </div>
+                    </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+
+            {/* End Date/Time */}
+            <FormField
+                control={form.control}
+                name="endDateTime"
+                render={({ field }) => (
+                <FormItem className="flex flex-col">
+                    <FormLabel>End Date & Time</FormLabel>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <FormControl>
+                        <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, 'PPP p') : <span>Pick end date & time</span>}
+                        </Button>
+                        </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <ShadCalendar mode="single" selected={field.value} onSelect={(date) => handleDateTimeChange('endDateTime', date, format(field.value || new Date(), 'HH:mm'))} initialFocus fromDate={form.getValues('startDateTime')} />
+                        <div className="p-3 border-t border-border">
+                            <Input
+                                type="time"
+                                value={field.value ? format(field.value, 'HH:mm') : '10:00'}
+                                onChange={(e) => handleDateTimeChange('endDateTime', field.value, e.target.value)}
+                             />
+                         </div>
+                    </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+         </div>
+
+         <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+            <FormItem>
+                <FormLabel>Description (Optional)</FormLabel>
+                <FormControl>
+                <Textarea placeholder="Add event details" {...field} />
+                </FormControl>
+                <FormMessage />
+            </FormItem>
+            )}
+        />
+
+        <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Event' : 'Add Event'}</Button>
+        </DialogFooter>
+        </form>
+    </Form>
   );
 };
 
@@ -108,69 +222,90 @@ const CalendarPage: FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null); // State for editing
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { dataMode } = useDataMode(); // Use the data mode context
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
   const startDate = startOfWeek(monthStart);
   const endDate = endOfWeek(monthEnd);
 
-  // Convert dates to primitive values (timestamps) for the dependency array
-  const startTimestamp = startDate.getTime();
-  const endTimestamp = endDate.getTime();
-
+  // Fetch events when dataMode or currentMonth changes
   useEffect(() => {
     const loadEvents = async () => {
-        // Recreate Date objects from timestamps inside the effect
-        const currentStartDate = new Date(startTimestamp);
-        const currentEndDate = new Date(endTimestamp);
       try {
         setIsLoading(true);
-        // Fetch events using the Date objects derived from timestamps
-        let fetchedEvents = await fetchEvents(currentStartDate, currentEndDate);
-
-         // If fetchEvents returns empty (or fails silently), use mock data
-         if (!fetchedEvents || fetchedEvents.length === 0) {
-              console.log("No events fetched from service, using mock data for range:", format(currentStartDate, 'PP'), 'to', format(currentEndDate, 'PP'));
-              fetchedEvents = generateMockEvents(currentStartDate, currentEndDate);
-              // Optional: Save mock data if you intend to persist it later
-         }
-
-        setEvents(fetchedEvents);
+        const fetchedEvents = await getCalendarEvents(dataMode); // Pass dataMode
+        // Filter events for the current view (optional, depends on API/storage logic)
+        const filteredEvents = fetchedEvents.filter(event =>
+            (event.start >= startDate && event.start <= endDate) ||
+            (event.end >= startDate && event.end <= endDate) ||
+            (event.start < startDate && event.end > endDate)
+        );
+        setEvents(filteredEvents);
       } catch (error) {
         console.error("Failed to fetch calendar events:", error);
         toast({
           title: "Error Loading Events",
-          description: "Could not load calendar events. Displaying mock data.",
+          description: "Could not load calendar events.",
           variant: "destructive",
         });
-         // Use mock data on error
-         setEvents(generateMockEvents(currentStartDate, currentEndDate));
+        setEvents([]); // Clear events on error
       } finally {
         setIsLoading(false);
       }
     };
     loadEvents();
-    // Use stable primitive values in the dependency array
-  }, [currentMonth, toast, startTimestamp, endTimestamp]); // Re-fetch when month or timestamps change
+  }, [dataMode, currentMonth, toast, startDate, endDate]); // Add dataMode dependency
 
-  const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate }); // Use original Date objects for rendering
+  const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToToday = () => setCurrentMonth(new Date());
 
-   const openEventDialog = (date: Date) => {
+   const openEventDialog = (date: Date | null, eventToEdit: CalendarEvent | null = null) => {
      setSelectedDate(date);
+     setEditingEvent(eventToEdit);
      setIsEventDialogOpen(true);
    };
 
    const closeEventDialog = () => {
      setIsEventDialogOpen(false);
      setSelectedDate(null);
-     // TODO: Potentially trigger a re-fetch or update local state if an event was added
+     setEditingEvent(null);
    };
+
+   // Refresh events after saving
+   const handleSaveEvent = (savedEvent: CalendarEvent) => {
+       // Simple refresh: re-fetch all events for the current view
+       const updatedEvents = events.filter(e => e.id !== savedEvent.id); // Remove old if exists
+       setEvents([...updatedEvents, savedEvent].sort((a, b) => a.start.getTime() - b.start.getTime()));
+       // More robust: call getCalendarEvents again, but this works for local updates
+       closeEventDialog();
+   };
+
+    // Handle event deletion
+    const handleDeleteEvent = (eventId: string) => {
+         if (dataMode === 'mock') {
+            toast({ title: "Read-only Mode", description: "Cannot delete events in mock data mode.", variant: "destructive"});
+            return;
+         }
+        try {
+             const success = deleteUserEvent(eventId);
+             if (success) {
+                 setEvents(prev => prev.filter(e => e.id !== eventId));
+                 toast({ title: "Event Deleted", description: "The event has been removed." });
+             } else {
+                 throw new Error("Failed to find event to delete.");
+             }
+        } catch (error) {
+             console.error("Error deleting event:", error);
+             toast({ title: "Error", description: "Could not delete event.", variant: "destructive"});
+        }
+     };
 
 
   const renderHeader = () => (
@@ -215,11 +350,11 @@ const CalendarPage: FC = () => {
           <div
             key={day.toString()}
             className={cn(
-              "relative border rounded-md min-h-[100px] p-1.5 flex flex-col group cursor-pointer", // Added flex-col, group, and cursor-pointer
-              !isCurrentMonth && "bg-muted/50 text-muted-foreground",
+              "relative border rounded-md min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 transition-colors", // Adjusted min-height
+              !isCurrentMonth && "bg-muted/30 text-muted-foreground/70", // Dimmed non-month days
               isToday && "bg-accent border-primary"
             )}
-             onClick={() => openEventDialog(day)} // Open dialog on day click
+             onClick={() => openEventDialog(day)} // Open dialog on day click to add
              role="button" // Add role for accessibility
              tabIndex={0} // Make it focusable
              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEventDialog(day); }} // Trigger on key press
@@ -234,25 +369,55 @@ const CalendarPage: FC = () => {
                  {format(day, 'd')}
                  </span>
                  {/* Add button inside cell to trigger dialog - appears on hover */}
-                 <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }}>
+                 <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }}>
                      <Plus className="h-3 w-3" />
                       <span className="sr-only">Add event</span>
                  </Button>
             </div>
-            <div className="flex-grow overflow-y-auto text-[10px] leading-tight space-y-0.5">
+             <ScrollArea className="flex-grow text-[10px] leading-tight space-y-0.5 pr-1"> {/* Added ScrollArea */}
                {isLoading && isCurrentMonth && (
-                  <div className="animate-pulse bg-muted h-3 w-3/4 rounded-sm mb-1"></div>
+                   <>
+                    <Skeleton className="h-4 w-3/4 rounded-sm mb-1" />
+                    <Skeleton className="h-4 w-1/2 rounded-sm mb-1" />
+                   </>
                )}
-              {dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( // Sort events within the day
+              {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( // Sort events within the day
                 <div
-                  key={`${event.title}-${event.start.toISOString()}`} // Use a more unique key if possible
-                  className="bg-primary/20 text-primary-foreground p-0.5 rounded-sm truncate"
+                  key={event.id || `${event.title}-${event.start.toISOString()}`} // Use ID if available
+                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-default hover:bg-primary/40" // Added group/event
                    title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} // Tooltip for full info
+                   onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} // Edit on click
+                   tabIndex={0} // Make event focusable
+                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') {e.stopPropagation(); openEventDialog(day, event);} }}
                 >
                    <span className="font-medium">{format(event.start, 'p')}</span> {event.title}
+                    {/* Edit/Delete Buttons for events */}
+                    {dataMode === 'user' && event.id && ( // Only show if user mode and event has ID
+                         <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 transition-opacity">
+                             <Button variant="ghost" size="icon" className="h-5 w-5 text-primary-foreground/70 hover:text-primary-foreground" onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }}>
+                                 <Edit className="h-3 w-3" />
+                                 <span className="sr-only">Edit</span>
+                             </Button>
+                             <AlertDialog>
+                                 <AlertDialogTrigger asChild>
+                                     <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/70 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                         <Trash2 className="h-3 w-3" />
+                                         <span className="sr-only">Delete</span>
+                                     </Button>
+                                 </AlertDialogTrigger>
+                                 <AlertDialogContent>
+                                     <AlertDialogHeader><AlertDialogTitle>Delete Event?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete "{event.title}"?</AlertDialogDescription></AlertDialogHeader>
+                                     <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteEvent(event.id!)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete</AlertDialogAction></AlertDialogFooter>
+                                 </AlertDialogContent>
+                             </AlertDialog>
+                         </div>
+                    )}
                 </div>
               ))}
-            </div>
+               {!isLoading && dayEvents.length === 0 && !isCurrentMonth && (
+                   <div className="h-full flex items-center justify-center text-muted-foreground/50 text-[9px]"></div>
+               )}
+            </ScrollArea>
           </div>
         );
       })}
@@ -276,13 +441,18 @@ const CalendarPage: FC = () => {
         </CardContent>
       </Card>
 
-       {/* Event Creation Dialog */}
+       {/* Event Creation/Editing Dialog */}
        <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
-         <DialogContent className="sm:max-w-[425px]">
+         <DialogContent className="sm:max-w-[480px]"> {/* Slightly wider */}
            <DialogHeader>
-             <DialogTitle>Add Event on {selectedDate ? format(selectedDate, 'PPP') : ''}</DialogTitle>
+             <DialogTitle>{editingEvent ? 'Edit Event' : `Add Event on ${selectedDate ? format(selectedDate, 'PPP') : ''}`}</DialogTitle>
            </DialogHeader>
-           {selectedDate && <EventForm onClose={closeEventDialog} date={selectedDate} />}
+           <EventForm
+             onClose={closeEventDialog}
+             initialData={editingEvent}
+             selectedDate={selectedDate ?? undefined} // Pass selectedDate if not editing
+             onSave={handleSaveEvent} // Pass save handler
+            />
          </DialogContent>
        </Dialog>
     </div>

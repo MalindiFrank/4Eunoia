@@ -1,0 +1,164 @@
+[
+  {
+    "id": "log-mock-1",
+    "date": "2025-04-29T00:00:00.000Z",
+    "activity": "Completed project proposal draft",
+    "mood": "⚡ Productive",
+    "notes": "Sent for review to Jane.",
+    "diaryEntry": "Felt productive today. The proposal took longer than expected but happy with the result."
+  },
+  {
+    "id": "log-mock-2",
+    "date": "2025-04-28T00:00:00.000Z",
+    "activity": "Team meeting and brainstorming session",
+    "mood": "😊 Happy",
+    "notes": "Discussed Q3 goals. Good ideas generated.",
+    "diaryEntry": "Meeting was energizing. Need to follow up on action items."
+  },
+  {
+    "id": "log-mock-3",
+    "date": "2025-04-27T00:00:00.000Z",
+    "activity": "Worked on coding feature X",
+    "mood": "😠 Stressed",
+    "notes": "Encountered a bug, spent time debugging.",
+    "diaryEntry": "Frustrating day with the bug, but learned something new about the framework."
+  },
+  {
+    "id": "log-mock-4",
+    "date": "2025-04-25T00:00:00.000Z",
+    "activity": "Client call and presentation prep",
+    "mood": "😟 Anxious",
+    "notes": "Call went well. Presentation needs more polishing.",
+    "diaryEntry": ""
+  },
+  {
+    "id": "log-mock-5",
+    "date": "2025-04-23T00:00:00.000Z",
+    "activity": "Personal development - Read book on leadership",
+    "mood": "😌 Calm",
+    "notes": "Chapter 3 finished.",
+    "diaryEntry": "Interesting concepts on delegation. Need to apply them."
+  },
+  {
+    "id": "log-mock-6",
+    "date": "2025-04-20T00:00:00.000Z",
+    "activity": "Attended webinar on AI trends",
+    "mood": "😊 Happy",
+    "notes": "",
+    "diaryEntry": "Mind-blowing advancements. Need to explore how we can leverage this."
+  },
+  {
+    "id": "log-mock-lb1",
+    "date": "2025-04-29T00:00:00.000Z",
+    "activity": "Worked on project presentation",
+    "mood": "⚡ Productive"
+  },
+  {
+    "id": "log-mock-lb2",
+    "date": "2025-04-28T00:00:00.000Z",
+    "activity": "Gym session and meditation",
+    "mood": "😌 Calm"
+  },
+  {
+    "id": "log-mock-lb3",
+    "date": "2025-04-27T00:00:00.000Z",
+    "activity": "Dinner with friends",
+    "mood": "😊 Happy"
+  },
+  {
+    "id": "log-mock-lb4",
+    "date": "2025-04-26T00:00:00.000Z",
+    "activity": "Read book on leadership",
+    "mood": "😌 Calm"
+  },
+  {
+    "id": "log-mock-lb5",
+    "date": "2025-04-25T00:00:00.000Z",
+    "activity": "Pay monthly bills",
+    "mood": "😕 Neutral"
+  },
+  {
+    "id": "log-mock-lb6",
+    "date": "2025-04-24T00:00:00.000Z",
+    "activity": "Cleaned the apartment",
+    "mood": "😕 Neutral"
+  },
+  {
+    "id": "log-mock-lb7",
+    "date": "2025-04-23T00:00:00.000Z",
+    "activity": "Watched a movie",
+    "mood": "😊 Happy"
+  },
+  {
+    "id": "log-mock-lb8",
+    "date": "2025-04-22T00:00:00.000Z",
+    "activity": "Client call",
+    "mood": "⚡ Productive"
+  },
+  {
+    "id": "log-mock-lb9",
+    "date": "2025-04-21T00:00:00.000Z",
+    "activity": "Yoga class",
+    "mood": "😌 Calm"
+  },
+  {
+    "id": "log-mock-b1",
+    "date": "2025-04-29T00:00:00.000Z",
+    "mood": "😠 Stressed",
+    "activity": "Long day, many meetings"
+  },
+  {
+    "id": "log-mock-b2",
+    "date": "2025-04-28T00:00:00.000Z",
+    "mood": "😴 Tired",
+    "activity": "Worked late"
+  },
+  {
+    "id": "log-mock-b3",
+    "date": "2025-04-26T00:00:00.000Z",
+    "mood": "😟 Anxious",
+    "activity": "Deadline approaching"
+  },
+  {
+    "id": "log-mock-b4",
+    "date": "2025-04-25T00:00:00.000Z",
+    "mood": "😠 Stressed"
+  },
+  {
+    "id": "log-mock-b5",
+    "date": "2025-04-23T00:00:00.000Z",
+    "mood": "😊 Happy",
+    "activity": "Weekend break"
+  },
+  {
+    "id": "log-mock-b6",
+    "date": "2025-04-22T00:00:00.000Z",
+    "mood": "😴 Tired"
+  },
+  {
+    "id": "log-mock-b7",
+    "date": "2025-04-20T00:00:00.000Z",
+    "mood": "⚡ Productive"
+  },
+  {
+    "id": "log-mock-b8",
+    "date": "2025-04-18T00:00:00.000Z",
+    "mood": "😠 Stressed",
+    "activity": "Unexpected issues arose"
+  },
+   {
+    "id": "log-mock-s1",
+    "date": "2025-04-29T00:00:00.000Z",
+    "diaryEntry": "Great progress today, feeling very accomplished!"
+  },
+  {
+    "id": "log-mock-s2",
+    "date": "2025-04-27T00:00:00.000Z",
+    "diaryEntry": "Struggled with the bug again. Feeling frustrated and stuck."
+  },
+  {
+    "id": "log-mock-s3",
+    "date": "2025-04-25T00:00:00.000Z",
+    "diaryEntry": "Had a relaxing weekend. Feeling refreshed."
+  }
+]
