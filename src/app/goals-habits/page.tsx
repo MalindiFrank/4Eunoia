@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label'; // Import Label component
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
@@ -89,7 +90,7 @@ const loadFromLocalStorage = <T,>(key: string, dateFields: (keyof T)[] = []): T[
                 return newItem;
             });
             // Sort goals/habits by update time or creation time
-             if ('updatedAt' in parsedData[0] || 'createdAt' in parsedData[0]) {
+             if (parsedData.length > 0 && ('updatedAt' in parsedData[0] || 'createdAt' in parsedData[0])) {
                 return parsedData.sort((a: any, b: any) =>
                     (b.updatedAt || b.createdAt).getTime() - (a.updatedAt || a.createdAt).getTime()
                 );
@@ -161,7 +162,9 @@ const GoalsHabitsPage: FC = () => {
 
    // Save settings when growthPace changes
    useEffect(() => {
-       saveToLocalStorage(SETTINGS_STORAGE_KEY, [{ pace: growthPace }]); // Store as an object in an array for consistency
+        if (typeof window !== 'undefined') {
+           saveToLocalStorage(SETTINGS_STORAGE_KEY, [{ pace: growthPace }]); // Store as an object in an array for consistency
+        }
    }, [growthPace]);
 
 
@@ -282,7 +285,10 @@ const GoalsHabitsPage: FC = () => {
 
          // Only show toast if the habit was actually marked complete now
          const updatedHabit = updatedHabits.find(h => h.id === habitId);
-         if (updatedHabit && (!editingHabit || editingHabit.lastCompleted !== updatedHabit.lastCompleted)) {
+         // Check if the habit was updated by comparing lastCompleted timestamp or checking if it was previously null
+         const wasJustCompleted = updatedHabit && (!editingHabit?.lastCompleted || editingHabit.lastCompleted !== updatedHabit.lastCompleted);
+
+         if (updatedHabit && wasJustCompleted) {
               toast({ title: "Habit Completed!", description: `Great job on "${habitTitle}"! Streak: ${updatedHabit.streak}` });
          }
    };
