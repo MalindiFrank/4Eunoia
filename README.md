@@ -1,179 +1,195 @@
 
-# 4Eunoia - Personal Productivity & Wellness OS
+# 4Eunoia – Your Life, In Harmony
 
-4Eunoia is a comprehensive Next.js application designed to be your personal operating system for productivity, self-reflection, and overall well-being. It integrates various tracking tools with AI-powered insights to help you understand your patterns, optimize your routines, and achieve your goals.
+4Eunoia is a comprehensive Next.js application that serves as your personal operating system for productivity, self-reflection, and well-being. It brings together multiple life domains—from tasks and expenses to mood tracking and journaling—augmented with AI-powered insights to help you better understand your habits, optimize your routines, and live more intentionally.
 
-![4Eunoia Dashboard (Conceptual)](https://picsum.photos/800/400?random=1&data-ai-hint=dashboard%20productivity)
-*(Image is conceptual and may not represent the final UI)*
+---
 
 ## ✨ Key Features
 
-This application aims to provide a holistic view of your life and empower you with data-driven insights.
+This app offers a holistic view of your life and helps you stay balanced through data and insight.
 
-**Core Tracking & Management:**
+### **Core Tracking & Management:**
 
-*   **Daily Log:** Record activities, mood (with emojis 😊), detailed notes, and free-form diary entries.
-*   **Task Management:** Create, update, and track tasks with descriptions, due dates, and statuses (Pending, In Progress, Completed).
-*   **Calendar:** View and manage events in a monthly calendar interface. Add new events directly.
-*   **Reminders:** Set and manage reminders with specific dates and times.
-*   **Expense Tracking:** Log expenses with descriptions, amounts, dates, and categories. Visualize spending patterns.
-*   **Notes:** A simple yet effective note-taking module for capturing thoughts, meeting minutes, or any other information.
-*   **Goals & Habits:** Define long-term goals and track the consistency of daily, weekly, or monthly habits. Includes streak tracking.
-*   **Wellness Center:** Tools for well-being, including:
-    *   **Mood Tracking:** Log your mood throughout the day.
-    *   **Journaling:** Dedicated space for reflection with prompts.
-    *   **Focus Rituals:** Select soundscapes to aid concentration (basic implementation).
-    *   **Micro-Exercises:** Simple CBT-based exercises like gratitude practice (basic implementation).
+- **Daily Log:** Capture activities, moods (with emojis 😊), detailed notes, and free-form diary entries.
+- **Task Management:** Manage tasks with statuses (Pending, In Progress, Completed), due dates, and notes.
+- **Calendar:** Visual monthly calendar to manage and create events.
+- **Reminders:** Schedule and manage upcoming reminders.
+- **Expense Tracking:** Log and categorize expenses; visualize trends and totals.
+- **Notes:** Create and organize notes for thoughts, meetings, and more.
+- **Goals & Habits:** Track long-term goals and daily/weekly/monthly habits, including streak views.
+- **Wellness Center:**
+  - **Mood Tracking:** Track emotional state throughout the day.
+  - **Journaling:** Reflect with prompts and free writing.
+  - **Focus Rituals:** Basic calming soundscapes for concentration.
+  - **Micro-Exercises:** Short CBT-based mental health exercises (basic).
 
-**🧠 AI-Powered Insights & Analytics (Powered by Google Gemini via Genkit):**
+### **🧠 AI-Powered Insights (via Genkit + Google Gemini):**
 
-*   **Productivity Patterns Analysis:** Identifies peak performance times, common distractions, and suggests improvement strategies based on logs, tasks, and calendar data.
-*   **Expense Trend Analysis:** Analyzes spending data to provide summaries, totals, averages, and top categories.
-*   **Task Completion Analysis:** Calculates completion rates and identifies overdue tasks within a specified period.
-*   **Sentiment Analysis:** Analyzes diary entries and notes to determine overall sentiment, score, and key emotional themes.
-*   **Diary Summarization:** Provides weekly or monthly summaries highlighting key events, emotions, and reflections.
-*   **Life Balance Assessment:** Scores focus across different life areas (Work, Health, Social, etc.) based on logged activities.
-*   **Burnout Risk Estimation:** Estimates potential burnout risk based on recent mood, activity, and task load.
-*   **Daily Personal Assistant Feed:** Provides a daily summary, mood forecast, suggestions, and motivation on the dashboard.
-*   **AI Reflection Coach:** Guided weekly reflections.
+- **Productivity Pattern Recognition:** Identify peak hours, distractions, and performance patterns.
+- **Expense Analysis:** See spending summaries, averages, and trends.
+- **Task Analytics:** Completion rates, overdue counts, and consistency analysis.
+- **Sentiment Analysis:** Detect emotional tone and themes in your diary or notes.
+- **Diary Summarization:** Weekly/monthly summary with emotional and event highlights.
+- **Life Balance Assessment:** Evaluate how balanced your time is across life domains.
+- **Burnout Risk Estimator:** Estimate burnout risk using recent log data.
+- **Planned:**
+  - **Daily Assistant Feed:** Mood forecast, day planning suggestions, reminders, and more.
+  - **AI Reflection Coach:** Guided weekly review sessions powered by prompts.
 
-**Advanced & State-Aware Features:**
+### **🔁 Advanced / Experimental Features:**
 
-*   **Context-Aware Smart Suggestions:** Recommend routines, focus sessions, breaks, or self-care based on time, past behavior, location, and current mood. Example: If the user logs low mood + unproductive day + rainy weather → suggest a mindfulness audio session or journaling prompt.
-*   **Adaptive Goal & Habit Engine:** Use ML to adapt and suggest micro-goals or habit changes based on success/failure patterns. Allow toggling between aggressive, moderate, or slow-paced personal growth modes.
-*   **Emotionally-Informed Planning:** Use mood and behavior logs to help plan more realistic days. Example: If Monday mornings are always low energy, start slow and put easy tasks first.
-*   **Neurodivergent Mode:** Settings available to enable features like task chunking suggestions and low-stimulation UI.
+- **Adaptive Goal Suggestions:** (Planned) Personalized habit/goal tweaks based on progress.
+- **Context-Aware Suggestions:** (Planned) Suggestions based on emotion, weather, time, etc.
+- **Neurodivergent Mode:** Task chunking tips, low-stimulation UI settings (in progress).
+- **Visual Dashboards:** Charts for task stats, habit consistency, and spending insights.
+
+---
 
 ## 🛠️ Tech Stack
 
-*   **Framework:** Next.js 15 (App Router)
-*   **Language:** TypeScript
-*   **Styling:** Tailwind CSS
-*   **UI Components:** shadcn/ui
-*   **AI Integration:** Google Gemini via Genkit SDK
-*   **State Management:** React Context (implied by `useSidebar`), `useState`, `useEffect`
-*   **Forms:** React Hook Form with Zod for validation
-*   **Date Management:** date-fns
-*   **Charts:** Recharts (via shadcn/ui charts)
-*   **Local Data Storage:** Browser `localStorage` (Note: This is used for demonstration and has limitations. A proper backend database like Firebase Firestore is recommended for production).
+- **Framework:** Next.js 15 (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **Components:** shadcn/ui
+- **AI:** Google Gemini via Genkit SDK
+- **Forms:** React Hook Form + Zod
+- **Dates:** date-fns
+- **Charts:** Recharts
+- **Storage:** `localStorage` (demo use only — Firestore recommended)
+
+---
 
 ## 🚀 Getting Started
 
-**Prerequisites:**
+### Prerequisites
 
-*   Node.js (version 18 or later recommended)
-*   npm or yarn
+- Node.js 18+
+- npm or yarn
 
-**Installation:**
+### Setup
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd <repository-directory>
-    ```
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    # or
-    yarn install
-    ```
+```bash
+git clone <repo-url>
+cd 4eunoia
+npm install
+# or
+yarn install
+```
 
-**Environment Variables:**
+### Environment Variables
 
-*   This project uses Google Gemini via Genkit. You need to obtain an API key from Google AI Studio.
-*   Create a `.env.local` file in the root directory (copy `.env` if it exists).
-*   Add your Google Generative AI API key:
-    ```env
-    GOOGLE_GENAI_API_KEY=YOUR_API_KEY_HERE
-    ```
-    *   **Important:** Keep your API key secure and do not commit it to version control.
+Create a `.env.local` file:
 
-**Running the Development Server:**
+```env
+GOOGLE_GENAI_API_KEY=your_api_key
+```
 
-1.  **Start the Next.js app:**
-    ```bash
-    npm run dev
-    # or
-    yarn dev
-    ```
-    This will typically start the app on `http://localhost:9002`.
+### Start App
 
-2.  **(Optional) Start the Genkit Development UI:**
-    If you want to inspect or test the Genkit flows separately:
-    ```bash
-    npm run genkit:dev
-    # or for auto-reloading on changes:
-    npm run genkit:watch
-    ```
-    This will start the Genkit developer UI, usually on `http://localhost:4000`.
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+App runs at `http://localhost:9002`.
+
+To launch the Genkit dev UI:
+
+```bash
+npm run genkit:dev
+# or
+npm run genkit:watch
+```
+
+Usually available at `http://localhost:4000`.
+
+---
 
 ## 📂 Project Structure
 
 ```
 .
-├── public/               # Static assets
+├── public/               # Static files
 ├── src/
-│   ├── app/              # Next.js App Router pages and layouts
-│   │   ├── api/          # (Optional) API routes if needed later
-│   │   ├── (pages)/      # Route groups for each feature (e.g., tasks, calendar)
-│   │   │   ├── page.tsx  # Main component for each page
-│   │   ├── globals.css   # Global styles and Tailwind directives
-│   │   ├── layout.tsx    # Root layout
-│   │   └── page.tsx      # Main dashboard page
-│   ├── ai/               # Genkit AI integration
-│   │   ├── flows/        # AI flow definitions (e.g., analyze-productivity-patterns.ts)
-│   │   ├── ai-instance.ts # Genkit initialization
-│   │   └── dev.ts        # Entry point for Genkit dev server
-│   ├── components/       # Reusable React components
-│   │   ├── ui/           # shadcn/ui components
-│   │   └── app-sidebar.tsx # Application sidebar component
-│   ├── hooks/            # Custom React hooks (e.g., useToast, useMobile)
-│   ├── lib/              # Utility functions and libraries
-│   │   ├── utils.ts      # General utility functions (e.g., cn)
-│   │   └── firebase.ts   # (If Firebase added) Firebase configuration
-│   └── services/         # Data fetching/manipulation logic (currently stubs/localStorage)
-│       ├── calendar.ts
-│       ├── expense.ts
-│       ├── reminder.ts
-│       └── task.ts
-├── .env                  # Environment variable template
-├── .eslintrc.json        # ESLint configuration
-├── .gitignore            # Git ignore file
-├── components.json       # shadcn/ui configuration
-├── next.config.ts        # Next.js configuration
-├── package.json          # Project dependencies and scripts
-├── postcss.config.js     # PostCSS configuration
-├── README.md             # This file
-├── tailwind.config.ts    # Tailwind CSS configuration
-└── tsconfig.json         # TypeScript configuration
+│   ├── app/              # Next.js routes and layouts
+│   ├── ai/               # Genkit AI flows and setup
+│   ├── components/       # UI and reusable components
+│   ├── hooks/            # Custom hooks
+│   ├── lib/              # Utility and config files
+│   └── services/         # Data logic (stub/localStorage for now)
+├── .env                  # Sample environment config
+├── tailwind.config.ts    # Tailwind setup
+├── tsconfig.json         # TypeScript settings
+└── README.md             # This file
 ```
+
+---
 
 ## 💡 Usage
 
-1.  Navigate through the sidebar to access different modules (Tasks, Calendar, Expenses, etc.).
-2.  Add data using the forms provided on each page (e.g., add tasks, log expenses, write notes).
-3.  **Data Persistence:** All data is currently stored in your browser's `localStorage`. This means:
-    *   Data is specific to the browser you are using.
-    *   Clearing browser data will erase all saved information.
-    *   Data is not synced across devices.
-    *   AI flows running on the server *cannot* directly access `localStorage` reliably and may use mock data or fail if not adapted for server-side data fetching.
-4.  Go to the **Insights** page to generate AI analysis based on your logged data. Select the insight type and any required parameters (like date range or frequency).
-5.  Go to the **Visualizations** page to see graphical representations of your data (Task Status, Expenses, Weekly Activity).
-6.  Explore the **Wellness Center** for mood logging and journaling.
-7.  Customize application behavior in the **Settings** page.
+- Use the sidebar to switch between features (Tasks, Logs, Calendar, etc.).
+- Input data using each section’s forms.
+- Visit **Insights** for AI-powered summaries and analytics.
+- View **Visualizations** for charts and trends.
+- **Data Warning:** All data is local to your browser. It will not sync across devices and may be lost on cache clear.
 
-## 🤖 AI Integration (Genkit)
+---
 
-*   The application uses the Genkit SDK to interact with Google's Gemini models.
-*   AI logic is encapsulated within "flows" located in `src/ai/flows/`.
-*   Each flow defines specific input/output schemas (using Zod) and prompts the AI to perform tasks like analysis, summarization, or estimation.
-*   Flows are designed to be called from server components or Server Actions (like on the Insights page).
-*   **Data Access Limitation:** As mentioned, the AI flows currently attempt to access `localStorage` for data. This is primarily for demonstration purposes during development where Server Actions might have some client-like context. **In a production environment or standard server-side rendering, this will not work.** For AI flows to function correctly with persisted data, integration with a proper database (like Firestore) and server-side data fetching logic is required. Flows accessing localStorage will show warnings in the console and may fall back to using mock data.
+## 🧠 AI Details
 
-## 🤝 Contributing (Optional)
+- Uses Genkit + Gemini for intelligent flows (in `src/ai/flows/`).
+- Flows include Zod validation for structure.
+- Data currently fetched from `localStorage` for demo purposes.
+- For full production AI use, integrate a real database like Firestore.
 
-Contributions are welcome! Please follow standard Git workflow (fork, branch, commit, pull request). Ensure code quality, add tests if applicable, and update documentation as needed.
+---
 
-## 📜 License (Optional)
+## 🗺️ Roadmap
 
-This project is licensed under the [MIT License](LICENSE). (Or specify your chosen license).
+- [ ] Firebase/Firestore backend
+- [ ] Mobile app (React Native or Expo)
+- [ ] AI Reflection Coach
+- [ ] Offline/PWA support
+- [ ] User accounts & login
+- [ ] Plugin support (Google Calendar, Notion, etc.)
+- [ ] Advanced AI assistants (burnout detection, productivity coaching)
+
+---
+
+## ⚠️ Known Limitations
+
+- No account system or data sync
+- Data lost on browser cache clear
+- AI can't access real user data server-side yet
+- Focus and wellness tools are basic/minimal
+
+---
+
+## ✨ Feature Summary
+
+- ✅ Logs
+- 📆 Calendar
+- 📋 Tasks
+- 🔔 Reminders
+- 💸 Expenses
+- 📝 Notes
+- 🎯 Goals & Habits
+- 🧘 Wellness
+- 🤖 AI Insights
+- 📊 Charts
+- 🧑‍🔬 Neurodivergent Support
+- ⚙️ Custom Settings
+
+---
+
+## 🤝 Contributing
+
+Open to pull requests! Please fork, branch, commit clearly, and update documentation.
+
+---
+
+## 📜 License
+
+Licensed under the [MIT License](LICENSE).
