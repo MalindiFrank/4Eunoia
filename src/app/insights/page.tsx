@@ -1,4 +1,4 @@
-{'use client';
+'use client';
 
 import type { FC } from 'react';
 import React, { useState, useCallback } from 'react';
@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, formatISO, parseISO } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame } from 'lucide-react'; // Added new icons
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap } from 'lucide-react'; // Added Zap for assistant feed
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -42,28 +42,29 @@ import {
   AnalyzeTaskCompletionInput,
   AnalyzeTaskCompletionOutputSchema, // Keep using schema to infer type
 } from '@/ai/flows/analyze-task-completion';
-
-// --- Import NEW AI Flows (Create these files next) ---
 import {
     analyzeSentimentTrends,
     AnalyzeSentimentTrendsInput,
     AnalyzeSentimentTrendsOutput,
-} from '@/ai/flows/analyze-sentiment-trends'; // New
+} from '@/ai/flows/analyze-sentiment-trends';
 import {
     assessLifeBalance,
     AssessLifeBalanceInput,
     AssessLifeBalanceOutput,
-} from '@/ai/flows/assess-life-balance'; // New
+} from '@/ai/flows/assess-life-balance';
 import {
     estimateBurnoutRisk,
     EstimateBurnoutRiskInput,
     EstimateBurnoutRiskOutput,
-} from '@/ai/flows/estimate-burnout-risk'; // New
+} from '@/ai/flows/estimate-burnout-risk';
+// Import Daily Feed Flow (Placeholder - assumed to exist)
+// import { generateDailyFeed, GenerateDailyFeedOutput } from '@/ai/flows/generate-daily-feed';
 
 
 // --- Types ---
+// Assuming OutputTask is defined elsewhere or inferred correctly
 type DisplayTask = z.infer<typeof AnalyzeTaskCompletionOutputSchema['shape']['overdueTasks']['element']>;
-type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk';
+type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk'; // Add other potential types if needed
 
 // --- Form Schema ---
 const insightsRequestSchema = z.object({
@@ -72,7 +73,7 @@ const insightsRequestSchema = z.object({
   endDate: z.date().optional(), // Use Date for form, convert before sending
   frequency: z.enum(['weekly', 'monthly']).optional(), // For diary summary & sentiment
 }).refine(data => {
-    // Date range required for productivity, expenses, tasks, sentiment
+    // Date range required for specific types
     const requiresDateRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
     if (requiresDateRange.includes(data.insightType) && (!data.startDate || !data.endDate)) {
         return false;
@@ -81,7 +82,7 @@ const insightsRequestSchema = z.object({
     if (data.insightType === 'diarySummary' && !data.frequency) {
         return false;
     }
-     // Life Balance and Burnout don't strictly need range/frequency from user (can use default like 'last 30 days')
+     // Life Balance and Burnout don't strictly need range/frequency from user (use defaults)
     // Ensure end date is not before start date if both exist
     if (data.startDate && data.endDate && data.endDate < data.startDate) {
         return false;
@@ -101,9 +102,11 @@ const InsightsPage: FC = () => {
   const [diarySummary, setDiarySummary] = useState<SummarizeDiaryEntriesOutput | null>(null);
   const [expenseTrends, setExpenseTrends] = useState<AnalyzeExpenseTrendsOutput | null>(null);
   const [taskCompletion, setTaskCompletion] = useState<z.infer<typeof AnalyzeTaskCompletionOutputSchema> | null>(null);
-  const [sentimentAnalysis, setSentimentAnalysis] = useState<AnalyzeSentimentTrendsOutput | null>(null); // New
-  const [lifeBalance, setLifeBalance] = useState<AssessLifeBalanceOutput | null>(null); // New
-  const [burnoutRisk, setBurnoutRisk] = useState<EstimateBurnoutRiskOutput | null>(null); // New
+  const [sentimentAnalysis, setSentimentAnalysis] = useState<AnalyzeSentimentTrendsOutput | null>(null);
+  const [lifeBalance, setLifeBalance] = useState<AssessLifeBalanceOutput | null>(null);
+  const [burnoutRisk, setBurnoutRisk] = useState<EstimateBurnoutRiskOutput | null>(null);
+  // State for Daily Feed (Placeholder)
+  // const [dailyFeed, setDailyFeed] = useState<GenerateDailyFeedOutput | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -119,6 +122,24 @@ const InsightsPage: FC = () => {
   });
 
    const selectedInsightType = form.watch('insightType');
+
+   // Fetch Daily Feed on initial load (Placeholder)
+   /*
+   useEffect(() => {
+       const fetchFeed = async () => {
+           try {
+               // Assuming generateDailyFeed requires no input or uses defaults
+               const feed = await generateDailyFeed({});
+               setDailyFeed(feed);
+           } catch (error) {
+               console.error("Failed to fetch daily feed:", error);
+               toast({ title: "Error", description: "Could not load daily feed suggestions.", variant: "destructive" });
+           }
+       };
+       fetchFeed();
+   }, [toast]);
+   */
+
 
    const clearResults = () => {
      setProductivityInsights(null);
@@ -172,22 +193,18 @@ const InsightsPage: FC = () => {
                  setTaskCompletion(taskResult);
                  break;
              case 'sentimentAnalysis':
-                  // Assume sentiment analysis also needs a date range for now
                   const sentimentResult = await analyzeSentimentTrends(dateInput as AnalyzeSentimentTrendsInput);
                   setSentimentAnalysis(sentimentResult);
                   break;
              case 'lifeBalance':
-                  // Life balance might analyze overall data, or optionally take a range
-                  const balanceResult = await assessLifeBalance({ /* Optionally pass date range if needed */ } as AssessLifeBalanceInput);
+                  const balanceResult = await assessLifeBalance({} as AssessLifeBalanceInput);
                   setLifeBalance(balanceResult);
                   break;
              case 'burnoutRisk':
-                  // Burnout risk might analyze recent data (e.g., last 30 days)
-                  const burnoutResult = await estimateBurnoutRisk({ /* Optionally pass configuration */ } as EstimateBurnoutRiskInput);
+                  const burnoutResult = await estimateBurnoutRisk({} as EstimateBurnoutRiskInput);
                   setBurnoutRisk(burnoutResult);
                   break;
              default:
-                 // Should not happen with enum type
                  throw new Error("Invalid insight type selected.");
          }
 
@@ -283,6 +300,33 @@ const InsightsPage: FC = () => {
         </h1>
       </div>
 
+      {/* Daily Feed Placeholder */}
+        {/*
+        <Card className="shadow-lg border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
+             <CardHeader>
+                 <CardTitle className="text-lg flex items-center gap-2">
+                     <Zap className="h-5 w-5 text-primary" /> Today's Feed
+                 </CardTitle>
+                 <CardDescription>Your personalized assistant for the day.</CardDescription>
+             </CardHeader>
+             <CardContent>
+                 {dailyFeed ? (
+                     <div className="space-y-3 text-sm">
+                        <p>☀️ {dailyFeed.greeting}</p>
+                        {dailyFeed.moodForecast && <p>🔮 Mood Forecast: {dailyFeed.moodForecast}</p>}
+                        {dailyFeed.motivationalQuote && <p className="italic">"{dailyFeed.motivationalQuote.quote}" - {dailyFeed.motivationalQuote.author}</p>}
+                        {dailyFeed.upcomingEvents.length > 0 && (<div><strong>Upcoming:</strong><ul className="list-disc list-inside ml-4">{dailyFeed.upcomingEvents.map((e,i)=><li key={i}>{e}</li>)}</ul></div>)}
+                        {dailyFeed.goalProgress && <p>🎯 Goal Focus: {dailyFeed.goalProgress}</p>}
+                        {dailyFeed.routineStatus && <p>🔄 Routine Status: {dailyFeed.routineStatus}</p>}
+                        {dailyFeed.suggestedBlocks && dailyFeed.suggestedBlocks.length > 0 && (<div><strong>Suggestions:</strong><ul className="list-disc list-inside ml-4">{dailyFeed.suggestedBlocks.map((b,i)=><li key={i}>{b}</li>)}</ul></div>)}
+                     </div>
+                 ) : (
+                     <Skeleton className="h-20 w-full" /> // Loader for feed
+                 )}
+             </CardContent>
+         </Card>
+         */}
+
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Generate Insights</CardTitle>
@@ -301,7 +345,7 @@ const InsightsPage: FC = () => {
                         field.onChange(value);
                         clearResults(); // Clear results when type changes
                         const requiresRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
-                        const requiresFreq: InsightType[] = ['diarySummary']; // Removed sentiment for now
+                        const requiresFreq: InsightType[] = ['diarySummary'];
 
                         // Reset dates if switching to a type needing them and they aren't set
                         if (requiresRange.includes(value) && (!form.getValues("startDate") || !form.getValues("endDate"))) {
@@ -368,7 +412,6 @@ const InsightsPage: FC = () => {
                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* ... Productivity content ... */}
                     <div><h3 className="font-semibold text-lg mb-1">Overall Assessment</h3><p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p></div>
                     <div><h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3><p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p></div>
                     <div><h3 className="font-semibold text-lg mb-1">Common Distractions/Obstacles</h3><p className="text-sm text-secondary-foreground">{productivityInsights.commonDistractionsOrObstacles}</p></div>
@@ -384,7 +427,6 @@ const InsightsPage: FC = () => {
                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* ... Expense content ... */}
                     <div><h3 className="font-semibold text-lg mb-1">Spending Summary</h3><p className="text-sm text-secondary-foreground">{expenseTrends.spendingSummary}</p></div>
                     <div className="grid grid-cols-2 gap-4"><p className="text-sm text-muted-foreground">Total Spending</p><p className="text-xl font-bold">${expenseTrends.totalSpending.toFixed(2)}</p></div>
                     <div className="grid grid-cols-2 gap-4"><p className="text-sm text-muted-foreground">Avg. Daily Spending</p><p className="text-xl font-bold">${expenseTrends.averageDailySpending.toFixed(2)}</p></div>
@@ -401,7 +443,6 @@ const InsightsPage: FC = () => {
                     <CardDescription>Tasks due between {format(form.getValues("startDate")!, 'PPP')} and {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* ... Task completion content ... */}
                      <div><h3 className="font-semibold text-lg mb-1">Completion Summary</h3><p className="text-sm text-secondary-foreground">{taskCompletion.completionSummary}</p></div>
                      <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(1)}%</p></div></div>
                     <Separator />
@@ -417,7 +458,6 @@ const InsightsPage: FC = () => {
                     <CardDescription>{`Summary for ${form.getValues("frequency") === 'weekly' ? 'This Week' : 'This Month'} (${diarySummary.entryCount} entries)`} {diarySummary.dateRange && `(${format(parseISO(diarySummary.dateRange.start), 'PP')} - ${format(parseISO(diarySummary.dateRange.end), 'PP')})`}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* ... Diary summary content ... */}
                      <div><h3 className="font-semibold text-lg mb-1">Summary</h3><p className="text-sm text-secondary-foreground">{diarySummary.summary}</p></div>
                      <div><h3 className="font-semibold text-lg mb-1">Key Events</h3>{diarySummary.keyEvents.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.keyEvents.map((event, i) => <li key={`event-${i}`}>{event}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No key events identified.</p>}</div>
                      <div><h3 className="font-semibold text-lg mb-1">Emotions</h3>{diarySummary.emotions.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.emotions.map((emotion, i) => <li key={`emotion-${i}`}>{emotion}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No prominent emotions identified.</p>}</div>
@@ -427,21 +467,23 @@ const InsightsPage: FC = () => {
         )}
 
         {/* NEW Insight Cards */}
-         {!isLoading && sentimentAnalysis && (
+         {!isLoading && sentimentAnalysis && form.getValues("startDate") && form.getValues("endDate") && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Smile className="h-5 w-5" /> Sentiment Analysis</CardTitle>
                       {/* Assume sentiment analysis used the same date range */}
-                      {form.getValues("startDate") && form.getValues("endDate") && (
-                         <CardDescription>Sentiment trends from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
-                      )}
+                      <CardDescription>Sentiment trends from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')} ({sentimentAnalysis.entryCount} entries)</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
-                     <div><h3 className="font-semibold text-lg mb-1">Overall Sentiment</h3><p className="text-sm text-secondary-foreground">{sentimentAnalysis.overallSentiment}</p></div>
-                     <div><h3 className="font-semibold text-lg mb-1">Key Positive Themes</h3><ul className="list-disc list-inside text-sm">{sentimentAnalysis.positiveKeywords.map(k=><li key={k}>{k}</li>)}</ul></div>
-                     <div><h3 className="font-semibold text-lg mb-1">Key Negative Themes</h3><ul className="list-disc list-inside text-sm">{sentimentAnalysis.negativeKeywords.map(k=><li key={k}>{k}</li>)}</ul></div>
+                    <div className="grid grid-cols-2 gap-4">
+                         <div><p className="text-sm text-muted-foreground">Overall Sentiment</p><p className="text-xl font-bold">{sentimentAnalysis.overallSentiment}</p></div>
+                         <div><p className="text-sm text-muted-foreground">Sentiment Score</p><p className="text-xl font-bold">{sentimentAnalysis.sentimentScore.toFixed(2)}</p></div>
+                    </div>
+                    <Separator/>
+                     <div><h3 className="font-semibold text-lg mb-1">Key Positive Themes/Keywords</h3>{sentimentAnalysis.positiveKeywords.length > 0 ? <ul className="list-disc list-inside text-sm">{sentimentAnalysis.positiveKeywords.map(k=><li key={k}>{k}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">None identified.</p>}</div>
+                     <div><h3 className="font-semibold text-lg mb-1">Key Negative Themes/Keywords</h3>{sentimentAnalysis.negativeKeywords.length > 0 ? <ul className="list-disc list-inside text-sm">{sentimentAnalysis.negativeKeywords.map(k=><li key={k}>{k}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">None identified.</p>}</div>
+                      <Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Analysis Summary</h3><p className="text-sm text-secondary-foreground">{sentimentAnalysis.analysisSummary}</p></div>
-                     {/* TODO: Add sentiment chart */}
                  </CardContent>
              </Card>
          )}
@@ -462,9 +504,9 @@ const InsightsPage: FC = () => {
                         </Alert>
                      )}
                      <div><h3 className="font-semibold text-lg mb-2">Focus Distribution</h3>
-                        {/* TODO: Replace with a Pie chart or similar visualization */}
+                        {/* TODO: Replace with a Pie chart */}
                         <ul className="space-y-1 text-sm">
-                             {lifeBalance.areaScores.map(area => (
+                             {lifeBalance.areaScores.sort((a,b) => b.score - a.score).map(area => (
                                 <li key={area.area} className="flex justify-between"><span>{area.area}</span> <span className="font-medium">{area.score}%</span></li>
                             ))}
                         </ul>
@@ -484,7 +526,9 @@ const InsightsPage: FC = () => {
                         <Progress value={burnoutRisk.riskScore} className="h-2 my-2" />
                         <p className="text-sm text-secondary-foreground">{burnoutRisk.assessmentSummary}</p>
                      </div>
-                     <div><h3 className="font-semibold text-lg mb-1">Contributing Factors</h3><ul className="list-disc list-inside text-sm">{burnoutRisk.contributingFactors.map(f=><li key={f}>{f}</li>)}</ul></div>
+                      <Separator/>
+                     <div><h3 className="font-semibold text-lg mb-1">Contributing Factors</h3>{burnoutRisk.contributingFactors.length > 0 ? <ul className="list-disc list-inside text-sm">{burnoutRisk.contributingFactors.map(f=><li key={f}>{f}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">No specific factors identified.</p>}</div>
+                     <Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Recommendations</h3><ul className="list-disc list-inside text-sm">{burnoutRisk.recommendations.map(r=><li key={r}>{r}</li>)}</ul></div>
                  </CardContent>
              </Card>
