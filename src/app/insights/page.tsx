@@ -1,11 +1,12 @@
+
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useCallback, useEffect } from 'react'; // Added useEffect
+import React, { useState, useCallback, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, formatISO, parseISO } from 'date-fns';
+import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,8 +40,8 @@ import {
 } from '@/ai/flows/analyze-expense-trends';
 import {
   analyzeTaskCompletion,
-  AnalyzeTaskCompletionInput, // Use the updated input schema type
-  AnalyzeTaskCompletionOutput, // Keep output schema for result type
+  AnalyzeTaskCompletionInput,
+  AnalyzeTaskCompletionOutput,
 } from '@/ai/flows/analyze-task-completion';
 import {
     analyzeSentimentTrends,
@@ -57,51 +58,53 @@ import {
     EstimateBurnoutRiskInput,
     EstimateBurnoutRiskOutput,
 } from '@/ai/flows/estimate-burnout-risk';
-// Placeholder for Daily Feed Flow (implement later)
-// import { generateDailyFeed, GenerateDailyFeedOutput } from '@/ai/flows/generate-daily-feed';
+// Import reflection and suggestion flows
+import { reflectOnWeek, ReflectOnWeekInput, ReflectOnWeekOutput } from '@/ai/flows/reflect-on-week';
+import { generateDailySuggestions, GenerateDailySuggestionsInput, GenerateDailySuggestionsOutput } from '@/ai/flows/generate-daily-suggestions';
 
 
 // --- Import Services ---
-import { getTasks, type Task } from '@/services/task'; // Import task service
+import { getTasks, type Task } from '@/services/task';
 import { getDailyLogs, type LogEntry } from '@/services/daily-log';
 import { getExpenses, type Expense } from '@/services/expense';
 import { getNotes, type Note } from '@/services/note';
 import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
+import { getGoals, type Goal } from '@/services/goal'; // Added
+import { getHabits, type Habit } from '@/services/habit'; // Added
 import { useDataMode } from '@/context/data-mode-context';
 
 
 // --- Types ---
-// Infer type from schema to ensure consistency
-type TaskCompletionOutput = z.infer<typeof AnalyzeTaskCompletionOutput>;
-type DisplayTask = TaskCompletionOutput['overdueTasks'][number]; // Get type for a single task in the output array
+type DisplayTask = AnalyzeTaskCompletionOutput['overdueTasks'][number];
 
 type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk';
+type AIServiceType = InsightType | 'reflection' | 'dailySuggestion'; // Add new types
+
 
 // --- Form Schema ---
 const insightsRequestSchema = z.object({
-  insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk']),
-  startDate: z.date().optional(), // Use Date for form, convert before sending
-  endDate: z.date().optional(), // Use Date for form, convert before sending
+  // Use AIServiceType for the selection
+  insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion']),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
   frequency: z.enum(['weekly', 'monthly']).optional(), // For diary summary & sentiment
 }).refine(data => {
-    // Date range required for specific types
-    const requiresDateRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
+    const requiresDateRange: AIServiceType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection'];
     if (requiresDateRange.includes(data.insightType) && (!data.startDate || !data.endDate)) {
-        return false;
+        return false; // Date range required for these types
     }
-    // Frequency required for diary summary
-    if (data.insightType === 'diarySummary' && !data.frequency) {
-        return false;
-    }
-     // Life Balance and Burnout don't strictly need range/frequency from user (use defaults)
-    // Ensure end date is not before start date if both exist
+     // Frequency required for diary summary
+     if (data.insightType === 'diarySummary' && !data.frequency) {
+         return false;
+     }
+    // Daily suggestions don't need user input for date/freq
     if (data.startDate && data.endDate && data.endDate < data.startDate) {
-        return false;
+        return false; // End date cannot be before start date
     }
     return true;
 }, {
-    message: "Valid date range required for Productivity, Expense, Task, and Sentiment insights. Frequency required for Diary summaries. End date cannot be before start date.",
-    path: ["startDate"], // Attach error message generally or to a specific field
+    message: "Valid date range required for most insights. Frequency required for Diary summaries. End date cannot be before start date.",
+    path: ["startDate"], // General error message path
 });
 
 type InsightsRequestFormValues = z.infer<typeof insightsRequestSchema>;
@@ -112,45 +115,74 @@ const InsightsPage: FC = () => {
   const [productivityInsights, setProductivityInsights] = useState<AnalyzeProductivityPatternsOutput | null>(null);
   const [diarySummary, setDiarySummary] = useState<SummarizeDiaryEntriesOutput | null>(null);
   const [expenseTrends, setExpenseTrends] = useState<AnalyzeExpenseTrendsOutput | null>(null);
-  const [taskCompletion, setTaskCompletion] = useState<TaskCompletionOutput | null>(null);
+  const [taskCompletion, setTaskCompletion] = useState<AnalyzeTaskCompletionOutput | null>(null);
   const [sentimentAnalysis, setSentimentAnalysis] = useState<AnalyzeSentimentTrendsOutput | null>(null);
   const [lifeBalance, setLifeBalance] = useState<AssessLifeBalanceOutput | null>(null);
   const [burnoutRisk, setBurnoutRisk] = useState<EstimateBurnoutRiskOutput | null>(null);
-  // State for Daily Feed (Placeholder)
-  // const [dailyFeed, setDailyFeed] = useState<GenerateDailyFeedOutput | null>(null);
+  // New state for coach and suggestions
+  const [reflectionState, setReflectionState] = useState<{ conversation: { questions: string[], responses: string[] }, output: ReflectOnWeekOutput | null }>({ conversation: { questions: [], responses: [] }, output: null });
+  const [dailySuggestions, setDailySuggestions] = useState<GenerateDailySuggestionsOutput | null>(null);
+  const [reflectionUserInput, setReflectionUserInput] = useState('');
 
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [isLoading, setIsLoading] = useState<boolean | AIServiceType>(false); // Track loading state per type or globally
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Get current data mode
+  const { dataMode } = useDataMode();
 
   const form = useForm<InsightsRequestFormValues>({
     resolver: zodResolver(insightsRequestSchema),
     defaultValues: {
-      insightType: 'productivity',
-      startDate: new Date(new Date().setDate(new Date().getDate() - 30)), // Default to last 30 days
-      endDate: new Date(),
+      insightType: 'dailySuggestion', // Default to daily suggestions
+      startDate: subDays(new Date(), 7), // Default start date (last 7 days)
+      endDate: new Date(), // Default end date (today)
       frequency: 'weekly',
     },
   });
 
    const selectedInsightType = form.watch('insightType');
 
-   // Fetch Daily Feed on initial load (Placeholder)
-   /*
+    // Fetch Daily Suggestions on initial load or when data mode changes
    useEffect(() => {
-       const fetchFeed = async () => {
-           try {
-               // Assuming generateDailyFeed requires no input or uses defaults
-               const feed = await generateDailyFeed({});
-               setDailyFeed(feed);
-           } catch (error) {
-               console.error("Failed to fetch daily feed:", error);
-               toast({ title: "Error", description: "Could not load daily feed suggestions.", variant: "destructive" });
-           }
-       };
-       fetchFeed();
-   }, [toast]);
-   */
+        const fetchDailySuggestions = async () => {
+            setIsLoading('dailySuggestion');
+            try {
+                 // Fetch necessary data for suggestions (e.g., recent logs, upcoming tasks/events)
+                 const now = new Date();
+                 const yesterday = subDays(now, 1);
+                 const tomorrow = subDays(now, -1); // Corrected: use negative for future
+
+                 const [logs, tasks, events, habits, goals] = await Promise.all([
+                    getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)), // Last 2 days
+                    getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && task.dueDate && task.dueDate <= tomorrow)), // Due today/tomorrow
+                    getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= now && ev.start <= endOfWeek(now))), // Today onwards this week
+                    getHabits(dataMode), // All active habits
+                    getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')), // Active goals
+                 ]);
+
+                 // Prepare input for the flow
+                 const input: GenerateDailySuggestionsInput = {
+                     currentDateTime: formatISO(now),
+                     recentLogs: logs.map(l => ({...l, date: formatISO(l.date)})),
+                     upcomingTasks: tasks.map(t => ({...t, dueDate: t.dueDate ? formatISO(t.dueDate) : undefined, createdAt: t.createdAt ? formatISO(t.createdAt) : undefined})),
+                     todaysEvents: events.map(e => ({...e, start: formatISO(e.start), end: formatISO(e.end)})),
+                     activeHabits: habits.map(h => ({...h, lastCompleted: h.lastCompleted ? formatISO(h.lastCompleted) : undefined, createdAt: formatISO(h.createdAt), updatedAt: formatISO(h.updatedAt)})),
+                     activeGoals: goals.map(g => ({...g, createdAt: formatISO(g.createdAt), updatedAt: formatISO(g.updatedAt), targetDate: g.targetDate ? formatISO(g.targetDate): undefined })),
+                     // TODO: Add location, weather, growthPace if available
+                 };
+
+                 const result = await generateDailySuggestions(input);
+                 setDailySuggestions(result);
+
+            } catch (error) {
+                console.error("Failed to generate daily suggestions:", error);
+                toast({ title: "Error", description: "Could not load daily suggestions.", variant: "destructive" });
+                setDailySuggestions(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDailySuggestions();
+   }, [dataMode, toast]);
 
 
    const clearResults = () => {
@@ -161,84 +193,208 @@ const InsightsPage: FC = () => {
      setSentimentAnalysis(null);
      setLifeBalance(null);
      setBurnoutRisk(null);
+     setReflectionState({ conversation: { questions: [], responses: [] }, output: null }); // Reset reflection
+     // Don't clear daily suggestions unless explicitly requested
    };
 
    // --- API Call Logic ---
-   const onSubmit = useCallback(async (data: InsightsRequestFormValues) => {
-     setIsLoading(true);
-     clearResults(); // Clear previous insights
+   const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: 'reflection' }) => {
+     setIsLoading(data.insightType); // Set loading state for the specific type
+     if (data.insightType !== 'reflection') { // Keep old results for reflection turns
+         clearResults();
+     }
 
      try {
-       const { insightType, startDate, endDate, frequency } = data;
+       const { insightType } = data;
 
-       // --- Input Validation (already handled by refine, but good practice) ---
-        const requiresDateRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
-       if (requiresDateRange.includes(insightType) && (!startDate || !endDate)) {
-           throw new Error("Please select a start and end date for this insight type.");
-       }
-       if (startDate && endDate && endDate < startDate) {
-           throw new Error("End date cannot be before start date.");
-       }
-        if (insightType === 'diarySummary' && !frequency) {
-            throw new Error("Please select a frequency for diary summary.");
-        }
-       // --- End Validation ---
+       // Use form values if not a reflection turn
+       const startDate = 'startDate' in data && data.startDate ? data.startDate : new Date();
+       const endDate = 'endDate' in data && data.endDate ? data.endDate : new Date();
+       const frequency = 'frequency' in data ? data.frequency : undefined;
 
-       // Prepare common date inputs
-       const dateInput = startDate && endDate ? { startDate: formatISO(startDate), endDate: formatISO(endDate) } : {};
+
+       // Common date input (ISO strings)
+       const dateInput = { startDate: formatISO(startDate), endDate: formatISO(endDate) };
+
+        // Fetch necessary data based on insight type
+        let logs: LogEntry[] = [], tasks: Task[] = [], events: CalendarEvent[] = [], expenses: Expense[] = [], notes: Note[] = [], goals: Goal[] = [], habits: Habit[] = [];
+
+        const requiresLogs = ['productivity', 'diarySummary', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(insightType);
+        const requiresTasks = ['productivity', 'taskCompletion', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(insightType);
+        const requiresEvents = ['productivity', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(insightType); // Add events for burnout/balance
+        const requiresExpenses = ['expenseTrends', 'lifeBalance'].includes(insightType);
+        const requiresNotes = ['productivity', 'sentimentAnalysis'].includes(insightType);
+        const requiresGoals = ['lifeBalance', 'reflection'].includes(insightType);
+        const requiresHabits = ['lifeBalance', 'reflection'].includes(insightType);
+
+
+        // Optimize fetching - only fetch what's needed
+        const fetchDataPromises: Promise<any>[] = [];
+        if (requiresLogs) fetchDataPromises.push(getDailyLogs(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresTasks) fetchDataPromises.push(getTasks(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresEvents) fetchDataPromises.push(getCalendarEvents(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresExpenses) fetchDataPromises.push(getExpenses(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresNotes) fetchDataPromises.push(getNotes(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresGoals) fetchDataPromises.push(getGoals(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+        if (requiresHabits) fetchDataPromises.push(getHabits(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
+
+
+        [logs, tasks, events, expenses, notes, goals, habits] = await Promise.all(fetchDataPromises);
+
+
+        // Filter data by date range *after* fetching (more efficient for localStorage)
+         const filterByDate = <T extends { date?: Date; createdAt?: Date; updatedAt?: Date; start?: Date }>(item: T): boolean => {
+             const itemDate = item.date || item.createdAt || item.updatedAt || item.start;
+             return itemDate ? itemDate >= startDate && itemDate <= endDate : false;
+         };
+
+         const logsInRange = logs.filter(filterByDate);
+         const tasksInRange = tasks.filter(task => { // Tasks need special check for due/created/updated
+            const created = task.createdAt;
+            const due = task.dueDate;
+            // Include if created or due within range
+            return (created && created >= startDate && created <= endDate) || (due && due >= startDate && due <= endDate);
+         });
+         const eventsInRange = events.filter(filterByDate);
+         const expensesInRange = expenses.filter(filterByDate);
+         const notesInRange = notes.filter(filterByDate);
+         const goalsInRange = goals.filter(filterByDate); // Filter by updatedAt
+         const habitsInRange = habits.filter(filterByDate); // Filter by updatedAt
+
+
+         // Helper to format data for flows
+          const formatForFlow = <T extends Record<string, any>>(items: T[], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
+             return items.map(item => {
+                 const newItem: Record<string, any> = { ...item };
+                 dateKeys.forEach(key => {
+                     if (item[key] instanceof Date) {
+                         newItem[key] = formatISO(item[key]);
+                     }
+                 });
+                 return newItem;
+             });
+         };
+
 
         switch (insightType) {
              case 'productivity':
-                 // TODO: Fetch relevant data (logs, tasks, events etc.) and pass to flow
-                 const prodResult = await analyzeProductivityPatterns(dateInput as AnalyzeProductivityPatternsInput);
+                 const prodInput: AnalyzeProductivityPatternsInput = {
+                    ...dateInput,
+                    dailyLogs: formatForFlow(logsInRange, ['date']),
+                    tasks: formatForFlow(tasksInRange, ['createdAt', 'dueDate']),
+                    calendarEvents: formatForFlow(eventsInRange, ['start', 'end']),
+                    notes: formatForFlow(notesInRange, ['createdAt', 'updatedAt']),
+                    // additionalContext: "Optional user context here"
+                 };
+                 const prodResult = await analyzeProductivityPatterns(prodInput);
                  setProductivityInsights(prodResult);
                  break;
+
              case 'diarySummary':
-                  // TODO: Fetch logs and pass to flow
-                 const diaryResult = await summarizeDiaryEntries({ frequency: frequency! } as SummarizeDiaryEntriesInput);
-                 setDiarySummary(diaryResult);
-                 break;
+                  const diaryEntries = logsInRange.filter(l => l.diaryEntry).map(l => ({ id: l.id, date: formatISO(l.date), text: l.diaryEntry! }));
+                  if (!frequency) throw new Error("Frequency is required for diary summary.");
+                  const diaryInput: SummarizeDiaryEntriesInput = { frequency, diaryEntries, ...dateInput };
+                  const diaryResult = await summarizeDiaryEntries(diaryInput);
+                  setDiarySummary(diaryResult);
+                  break;
+
              case 'expenseTrends':
-                  // TODO: Fetch expenses and pass to flow
-                 const expenseResult = await analyzeExpenseTrends(dateInput as AnalyzeExpenseTrendsInput);
+                 const expenseInput: AnalyzeExpenseTrendsInput = { ...dateInput, expenses: formatForFlow(expensesInRange, ['date']) };
+                 const expenseResult = await analyzeExpenseTrends(expenseInput);
                  setExpenseTrends(expenseResult);
                  break;
+
              case 'taskCompletion':
-                  // Fetch tasks here
-                 const tasks = await getTasks(dataMode);
-                 // Prepare tasks for the flow's input schema (dates as ISO strings)
-                 const tasksForFlow = tasks.map(t => ({
-                    ...t,
-                    dueDate: t.dueDate ? formatISO(t.dueDate) : undefined,
-                    createdAt: t.createdAt ? formatISO(t.createdAt) : undefined,
-                 }));
-                 // Call the flow with dates and the fetched tasks
-                 const taskResult = await analyzeTaskCompletion({
-                     ...(dateInput as { startDate: string; endDate: string }), // Ensure dates are present
-                     tasks: tasksForFlow,
-                 });
+                  // Pass ALL tasks to the flow, it will filter by due date internally based on start/end date args
+                 const taskInput: AnalyzeTaskCompletionInput = { ...dateInput, tasks: formatForFlow(tasks, ['createdAt', 'dueDate']) };
+                 const taskResult = await analyzeTaskCompletion(taskInput);
                  setTaskCompletion(taskResult);
                  break;
+
              case 'sentimentAnalysis':
-                   // TODO: Fetch logs/notes and pass to flow
-                  const sentimentResult = await analyzeSentimentTrends(dateInput as AnalyzeSentimentTrendsInput);
+                  // Combine diary entries and note content
+                  const diaryTexts = logsInRange.filter(l => l.diaryEntry).map(l => ({ id: l.id, date: formatISO(l.date), text: l.diaryEntry!, source: 'diary' as const }));
+                  const noteTexts = notesInRange.map(n => ({ id: n.id, date: formatISO(n.createdAt), text: n.content, source: 'note' as const }));
+                  const sentimentInput: AnalyzeSentimentTrendsInput = { ...dateInput, textEntries: [...diaryTexts, ...noteTexts] };
+                  const sentimentResult = await analyzeSentimentTrends(sentimentInput);
                   setSentimentAnalysis(sentimentResult);
                   break;
+
              case 'lifeBalance':
-                   // TODO: Fetch all relevant data and pass to flow
-                  const balanceResult = await assessLifeBalance({} as AssessLifeBalanceInput);
+                  const balanceInput: AssessLifeBalanceInput = {
+                     ...dateInput,
+                     dailyLogs: formatForFlow(logsInRange, ['date']),
+                     tasks: formatForFlow(tasksInRange, ['createdAt', 'dueDate']),
+                     calendarEvents: formatForFlow(eventsInRange, ['start', 'end']),
+                     expenses: formatForFlow(expensesInRange, ['date']),
+                     habits: formatForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
+                     goals: formatForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
+                  };
+                  const balanceResult = await assessLifeBalance(balanceInput);
                   setLifeBalance(balanceResult);
                   break;
+
              case 'burnoutRisk':
-                   // TODO: Fetch all relevant data and pass to flow
-                  const burnoutResult = await estimateBurnoutRisk({} as EstimateBurnoutRiskInput);
+                  const burnoutInput: EstimateBurnoutRiskInput = {
+                     ...dateInput,
+                     dailyLogs: formatForFlow(logsInRange, ['date']),
+                     tasks: formatForFlow(tasks, ['createdAt', 'dueDate']), // Pass all tasks for accurate pending/overdue count
+                     calendarEvents: formatForFlow(eventsInRange, ['start', 'end']),
+                  };
+                  const burnoutResult = await estimateBurnoutRisk(burnoutInput);
                   setBurnoutRisk(burnoutResult);
                   break;
+
+              case 'reflection':
+                 // Prepare input for reflection coach
+                  const reflectionInput: ReflectOnWeekInput = {
+                     ...dateInput,
+                     logs: formatForFlow(logsInRange, ['date']),
+                     tasks: formatForFlow(tasksInRange, ['createdAt', 'dueDate']),
+                     goals: formatForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
+                     habits: formatForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
+                      // Include conversation history if continuing
+                      previousReflection: reflectionState.output ? {
+                          questionsAsked: [...reflectionState.conversation.questions],
+                          userResponses: [...reflectionState.conversation.responses],
+                          aiSummary: reflectionState.output.observation,
+                      } : undefined,
+                      userResponse: reflectionUserInput || undefined, // Pass the latest user input
+                  };
+                  const reflectionResult = await reflectOnWeek(reflectionInput);
+                  setReflectionState(prev => ({
+                     conversation: {
+                         questions: [...prev.conversation.questions, reflectionResult.coachPrompt], // Add new AI question
+                         responses: [...prev.conversation.responses, reflectionUserInput], // Add latest user response
+                     },
+                     output: reflectionResult,
+                 }));
+                 setReflectionUserInput(''); // Clear input field after submission
+                 break;
+
+
+             case 'dailySuggestion':
+                 // This is handled by the useEffect hook, but could be triggered manually too
+                 // Refetching suggestions manually:
+                const suggestionInput: GenerateDailySuggestionsInput = {
+                    currentDateTime: formatISO(new Date()),
+                    recentLogs: formatForFlow(logs.filter(l => l.date >= subDays(new Date(), 1)), ['date']),
+                    upcomingTasks: formatForFlow(tasks.filter(t => t.status !== 'Completed' && t.dueDate && t.dueDate <= subDays(new Date(), -1)), ['createdAt', 'dueDate']),
+                    todaysEvents: formatForFlow(events.filter(e => e.start >= new Date() && e.start <= endOfWeek(new Date())), ['start', 'end']),
+                    activeHabits: formatForFlow(habits, ['createdAt', 'updatedAt', 'lastCompleted']),
+                    activeGoals: formatForFlow(goals.filter(g => g.status === 'In Progress'), ['createdAt', 'updatedAt', 'targetDate']),
+                 };
+                 const suggestionResult = await generateDailySuggestions(suggestionInput);
+                 setDailySuggestions(suggestionResult);
+                 break;
+
              default:
                  throw new Error("Invalid insight type selected.");
          }
 
-        toast({ title: "Insights Generated", description: `Successfully generated ${insightType} insights.` });
+        if (insightType !== 'reflection') { // Don't toast for every reflection turn
+           toast({ title: "Insights Generated", description: `Successfully generated ${insightType.replace(/([A-Z])/g, ' $1').trim()} insights.` });
+        }
 
      } catch (error) {
        console.error("Failed to generate insights:", error);
@@ -247,10 +403,21 @@ const InsightsPage: FC = () => {
          description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
          variant: "destructive",
        });
+        // Clear specific result on error?
+        // Example: if (data.insightType === 'productivity') setProductivityInsights(null);
      } finally {
-       setIsLoading(false);
+       setIsLoading(false); // Reset loading state
      }
-   }, [toast, dataMode]); // Add dataMode dependency
+   }, [toast, dataMode, reflectionState, reflectionUserInput]); // Add dependencies
+
+
+    // --- Reflection Input Handler ---
+    const handleReflectionResponse = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!reflectionUserInput.trim() || isLoading === 'reflection') return;
+        onSubmit({ insightType: 'reflection' }); // Trigger the onSubmit with reflection type
+    };
+
 
    // --- Dynamic Form Rendering ---
    const renderDateRangePicker = () => (
@@ -326,16 +493,51 @@ const InsightsPage: FC = () => {
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Lightbulb className="h-8 w-8 text-primary" /> AI Insights
+          <Lightbulb className="h-8 w-8 text-primary" /> AI Insights & Coaching
         </h1>
       </div>
 
-      {/* Daily Feed Placeholder */}
-        {/* ... (existing feed placeholder) ... */}
+      {/* Daily Suggestions */}
+        <Card className="shadow-md bg-primary/10 border-primary/20">
+            <CardHeader>
+                 <CardTitle className="text-lg flex items-center gap-2">
+                     <Zap className="h-5 w-5 text-primary" /> Daily Suggestions
+                 </CardTitle>
+                 <CardDescription>Context-aware suggestions for your day.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading === 'dailySuggestion' ? (
+                    <div className="space-y-3">
+                        <Skeleton className="h-5 w-3/4"/>
+                        <Skeleton className="h-5 w-1/2"/>
+                        <Skeleton className="h-5 w-2/3"/>
+                    </div>
+                ) : dailySuggestions && dailySuggestions.suggestions.length > 0 ? (
+                    <div className="space-y-3">
+                         {dailySuggestions.dailyFocus && <p className="text-sm font-semibold italic mb-3">✨ Daily Focus: {dailySuggestions.dailyFocus}</p>}
+                        <ul className="list-none space-y-2">
+                            {dailySuggestions.suggestions.map((s, i) => (
+                                <li key={i} className="flex flex-col text-sm p-2 border-l-2 border-primary/50 bg-background/50 rounded-r-md">
+                                    <span>{s.suggestion} <span className="text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground ml-1">{s.category}</span></span>
+                                    {s.reasoning && <span className="text-xs text-muted-foreground italic ml-1">({s.reasoning})</span>}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : (
+                     <p className="text-sm text-muted-foreground">No suggestions available right now.</p>
+                 )}
+                 {/* Button to refresh suggestions */}
+                 <Button variant="ghost" size="sm" onClick={() => onSubmit({ insightType: 'dailySuggestion'})} disabled={isLoading === 'dailySuggestion'} className="mt-3 text-xs h-7">
+                     {isLoading === 'dailySuggestion' ? <Loader2 className="mr-2 h-3 w-3 animate-spin"/> : null} Refresh Suggestions
+                 </Button>
+            </CardContent>
+        </Card>
+
 
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Generate Insights</CardTitle>
+          <CardTitle>Generate Specific Insights</CardTitle>
           <CardDescription>Select the type of insight and parameters to analyze your data ({dataMode === 'mock' ? 'using Mock Data' : 'using Your Data'}).</CardDescription>
         </CardHeader>
         <CardContent>
@@ -346,25 +548,30 @@ const InsightsPage: FC = () => {
                 name="insightType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Insight Type</FormLabel>
-                    <Select onValueChange={(value: InsightType) => {
+                    <FormLabel>Analysis / Tool Type</FormLabel>
+                    <Select onValueChange={(value: AIServiceType) => {
                         field.onChange(value);
-                        clearResults(); // Clear results when type changes
-                        const requiresRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
-                        const requiresFreq: InsightType[] = ['diarySummary'];
+                        clearResults();
+                         // Set default dates based on type
+                        if (['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(value)) {
+                             form.setValue('startDate', subDays(new Date(), 7)); // Default to last 7 days
+                             form.setValue('endDate', new Date());
+                         }
+                         if (value === 'diarySummary') {
+                             form.setValue('frequency', 'weekly'); // Default freq
+                             const now = new Date();
+                             form.setValue('startDate', startOfWeek(now));
+                             form.setValue('endDate', endOfWeek(now));
+                         } else if (value === 'reflection') {
+                             const now = new Date();
+                             form.setValue('startDate', startOfWeek(subDays(now, 7))); // Start of previous week
+                             form.setValue('endDate', endOfWeek(subDays(now, 7))); // End of previous week
+                         }
 
-                        // Reset dates if switching to a type needing them and they aren't set
-                        if (requiresRange.includes(value) && (!form.getValues("startDate") || !form.getValues("endDate"))) {
-                            form.setValue('startDate', new Date(new Date().setDate(new Date().getDate() - 30)));
-                            form.setValue('endDate', new Date());
-                        }
-                        // Reset frequency if switching to a type needing it and it isn't set
-                         if (requiresFreq.includes(value) && !form.getValues('frequency')){
-                             form.setValue('frequency', 'weekly'); // Default frequency
-                        }
                     }} defaultValue={field.value} value={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select insight type" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select analysis/tool" /></SelectTrigger></FormControl>
                       <SelectContent>
+                        <SelectItem value="dailySuggestion"><div className="flex items-center gap-2"><Zap className="h-4 w-4" /> Get Daily Suggestions</div></SelectItem>
                         <SelectItem value="productivity"><div className="flex items-center gap-2"><BarChartHorizontalBig className="h-4 w-4" /> Productivity Patterns</div></SelectItem>
                         <SelectItem value="expenseTrends"><div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Expense Trends</div></SelectItem>
                         <SelectItem value="taskCompletion"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Completion</div></SelectItem>
@@ -372,6 +579,7 @@ const InsightsPage: FC = () => {
                         <SelectItem value="diarySummary"><div className="flex items-center gap-2"><Activity className="h-4 w-4" /> Diary Summary</div></SelectItem>
                         <SelectItem value="lifeBalance"><div className="flex items-center gap-2"><Scale className="h-4 w-4" /> Life Balance Assessment</div></SelectItem>
                         <SelectItem value="burnoutRisk"><div className="flex items-center gap-2"><Flame className="h-4 w-4" /> Burnout Risk Estimation</div></SelectItem>
+                         <SelectItem value="reflection"><div className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> Weekly Reflection Coach</div></SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -380,15 +588,17 @@ const InsightsPage: FC = () => {
               />
 
                 {/* Conditionally render date/frequency pickers */}
-                {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'].includes(selectedInsightType) && renderDateRangePicker()}
+                {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(selectedInsightType) && renderDateRangePicker()}
                 {selectedInsightType === 'diarySummary' && renderFrequencySelector()}
 
 
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Generating...' : 'Generate Insights'}
-                {!isLoading && <BrainCircuit className="ml-2 h-4 w-4" />}
-              </Button>
-                {/* Display form validation errors */}
+                {selectedInsightType !== 'reflection' && selectedInsightType !== 'dailySuggestion' && (
+                     <Button type="submit" disabled={!!isLoading}>
+                         {isLoading === selectedInsightType ? 'Generating...' : 'Generate Insights'}
+                         {isLoading !== selectedInsightType && <BrainCircuit className="ml-2 h-4 w-4" />}
+                     </Button>
+                 )}
+                 {/* Display form validation errors */}
                  {form.formState.errors.root && (<p className="text-sm font-medium text-destructive">{form.formState.errors.root.message}</p>)}
                  {form.formState.errors.startDate && !form.formState.errors.root && (<p className="text-sm font-medium text-destructive">{form.formState.errors.startDate.message}</p>)}
                  {form.formState.errors.frequency && !form.formState.errors.root && (<p className="text-sm font-medium text-destructive">{form.formState.errors.frequency.message}</p>)}
@@ -399,7 +609,7 @@ const InsightsPage: FC = () => {
 
       {/* Display Insights Area */}
       <div className="space-y-6">
-        {isLoading && ( // Show skeleton loaders while loading
+        {isLoading && isLoading !== 'dailySuggestion' && isLoading !== 'reflection' && ( // General loading skeleton
            <Card>
                <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
                <CardContent className="space-y-4">
@@ -412,6 +622,63 @@ const InsightsPage: FC = () => {
 
         {/* ----- Render specific insight cards based on state ----- */}
 
+        {/* Reflection Coach */}
+        {selectedInsightType === 'reflection' && (
+            <Card className="shadow-md bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700">
+                 <CardHeader>
+                     <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Weekly Reflection Coach</CardTitle>
+                     <CardDescription>Reflect on your week {form.getValues("startDate") && form.getValues("endDate") && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                      {isLoading === 'reflection' && !reflectionState.output && (
+                         <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
+                     )}
+                     {/* Display Conversation History (Simplified) */}
+                     {reflectionState.conversation.questions.map((q, index) => (
+                         <div key={`conv-${index}`} className="space-y-2 mb-3 pb-3 border-b border-blue-100 dark:border-blue-800 last:border-b-0">
+                             <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Coach: <span className="font-normal italic">{q}</span></p>
+                             {reflectionState.conversation.responses[index] && (
+                                 <p className="text-sm pl-4 text-gray-700 dark:text-gray-300">You: <span className="font-normal">{reflectionState.conversation.responses[index]}</span></p>
+                             )}
+                         </div>
+                      ))}
+
+                     {/* Display current AI prompt if reflection is ongoing */}
+                     {reflectionState.output && !reflectionState.output.isComplete && (
+                         <form onSubmit={handleReflectionResponse} className="space-y-3 mt-4">
+                              {/* <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Coach: <span className="font-normal italic">{reflectionState.output.coachPrompt}</span></p> */}
+                             <Label htmlFor="reflection-response" className="sr-only">Your Response:</Label>
+                             <Textarea
+                                id="reflection-response"
+                                placeholder="Your thoughts..."
+                                value={reflectionUserInput}
+                                onChange={(e) => setReflectionUserInput(e.target.value)}
+                                rows={4}
+                                disabled={isLoading === 'reflection'}
+                             />
+                             <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim()}>
+                                {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Send Response
+                             </Button>
+                         </form>
+                     )}
+
+                     {/* Display completion message */}
+                     {reflectionState.output?.isComplete && (
+                         <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-4">✅ Reflection complete! Great job taking the time to reflect.</p>
+                     )}
+                      {/* Display AI observation */}
+                      {reflectionState.output?.observation && (
+                          <Alert variant="default" className="mt-4 bg-blue-100/50 dark:bg-blue-900/50 border-blue-200 dark:border-blue-700">
+                              <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              <AlertTitle className="text-blue-700 dark:text-blue-300">Coach's Observation</AlertTitle>
+                              <AlertDescription className="text-blue-600 dark:text-blue-300">{reflectionState.output.observation}</AlertDescription>
+                          </Alert>
+                      )}
+                 </CardContent>
+             </Card>
+         )}
+
+
         {/* Productivity Insights */}
         {!isLoading && productivityInsights && form.getValues("startDate") && form.getValues("endDate") && (
             <Card className="shadow-md bg-secondary/30">
@@ -420,9 +687,9 @@ const InsightsPage: FC = () => {
                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div><h3 className="font-semibold text-lg mb-1">Overall Assessment</h3><p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p></div>
-                    <div><h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3><p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p></div>
-                    <div><h3 className="font-semibold text-lg mb-1">Common Distractions/Obstacles</h3><p className="text-sm text-secondary-foreground">{productivityInsights.commonDistractionsOrObstacles}</p></div>
+                    <div><h3 className="font-semibold text-lg mb-1">Overall Assessment</h3><p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p></div><Separator/>
+                    <div><h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3><p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p></div><Separator/>
+                    <div><h3 className="font-semibold text-lg mb-1">Common Distractions/Obstacles</h3><p className="text-sm text-secondary-foreground">{productivityInsights.commonDistractionsOrObstacles}</p></div><Separator/>
                     <div><h3 className="font-semibold text-lg mb-1">Suggested Strategies</h3><p className="text-sm text-secondary-foreground">{productivityInsights.suggestedStrategies}</p></div>
                 </CardContent>
             </Card>
@@ -436,11 +703,13 @@ const InsightsPage: FC = () => {
                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div><h3 className="font-semibold text-lg mb-1">Spending Summary</h3><p className="text-sm text-secondary-foreground">{expenseTrends.spendingSummary}</p></div>
                     <div className="grid grid-cols-2 gap-4"><p className="text-sm text-muted-foreground">Total Spending</p><p className="text-xl font-bold">${expenseTrends.totalSpending.toFixed(2)}</p></div>
                     <div className="grid grid-cols-2 gap-4"><p className="text-sm text-muted-foreground">Avg. Daily Spending</p><p className="text-xl font-bold">${expenseTrends.averageDailySpending.toFixed(2)}</p></div>
+                     <Separator />
+                    <div><h3 className="font-semibold text-lg mb-1">Spending Summary</h3><p className="text-sm text-secondary-foreground">{expenseTrends.spendingSummary}</p></div>
                     <Separator />
                     <div><h3 className="font-semibold text-lg mb-2">Top Spending Categories</h3>{expenseTrends.topSpendingCategories.length > 0 ? (<ul className="space-y-2">{expenseTrends.topSpendingCategories.map((cat) => (<li key={cat.category} className="flex justify-between items-center text-sm"><span>{cat.category}</span><span className="font-medium">${cat.amount.toFixed(2)} <span className="text-xs text-muted-foreground">({cat.percentage.toFixed(1)}%)</span></span></li>))}</ul>) : <p className="text-sm text-muted-foreground italic">No spending data.</p>}</div>
+                     {expenseTrends.savingsSuggestions && expenseTrends.savingsSuggestions.length > 0 && (<> <Separator/> <div><h3 className="font-semibold text-lg mb-1">Savings Suggestions</h3><ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{expenseTrends.savingsSuggestions.map((s,i)=><li key={`sugg-${i}`}>{s}</li>)}</ul></div></>)}
                 </CardContent>
             </Card>
         )}
@@ -453,8 +722,9 @@ const InsightsPage: FC = () => {
                     <CardDescription>Tasks due between {format(form.getValues("startDate")!, 'PPP')} and {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                     <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(0)}%</p></div></div>
+                    <Separator />
                      <div><h3 className="font-semibold text-lg mb-1">Completion Summary</h3><p className="text-sm text-secondary-foreground">{taskCompletion.completionSummary}</p></div>
-                     <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(0)}%</p></div></div> {/* Fixed toFixed */}
                     <Separator />
                     <div><h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>{taskCompletion.overdueTasks.length > 0 ? (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>{taskCompletion.overdueTasks.length} Overdue!</AlertTitle><AlertDescription><ul className="list-disc list-inside mt-2 space-y-1">{taskCompletion.overdueTasks.map((task: DisplayTask) => (<li key={task.id} className="text-sm">{task.title} {task.dueDate && `(Due: ${format(parseISO(task.dueDate), 'PP')})`}</li>))}</ul></AlertDescription></Alert>) : (<p className="text-sm text-muted-foreground italic">No overdue tasks. Keep it up!</p>)}</div>
                 </CardContent>
@@ -469,10 +739,10 @@ const InsightsPage: FC = () => {
                     <CardDescription>{`Summary for ${form.getValues("frequency") === 'weekly' ? 'This Week' : 'This Month'} (${diarySummary.entryCount} entries)`} {diarySummary.dateRange && `(${format(parseISO(diarySummary.dateRange.start), 'PP')} - ${format(parseISO(diarySummary.dateRange.end), 'PP')})`}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <div><h3 className="font-semibold text-lg mb-1">Summary</h3><p className="text-sm text-secondary-foreground">{diarySummary.summary}</p></div>
-                     <div><h3 className="font-semibold text-lg mb-1">Key Events</h3>{diarySummary.keyEvents.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.keyEvents.map((event, i) => <li key={`event-${i}`}>{event}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No key events identified.</p>}</div>
-                     <div><h3 className="font-semibold text-lg mb-1">Emotions</h3>{diarySummary.emotions.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.emotions.map((emotion, i) => <li key={`emotion-${i}`}>{emotion}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No prominent emotions identified.</p>}</div>
-                     <div><h3 className="font-semibold text-lg mb-1">Reflections</h3>{diarySummary.reflections.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.reflections.map((reflection, i) => <li key={`reflection-${i}`}>{reflection}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No specific reflections identified.</p>}</div>
+                     <div><h3 className="font-semibold text-lg mb-1">Summary</h3><p className="text-sm text-secondary-foreground whitespace-pre-wrap">{diarySummary.summary}</p></div><Separator/>
+                     <div><h3 className="font-semibold text-lg mb-1">Key Events</h3>{diarySummary.keyEvents.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.keyEvents.map((event, i) => <li key={`event-${i}`}>{event}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No key events identified.</p>}</div><Separator/>
+                     <div><h3 className="font-semibold text-lg mb-1">Dominant Emotions</h3>{diarySummary.emotions.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.emotions.map((emotion, i) => <li key={`emotion-${i}`}>{emotion}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No prominent emotions identified.</p>}</div><Separator/>
+                     <div><h3 className="font-semibold text-lg mb-1">Key Reflections/Insights</h3>{diarySummary.reflections.length > 0 ? (<ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{diarySummary.reflections.map((reflection, i) => <li key={`reflection-${i}`}>{reflection}</li>)}</ul>) : <p className="text-sm text-muted-foreground italic">No specific reflections identified.</p>}</div>
                 </CardContent>
             </Card>
         )}
@@ -490,7 +760,7 @@ const InsightsPage: FC = () => {
                          <div><p className="text-sm text-muted-foreground">Sentiment Score</p><p className="text-xl font-bold">{sentimentAnalysis.sentimentScore.toFixed(2)}</p></div>
                     </div>
                     <Separator/>
-                     <div><h3 className="font-semibold text-lg mb-1">Key Positive Themes/Keywords</h3>{sentimentAnalysis.positiveKeywords.length > 0 ? <ul className="list-disc list-inside text-sm">{sentimentAnalysis.positiveKeywords.map(k=><li key={k}>{k}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">None identified.</p>}</div>
+                     <div><h3 className="font-semibold text-lg mb-1">Key Positive Themes/Keywords</h3>{sentimentAnalysis.positiveKeywords.length > 0 ? <ul className="list-disc list-inside text-sm">{sentimentAnalysis.positiveKeywords.map(k=><li key={k}>{k}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">None identified.</p>}</div><Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Key Negative Themes/Keywords</h3>{sentimentAnalysis.negativeKeywords.length > 0 ? <ul className="list-disc list-inside text-sm">{sentimentAnalysis.negativeKeywords.map(k=><li key={k}>{k}</li>)}</ul> : <p className="text-sm italic text-muted-foreground">None identified.</p>}</div>
                       <Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Analysis Summary</h3><p className="text-sm text-secondary-foreground">{sentimentAnalysis.analysisSummary}</p></div>
@@ -499,11 +769,11 @@ const InsightsPage: FC = () => {
          )}
 
          {/* Life Balance */}
-          {!isLoading && lifeBalance && (
+          {!isLoading && lifeBalance && form.getValues("startDate") && form.getValues("endDate") && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5" /> Life Balance Assessment</CardTitle>
-                     <CardDescription>Distribution of focus across life areas (based on recent data).</CardDescription>
+                     <CardDescription>Distribution of focus from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}.</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                      <div><h3 className="font-semibold text-lg mb-1">Balance Summary</h3><p className="text-sm text-secondary-foreground">{lifeBalance.balanceSummary}</p></div>
@@ -514,11 +784,19 @@ const InsightsPage: FC = () => {
                             <AlertDescription>Consider dedicating more time/energy to: {lifeBalance.neglectedAreas.join(', ')}.</AlertDescription>
                         </Alert>
                      )}
+                      {lifeBalance.suggestions && lifeBalance.suggestions.length > 0 && (<> <Separator/> <div><h3 className="font-semibold text-lg mb-1">Suggestions for Balance</h3><ul className="list-disc list-inside text-sm text-secondary-foreground space-y-1">{lifeBalance.suggestions.map((s,i)=><li key={`balance-sugg-${i}`}>{s}</li>)}</ul></div> </>)}
+                     <Separator/>
                      <div><h3 className="font-semibold text-lg mb-2">Focus Distribution</h3>
-                        {/* TODO: Replace with a Pie chart */}
                         <ul className="space-y-1 text-sm">
                              {lifeBalance.areaScores.sort((a,b) => b.score - a.score).map(area => (
-                                <li key={area.area} className="flex justify-between"><span>{area.area}</span> <span className="font-medium">{area.score}%</span></li>
+                                <li key={area.area} className="flex justify-between items-center">
+                                    <span>{area.area}</span>
+                                    <div className="flex items-center gap-2">
+                                         <Progress value={area.score} className="w-24 h-1.5" />
+                                         <span className="font-medium w-10 text-right">{area.score}%</span>
+                                         <span className="text-xs text-muted-foreground w-8 text-right">({area.rawCount})</span>
+                                    </div>
+                                </li>
                             ))}
                         </ul>
                      </div>
@@ -527,11 +805,11 @@ const InsightsPage: FC = () => {
          )}
 
          {/* Burnout Risk */}
-         {!isLoading && burnoutRisk && (
+         {!isLoading && burnoutRisk && form.getValues("startDate") && form.getValues("endDate") && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5" /> Burnout Risk Estimation</CardTitle>
-                     <CardDescription>Assessment based on recent activity, mood, and task load.</CardDescription>
+                     <CardDescription>Assessment from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}.</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                      <div><h3 className="font-semibold text-lg mb-1">Risk Level: {burnoutRisk.riskLevel}</h3>
@@ -552,5 +830,3 @@ const InsightsPage: FC = () => {
 };
 
 export default InsightsPage;
-
-    

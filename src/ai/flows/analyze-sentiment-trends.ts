@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,11 +11,13 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO } from 'date-fns'; // Keep necessary imports
+import { formatISO } from 'date-fns';
+import type { LogEntry } from '@/services/daily-log'; // Use service types
+import type { Note } from '@/services/note';
 
-
-// Define structure for text entries passed into the flow
+// Define structure for text entries passed into the flow (derived from LogEntry/Note)
 const InputTextEntrySchema = z.object({
+    id: z.string(),
     date: z.string().datetime(), // Expect ISO string
     text: z.string(),
     source: z.enum(['diary', 'note']),
@@ -32,6 +35,7 @@ export type AnalyzeSentimentTrendsInput = z.infer<typeof AnalyzeSentimentTrendsI
 
 // Use string date for prompt input schema (already matches InputTextEntrySchema)
 const TextEntryPromptSchema = z.object({
+      id: z.string(), // Include ID for potential future use
       date: z.string().datetime().describe('The date of the entry (ISO 8601 format).'),
       text: z.string().describe('The text content of the entry.'),
       source: z.enum(['diary', 'note']).describe('The source of the text entry.'),
@@ -40,9 +44,9 @@ const TextEntryPromptSchema = z.object({
 const AnalyzeSentimentTrendsOutputSchema = z.object({
   overallSentiment: z.enum(['Positive', 'Negative', 'Neutral', 'Mixed']).describe('The dominant sentiment detected across all entries in the period.'),
   sentimentScore: z.number().min(-1).max(1).describe('A numerical score representing the overall sentiment (-1: very negative, 0: neutral, 1: very positive).'),
-  positiveKeywords: z.array(z.string()).describe('List of keywords associated with positive sentiment.'),
-  negativeKeywords: z.array(z.string()).describe('List of keywords associated with negative sentiment.'),
-  analysisSummary: z.string().describe('A brief (2-3 sentence) summary of the sentiment trends observed, potentially noting shifts or recurring themes.'),
+  positiveKeywords: z.array(z.string()).describe('List of 3-5 keywords or short phrases associated with positive sentiment.'),
+  negativeKeywords: z.array(z.string()).describe('List of 3-5 keywords or short phrases associated with negative sentiment.'),
+  analysisSummary: z.string().describe('A brief (2-3 sentence) summary of the sentiment trends observed, noting shifts, recurring themes, or intensity.'),
   entryCount: z.number().describe('The number of text entries analyzed.'),
 });
 export type AnalyzeSentimentTrendsOutput = z.infer<typeof AnalyzeSentimentTrendsOutputSchema>;
@@ -51,7 +55,6 @@ export type AnalyzeSentimentTrendsOutput = z.infer<typeof AnalyzeSentimentTrends
 export async function analyzeSentimentTrends(
   input: AnalyzeSentimentTrendsInput
 ): Promise<AnalyzeSentimentTrendsOutput> {
-    // Input already contains textEntries, startDate, endDate
     return analyzeSentimentTrendsFlow(input);
 }
 
@@ -69,10 +72,10 @@ const analyzeSentimentPrompt = ai.definePrompt({
      // AI calculates everything except entryCount
     schema: z.object({
         overallSentiment: z.enum(['Positive', 'Negative', 'Neutral', 'Mixed']).describe('The dominant sentiment detected across all entries in the period.'),
-        sentimentScore: z.number().min(-1).max(1).describe('A numerical score representing the overall sentiment (-1: very negative, 0: neutral, 1: very positive). Estimate based on the balance and intensity of emotions.'),
-        positiveKeywords: z.array(z.string()).describe('List of 3-5 keywords or short phrases strongly associated with positive sentiment in the entries.'),
-        negativeKeywords: z.array(z.string()).describe('List of 3-5 keywords or short phrases strongly associated with negative sentiment in the entries.'),
-        analysisSummary: z.string().describe('A brief (2-3 sentence) summary of the sentiment trends observed. Mention the overall tone, any notable shifts, or recurring positive/negative themes.'),
+        sentimentScore: z.number().min(-1).max(1).describe('Estimate a numerical score representing the overall sentiment (-1.0: very negative, 0: neutral, 1.0: very positive). Consider the balance and intensity of emotions expressed.'),
+        positiveKeywords: z.array(z.string()).describe('List 3-5 keywords or short phrases strongly associated with positive sentiment (e.g., "accomplished," "grateful," "enjoyed").'),
+        negativeKeywords: z.array(z.string()).describe('List 3-5 keywords or short phrases strongly associated with negative sentiment (e.g., "frustrated," "stressed," "difficult," "worried").'),
+        analysisSummary: z.string().describe('Provide a concise **Analysis Summary** (2-3 sentences). Describe the overall emotional tone for the period. Mention any notable shifts in sentiment (e.g., "started positive but ended stressed") or recurring positive/negative themes. Comment on the intensity if apparent.'),
     }),
   },
   prompt: `You are an AI assistant specialized in analyzing text for sentiment trends. Analyze the following text entries from {{startDate}} to {{endDate}}.
@@ -89,11 +92,11 @@ No text entries found for this period.
 {{/if}}
 
 Analysis Tasks:
-1.  Determine the **Overall Sentiment** (Positive, Negative, Neutral, or Mixed) for the period.
+1.  Determine the **Overall Sentiment** (Positive, Negative, Neutral, or Mixed) for the period, considering the balance of emotions.
 2.  Estimate a **Sentiment Score** between -1.0 (very negative) and +1.0 (very positive).
-3.  Identify 3-5 key **Positive Keywords/Phrases**.
-4.  Identify 3-5 key **Negative Keywords/Phrases**.
-5.  Provide a concise **Analysis Summary** (2-3 sentences) describing the trends, tone, and any significant observations.
+3.  Identify 3-5 key **Positive Keywords/Phrases** reflecting positive emotions.
+4.  Identify 3-5 key **Negative Keywords/Phrases** reflecting negative emotions.
+5.  Write a concise **Analysis Summary** (2-3 sentences) describing the overall tone, any significant shifts, recurring themes, and perceived intensity.
 
 Generate the output in the specified JSON format. If no entries are found, return Neutral sentiment, score 0, empty keyword lists, and an appropriate summary.`,
 });
@@ -123,7 +126,14 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
 
     // Prepare data for the prompt (dates are already ISO strings)
     // Sort chronologically for the prompt
-    const promptTextEntries = [...textEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const promptTextEntries = [...textEntries]
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map(entry => ({ // Ensure structure matches prompt schema
+             id: entry.id,
+             date: entry.date,
+             text: entry.text,
+             source: entry.source,
+         }));
 
     const promptInputData: z.infer<typeof PromptInputSchema> = {
         textEntries: promptTextEntries, // Pass the sorted array
@@ -153,5 +163,3 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
         entryCount: textEntries.length,
     };
 });
-
-    

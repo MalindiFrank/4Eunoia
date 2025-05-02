@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,10 +11,12 @@
 
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
-import { formatISO } from 'date-fns'; // Keep only necessary imports
+import { formatISO, parseISO } from 'date-fns';
+import type { LogEntry } from '@/services/daily-log'; // Use service type
 
 // Define structure for individual diary entries passed to the flow
 const InputDiaryEntrySchema = z.object({
+  id: z.string(),
   date: z.string().datetime(), // Expect ISO string
   text: z.string(),
 });
@@ -31,15 +34,16 @@ export type SummarizeDiaryEntriesInput = z.infer<typeof SummarizeDiaryEntriesInp
 
 // Zod schema for diary entries passed *to the prompt*. Keep string date.
 const DiaryEntryPromptSchema = z.object({
+      id: z.string(), // Include ID
       date: z.string().datetime().describe('The date of the diary entry (ISO 8601 format).'),
       text: z.string().describe('The text content of the diary entry.'),
 });
 
 const SummarizeDiaryEntriesOutputSchema = z.object({
-  summary: z.string().describe('A summary of the diary entries, highlighting key events, emotions, and reflections.'),
-  keyEvents: z.array(z.string()).describe('A list of key events identified in the diary entries.'),
-  emotions: z.array(z.string()).describe('A list of emotions expressed in the diary entries.'),
-  reflections: z.array(z.string()).describe('A list of personal reflections found in the diary entries.'),
+  summary: z.string().describe('A summary of the diary entries, focusing on the overall emotional tone, key themes, and actionable insights.'),
+  keyEvents: z.array(z.string()).describe('A list of 2-4 significant events or activities mentioned.'),
+  emotions: z.array(z.string()).describe('A list of 2-4 dominant or recurring emotions expressed (e.g., happy, stressed, excited).'),
+  reflections: z.array(z.string()).describe('A list of 1-3 key personal reflections, questions, or insights identified for self-growth.'),
    entryCount: z.number().describe('The number of diary entries summarized.'),
    // Use string dates in the final Zod output schema to match JSON validation
    dateRange: z.object({
@@ -71,16 +75,15 @@ const prompt = ai.definePrompt({
   output: {
      // Omitting entryCount and dateRange from AI output schema, as we calculate them outside
      schema: z.object({
-       summary: z.string().describe('A concise (2-4 sentences) summary of the diary entries, highlighting key events, dominant emotions, and significant personal reflections or insights.'),
-       keyEvents: z.array(z.string()).describe('A list of 3-5 key events or activities mentioned in the diary entries.'),
-       emotions: z.array(z.string()).describe('A list of 3-5 dominant or recurring emotions expressed in the diary entries (e.g., happy, stressed, excited, frustrated).'),
-       reflections: z.array(z.string()).describe('A list of 2-4 significant personal reflections, insights, or questions posed in the diary entries.'),
+       summary: z.string().describe('Provide a concise (3-5 sentences) **Summary** of the diary entries. Focus on the overall emotional tone of the period ({{frequency}}), identify 1-2 recurring themes or key areas of focus (e.g., work stress, relationship reflections, progress on a goal), and mention any potential actionable insights or questions raised by the user.'),
+       keyEvents: z.array(z.string()).describe('List 2-4 significant **Key Events** or activities mentioned (e.g., "Completed project," "Had argument," "Started new hobby").'),
+       emotions: z.array(z.string()).describe('List 2-4 dominant or recurring **Emotions** expressed (e.g., "Gratitude," "Frustration," "Excitement," "Anxiety").'),
+       reflections: z.array(z.string()).describe('Identify 1-3 key personal **Reflections**, insights, or questions posed in the entries that suggest areas for self-growth (e.g., "Questioning career path," "Realizing the need for better boundaries," "Acknowledging a pattern of procrastination").'),
      }),
   },
    prompt: `You are an AI assistant skilled in analyzing personal diary entries to provide insightful summaries for self-reflection and personal development.
 
-  Analyze the following diary entries from {{startDate}} to {{endDate}} (summarized {{frequency}}).
-  Identify key events, dominant emotions, and significant personal reflections.
+  Analyze the following diary entries from {{startDate}} to {{endDate}} (summarized {{frequency}}). Focus on extracting the emotional tone, key themes, and points for self-reflection.
 
   Diary Entries (Chronological):
   {{#if diaryEntries}}
@@ -110,7 +113,7 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
     // Handle no entries case before calling the prompt
     if (!diaryEntries || diaryEntries.length === 0) {
         return {
-            summary: `No diary entries found for this ${frequency}.`,
+            summary: `No diary entries found for this ${frequency} period (${formatISO(parseISO(startDate), { representation: 'date'})} to ${formatISO(parseISO(endDate), { representation: 'date'})}).`,
             keyEvents: [],
             emotions: [],
             reflections: [],
@@ -122,6 +125,7 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
     // Prepare data for the prompt (dates are already ISO strings)
     const promptInputData: z.infer<typeof PromptInputSchema> = {
         diaryEntries: diaryEntries.map(entry => ({ // Ensure structure matches prompt schema
+            id: entry.id, // Pass ID
             date: entry.date,
             text: entry.text,
         })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), // Sort chronologically
@@ -132,15 +136,26 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
 
     const {output} = await prompt(promptInputData);
 
+    // Add fallback if AI output is missing
+     if (!output) {
+         console.error('AI analysis failed to return output for diary summary.');
+         return {
+             summary: "Error: Could not generate diary summary.",
+             keyEvents: [],
+             emotions: [],
+             reflections: [],
+             entryCount: diaryEntries.length,
+             dateRange: { start: startDate, end: endDate },
+         };
+     }
+
     // Combine AI output with calculated data
     return {
-        summary: output?.summary || "Could not generate summary.",
-        keyEvents: output?.keyEvents || [],
-        emotions: output?.emotions || [],
-        reflections: output?.reflections || [],
+        summary: output.summary,
+        keyEvents: output.keyEvents,
+        emotions: output.emotions,
+        reflections: output.reflections,
         entryCount: diaryEntries.length,
         dateRange: { start: startDate, end: endDate }, // Use dates passed from component
     };
 });
-
-    

@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,31 +11,8 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { parseISO, isWithinInterval, formatISO, format } from 'date-fns'; // Removed addDays, subDays
-// import { getTasks, Task } from '@/services/task'; // No longer load tasks internally
-
-// Define Task structure consistent with what the component will pass
-// IMPORTANT: Dates received from the component will likely be Date objects already
-// If they are passed as strings, they'll need parsing. Assuming Date objects for now.
-interface InputTask {
-  id: string;
-  title: string;
-  description?: string;
-  dueDate?: Date; // Expect Date object from component
-  status: 'Pending' | 'In Progress' | 'Completed';
-  createdAt?: Date; // Expect Date object from component
-}
-
-// Define Task structure for the actual output of the flow
-// Use string for date in the output type as well for consistency with the schema change
-interface OutputTask {
-    id: string;
-    title: string;
-    description?: string;
-    dueDate?: string; // Use string for date in the final JS output
-    status: 'Pending' | 'In Progress' | 'Completed';
-    createdAt?: string; // Also use string for output consistency
-}
+import { parseISO, isWithinInterval, formatISO, format } from 'date-fns';
+import type { Task } from '@/services/task'; // Use type from service
 
 // Zod schema for tasks included *in the output*. Use string().datetime() for dueDate.
 const TaskSchemaForOutput = z.object({
@@ -71,7 +49,7 @@ const AnalyzeTaskCompletionOutputSchema = z.object({
   completedTasks: z.number().describe('The number of tasks marked as completed among those considered.'),
   completionRate: z.number().describe('The percentage of considered tasks that were completed (completedTasks / totalTasksConsidered * 100). Calculated as 0 if no tasks were considered.'),
   overdueTasks: z.array(TaskSchemaForOutput).describe('A list of tasks that were due within the date range but are not marked as "Completed" as of today.'),
-  completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period.'),
+  completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, mentioning the rate and any overdue tasks.'),
 });
 export type AnalyzeTaskCompletionOutput = z.infer<
   typeof AnalyzeTaskCompletionOutputSchema
@@ -81,7 +59,6 @@ export type AnalyzeTaskCompletionOutput = z.infer<
 export async function analyzeTaskCompletion(
   input: AnalyzeTaskCompletionInput
 ): Promise<AnalyzeTaskCompletionOutput> {
-  // No need to fetch tasks here anymore, they are in the input
   return analyzeTaskCompletionFlow(input);
 }
 
@@ -96,9 +73,7 @@ const PromptInputSchema = z.object({
        completionRate: z.number(),
        overdueTasksCount: z.number(),
        // Pass only titles/due dates of overdue tasks to save tokens
-       overdueTasksJson: z.string().describe('A JSON string representing titles and due dates of overdue tasks.'),
-       // Optional: Pass a summary of all tasks if needed, but metrics are usually sufficient
-       // allTasksSummaryJson: z.string().describe('A brief JSON summary of all tasks provided (e.g., counts by status).')
+       overdueTasksJson: z.string().describe('A JSON string representing titles and human-readable due dates of overdue tasks (e.g., [{title, dueDate: "Apr 25th"}]).'),
     });
 
 const analyzeTaskCompletionPrompt = ai.definePrompt({
@@ -109,19 +84,21 @@ const analyzeTaskCompletionPrompt = ai.definePrompt({
   output: {
     // AI only needs to return the summary. Calculations and filtering are done outside.
     schema: z.object({
-      completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, considering the calculated numbers and overdue tasks.'),
+      completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, considering the calculated numbers and overdue tasks. Mention the rate and highlight if there are overdue tasks.'),
     })
   },
-  prompt: `Analyze the user's task completion performance based on the provided data for the period from {{startDate}} to {{endDate}}.
+  prompt: `Analyze the user's task completion performance based on the provided data for the period from {{startDate}} to {{endDate}}. Today's date is {{todayDate}}.
 
-Calculated Data (provided for context, do not recalculate):
+Calculated Data (provided for context):
 - Total Tasks Considered (Due in Range): {{totalTasksConsidered}}
 - Completed Tasks (Among Considered): {{completedTasks}}
 - Completion Rate: {{completionRate}}%
-- Overdue Tasks (Due in Range, Not Completed by {{todayDate}}): {{overdueTasksCount}} tasks.
-Overdue Task List (Summary JSON): {{{overdueTasksJson}}}
+- Overdue Tasks (Due in Range, Not Completed): {{overdueTasksCount}} task(s).
 
-Based *only* on the calculated figures and the list of overdue tasks, provide a brief textual summary (1-2 sentences) of the user's task completion performance for the period. Highlight the completion rate and mention if there are significant overdue tasks.
+Overdue Task List (Summary JSON):
+{{{overdueTasksJson}}}
+
+Based *only* on the calculated figures and the list of overdue tasks, provide a concise **Completion Summary** (1-2 sentences). State the completion rate and mention the number of overdue tasks if any. Example: "Achieved a completion rate of {{completionRate}}% for tasks due in this period. However, {{overdueTasksCount}} task(s) remain overdue, including '[Example Title]'."
 `,
 });
 
@@ -136,14 +113,17 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
     outputSchema: AnalyzeTaskCompletionOutputSchema,
   },
   async (input) => {
-    // Parse input date strings into Date objects
+    // --- Data Parsing and Filtering ---
     const startDate = parseISO(input.startDate);
     const endDate = parseISO(input.endDate);
     const today = new Date(); // Use a fixed date for overdue comparison within the flow
 
-    // Use the tasks passed directly in the input
-    const allTasks: InputTask[] = input.tasks.map(t => ({ // Convert dates from ISO strings if needed
-        ...t,
+    // Use the tasks passed directly in the input, parsing dates
+    const allTasks: Task[] = input.tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
         dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
         createdAt: t.createdAt ? parseISO(t.createdAt) : undefined,
     }));
@@ -154,18 +134,18 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         isWithinInterval(task.dueDate, { start: startDate, end: endDate }) // Due date within range
     );
 
-    // Calculate metrics based on the 'tasksConsidered'
+    // --- Calculations ---
     const totalConsidered = tasksConsidered.length;
     const completedInPeriod = tasksConsidered.filter(t => t.status === 'Completed').length;
     const completionRate = totalConsidered > 0 ? Math.round((completedInPeriod / totalConsidered) * 100) : 0;
 
     // Identify overdue tasks among those considered
     const overdueTasksRaw = tasksConsidered.filter(t =>
-        t.status !== 'Completed' && t.dueDate && t.dueDate <= today // Due date is in the past or today, and not completed
+        t.status !== 'Completed' && t.dueDate && t.dueDate < today // Due date is in the past, and not completed
     );
 
     // Format overdue tasks for the final output (using ISO strings for dates)
-     const overdueTasksForOutput: OutputTask[] = overdueTasksRaw.map(t => ({
+     const overdueTasksForOutput: z.infer<typeof TaskSchemaForOutput>[] = overdueTasksRaw.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description,
@@ -174,12 +154,11 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         createdAt: t.createdAt ? formatISO(t.createdAt) : undefined,
      }));
 
-     // Format overdue tasks for prompt context (using string dates - already correct)
-     // Simplify for the prompt: just title and due date string
+     // Format overdue tasks for prompt context (using human-readable dates)
      const overdueTasksJsonForPrompt = JSON.stringify(
          overdueTasksRaw.map(t => ({
              title: t.title,
-             dueDate: t.dueDate ? format(t.dueDate, 'PP') : 'No due date' // Human-readable date for prompt
+             dueDate: t.dueDate ? format(t.dueDate, 'PP') : 'No due date' // Human-readable date
          }))
      );
 
@@ -196,23 +175,20 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
      }
 
 
-    // Prepare input for the prompt
+    // --- AI Call ---
     const promptInputData: z.infer<typeof PromptInputSchema> = {
       startDate: input.startDate,
       endDate: input.endDate,
       todayDate: formatISO(today),
-      // Add calculated context for the prompt
-       totalTasksConsidered: totalConsidered,
-       completedTasks: completedInPeriod,
-       completionRate: completionRate,
-       overdueTasksCount: overdueTasksRaw.length,
-       overdueTasksJson: overdueTasksJsonForPrompt,
+      totalTasksConsidered: totalConsidered,
+      completedTasks: completedInPeriod,
+      completionRate: completionRate,
+      overdueTasksCount: overdueTasksRaw.length,
+      overdueTasksJson: overdueTasksJsonForPrompt,
     };
-
 
     let summary = "Summary could not be generated."; // Default summary
      try {
-        // Make sure promptInputData matches PromptInputSchema
         const { output } = await analyzeTaskCompletionPrompt(promptInputData);
         if (output?.completionSummary) {
             summary = output.completionSummary;
@@ -227,7 +203,7 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
      }
 
 
-    // Construct the final output object using ISO strings for dates in overdueTasks
+    // --- Construct Final Output ---
     return {
         totalTasksConsidered: totalConsidered,
         completedTasks: completedInPeriod,
@@ -237,5 +213,3 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
     };
   }
 );
-
-    
