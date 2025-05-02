@@ -3,7 +3,7 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash } from 'lucide-react'; // Added Trash icon
+import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,14 +12,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { cn } from '@/lib/utils'; // Added cn
+import { useDataMode } from '@/context/data-mode-context';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 // Placeholder types for settings
 interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
-  defaultView: string; // e.g., '/dashboard', '/tasks'
+  defaultView: string; // e.g., '/', '/tasks'
 }
 
 interface NotificationSettings {
@@ -31,21 +31,20 @@ interface NotificationSettings {
 
 interface IntegrationSettings {
   googleCalendarSync: boolean;
-  // Add other potential integrations (Slack, etc.)
 }
 
 interface NeurodivergentSettings {
   enabled: boolean;
-  focusModeTimer: 'pomodoro' | 'custom'; // Example setting
+  focusModeTimer: 'pomodoro' | 'custom';
   taskChunking: boolean;
   lowStimulationUI: boolean;
 }
 
-const SETTINGS_STORAGE_KEY = 'prodev-app-settings';
+const SETTINGS_STORAGE_KEY = '4eunoia-app-settings'; // Updated key
 
 const SettingsPage: FC = () => {
   const { toast } = useToast();
-  const { resetToMockMode } = useDataMode(); // Get the reset function
+  const { resetToMockMode } = useDataMode();
 
   // Initialize state with default values
   const [preferences, setPreferences] = useState<UserPreferences>({ theme: 'system', defaultView: '/' });
@@ -64,15 +63,30 @@ const SettingsPage: FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Function to apply the theme based on preferences
+  const applyTheme = (theme: UserPreferences['theme']) => {
+     if (typeof window === 'undefined') return;
+     const root = window.document.documentElement;
+     root.classList.remove('light', 'dark');
+
+     if (theme === 'system') {
+       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+       root.classList.add(systemTheme);
+       return;
+     }
+     root.classList.add(theme);
+   };
+
   // Load settings from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      let loadedPreferences = preferences; // Use defaults initially
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          // Merge loaded settings with defaults to handle missing keys
-          setPreferences(prev => ({ ...prev, ...(parsedSettings.preferences || {}) }));
+          loadedPreferences = { ...preferences, ...(parsedSettings.preferences || {}) }; // Load saved preferences
+          setPreferences(loadedPreferences);
           setNotifications(prev => ({ ...prev, ...(parsedSettings.notifications || {}) }));
           setIntegrations(prev => ({ ...prev, ...(parsedSettings.integrations || {}) }));
           setNeurodivergent(prev => ({ ...prev, ...(parsedSettings.neurodivergent || {}) }));
@@ -81,9 +95,15 @@ const SettingsPage: FC = () => {
           toast({ title: "Error", description: "Could not load saved settings.", variant: "destructive" });
         }
       }
+      applyTheme(loadedPreferences.theme); // Apply loaded or default theme
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast]); // Only run once on mount
+
+   // Effect to apply theme when preferences change
+   useEffect(() => {
+     applyTheme(preferences.theme);
+   }, [preferences.theme]);
 
   // Function to save all settings to localStorage
   const saveSettings = () => {
@@ -96,6 +116,7 @@ const SettingsPage: FC = () => {
      };
     try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(allSettings));
+        applyTheme(preferences.theme); // Re-apply theme immediately after save
         toast({ title: "Settings Saved", description: "Your preferences have been updated." });
     } catch (e) {
         console.error("Error saving settings to localStorage:", e);
@@ -106,6 +127,7 @@ const SettingsPage: FC = () => {
   // Handlers for individual setting changes (using functional updates)
   const handlePreferenceChange = <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
       setPreferences(prev => ({ ...prev, [key]: value }));
+       // No need to call applyTheme here, the useEffect listening to preferences.theme will handle it.
   };
 
   const handleNotificationChange = <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => {
@@ -126,14 +148,15 @@ const SettingsPage: FC = () => {
 
    // Reset handler
    const handleResetApp = () => {
-        resetToMockMode();
-        // Optionally reset local settings state as well, or rely on page reload triggered by context change
-        setPreferences({ theme: 'system', defaultView: '/' });
-        setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
-        setIntegrations({ googleCalendarSync: false });
-        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
-        toast({ title: "Application Reset", description: "All your data has been cleared. Switched back to Mock Data mode.", variant: "destructive" });
-        // Consider window.location.reload() if state changes aren't fully reflected
+        resetToMockMode(); // This handles clearing data and setting mode
+        // Optionally reset local settings state here if preferred,
+        // otherwise, rely on page reload triggered by resetToMockMode.
+        // setPreferences({ theme: 'system', defaultView: '/' });
+        // setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
+        // setIntegrations({ googleCalendarSync: false });
+        // setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
+        // localStorage.removeItem(SETTINGS_STORAGE_KEY); // Clear settings as well
+        // applyTheme('system'); // Reset theme visually before reload
    }
 
 
@@ -167,7 +190,7 @@ const SettingsPage: FC = () => {
               </SelectContent>
             </Select>
           </div>
-           {/* Add more preferences like default startup page, language, etc. */}
+           {/* Example: Default View (currently doesn't affect anything) */}
            {/* <div className="flex items-center justify-between">
                <Label htmlFor="default-view-select">Default Startup Page</Label>
                <Select value={preferences.defaultView} onValueChange={(value) => handlePreferenceChange('defaultView', value)}>
@@ -327,7 +350,7 @@ const SettingsPage: FC = () => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. All your personal data stored in this browser will be deleted permanently. The application will switch back to using mock data.
+                            This action cannot be undone. All your personal data stored in this browser will be deleted permanently. The application will switch back to using mock data. Settings will also be reset.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

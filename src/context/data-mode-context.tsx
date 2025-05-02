@@ -11,8 +11,6 @@ import { HABITS_STORAGE_KEY } from '@/services/habit';
 import { NOTES_STORAGE_KEY } from '@/services/note';
 import { REMINDER_STORAGE_KEY } from '@/services/reminder';
 import { TASK_STORAGE_KEY } from '@/services/task';
-// Assuming SETTINGS_STORAGE_KEY is also managed elsewhere or doesn't need clearing here.
-// Import other storage keys as needed.
 
 type DataMode = 'mock' | 'user';
 
@@ -25,7 +23,7 @@ interface DataModeContextProps {
 
 const DataModeContext = createContext<DataModeContextProps | undefined>(undefined);
 
-const DATA_MODE_STORAGE_KEY = 'prodev-data-mode';
+const DATA_MODE_STORAGE_KEY = '4eunoia-data-mode'; // Updated key
 
 // List of all local storage keys used by the services
 const ALL_DATA_STORAGE_KEYS = [
@@ -39,6 +37,7 @@ const ALL_DATA_STORAGE_KEYS = [
     TASK_STORAGE_KEY,
     // Add other data storage keys here
 ];
+const SETTINGS_STORAGE_KEY = '4eunoia-app-settings'; // Added settings key
 
 
 export const DataModeProvider = ({ children }: { children: ReactNode }) => {
@@ -60,7 +59,6 @@ export const DataModeProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
     } else {
          // Handle server-side or environments without localStorage
-         // You might default to 'mock' or handle based on environment variables
          setDataMode('mock');
          setIsLoading(false);
     }
@@ -75,7 +73,6 @@ export const DataModeProvider = ({ children }: { children: ReactNode }) => {
       description: "The app will now use data stored in your browser's local storage.",
     });
     // Optional: Could trigger a data refresh here if needed
-    // Consider if clearing mock data from state in services is necessary
   }, [toast]);
 
    const resetToMockMode = useCallback(() => {
@@ -84,19 +81,19 @@ export const DataModeProvider = ({ children }: { children: ReactNode }) => {
      ALL_DATA_STORAGE_KEYS.forEach(key => {
          localStorage.removeItem(key);
      });
-      // Optionally clear settings key too, or handle it separately
-     // localStorage.removeItem(SETTINGS_STORAGE_KEY);
+      // Clear settings key too
+     localStorage.removeItem(SETTINGS_STORAGE_KEY);
 
      // Set mode to 'mock' and save
      setDataMode('mock');
      localStorage.setItem(DATA_MODE_STORAGE_KEY, 'mock');
-     // Note: The toast message is handled in the settings page where this is called
+     // Toast message is handled in the settings page where this is called
 
      // IMPORTANT: Force a reload to ensure all components re-fetch data with the new mode
      // and clear any potentially cached user data in component state.
      window.location.reload();
 
-   }, [toast]); // Removed toast from dependencies as it's handled in the caller
+   }, []); // Removed toast dependency
 
   const value = { dataMode, switchToUserDataMode, resetToMockMode, isLoading };
 
