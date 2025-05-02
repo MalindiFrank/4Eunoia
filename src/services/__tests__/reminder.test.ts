@@ -1,3 +1,4 @@
+
 import {
     getUpcomingReminders,
     saveUserReminders,
@@ -88,6 +89,10 @@ describe('Reminder Service', () => {
       // Mock localStorage only if it doesn't exist (like in Node test env)
       if (typeof window !== 'undefined') {
         originalLocalStorage = window.localStorage;
+        // Spy on localStorage methods for user mode tests
+        jest.spyOn(window.localStorage.__proto__, 'getItem');
+        jest.spyOn(window.localStorage.__proto__, 'setItem');
+        jest.spyOn(window.localStorage.__proto__, 'removeItem');
       } else {
         // Simple mock for Node environment
         global.window = {
@@ -111,6 +116,7 @@ describe('Reminder Service', () => {
           // Clean up mock
           delete (global as any).window;
        }
+        jest.restoreAllMocks(); // Restore spies
      });
 
       beforeEach(() => {
