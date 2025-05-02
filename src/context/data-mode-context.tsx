@@ -1,19 +1,45 @@
+
 'use client';
 
 import React, { createContext, useState, useContext, useCallback, useEffect, type ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { CALENDAR_EVENTS_STORAGE_KEY } from '@/services/calendar';
+import { DAILY_LOG_STORAGE_KEY } from '@/services/daily-log';
+import { EXPENSE_STORAGE_KEY } from '@/services/expense';
+import { GOALS_STORAGE_KEY } from '@/services/goal';
+import { HABITS_STORAGE_KEY } from '@/services/habit';
+import { NOTES_STORAGE_KEY } from '@/services/note';
+import { REMINDER_STORAGE_KEY } from '@/services/reminder';
+import { TASK_STORAGE_KEY } from '@/services/task';
+// Assuming SETTINGS_STORAGE_KEY is also managed elsewhere or doesn't need clearing here.
+// Import other storage keys as needed.
 
 type DataMode = 'mock' | 'user';
 
 interface DataModeContextProps {
   dataMode: DataMode;
   switchToUserDataMode: () => void;
+  resetToMockMode: () => void; // Added reset function
   isLoading: boolean; // Indicate if mode is being determined
 }
 
 const DataModeContext = createContext<DataModeContextProps | undefined>(undefined);
 
 const DATA_MODE_STORAGE_KEY = 'prodev-data-mode';
+
+// List of all local storage keys used by the services
+const ALL_DATA_STORAGE_KEYS = [
+    CALENDAR_EVENTS_STORAGE_KEY,
+    DAILY_LOG_STORAGE_KEY,
+    EXPENSE_STORAGE_KEY,
+    GOALS_STORAGE_KEY,
+    HABITS_STORAGE_KEY,
+    NOTES_STORAGE_KEY,
+    REMINDER_STORAGE_KEY,
+    TASK_STORAGE_KEY,
+    // Add other data storage keys here
+];
+
 
 export const DataModeProvider = ({ children }: { children: ReactNode }) => {
   const [dataMode, setDataMode] = useState<DataMode>('mock'); // Default to mock
@@ -22,15 +48,26 @@ export const DataModeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Load the persisted data mode from localStorage on mount
-    const savedMode = localStorage.getItem(DATA_MODE_STORAGE_KEY) as DataMode | null;
-    if (savedMode && (savedMode === 'mock' || savedMode === 'user')) {
-      setDataMode(savedMode);
+    if (typeof window !== 'undefined') {
+        const savedMode = localStorage.getItem(DATA_MODE_STORAGE_KEY) as DataMode | null;
+        if (savedMode && (savedMode === 'mock' || savedMode === 'user')) {
+          setDataMode(savedMode);
+        } else {
+            // If no mode is saved, default to mock and save it
+             localStorage.setItem(DATA_MODE_STORAGE_KEY, 'mock');
+             setDataMode('mock');
+        }
+        setIsLoading(false);
+    } else {
+         // Handle server-side or environments without localStorage
+         // You might default to 'mock' or handle based on environment variables
+         setDataMode('mock');
+         setIsLoading(false);
     }
-    // Regardless of saved mode, finish loading
-    setIsLoading(false);
   }, []);
 
   const switchToUserDataMode = useCallback(() => {
+     if (typeof window === 'undefined') return;
     setDataMode('user');
     localStorage.setItem(DATA_MODE_STORAGE_KEY, 'user');
     toast({
@@ -41,7 +78,27 @@ export const DataModeProvider = ({ children }: { children: ReactNode }) => {
     // Consider if clearing mock data from state in services is necessary
   }, [toast]);
 
-  const value = { dataMode, switchToUserDataMode, isLoading };
+   const resetToMockMode = useCallback(() => {
+     if (typeof window === 'undefined') return;
+     // Clear all known data storage keys
+     ALL_DATA_STORAGE_KEYS.forEach(key => {
+         localStorage.removeItem(key);
+     });
+      // Optionally clear settings key too, or handle it separately
+     // localStorage.removeItem(SETTINGS_STORAGE_KEY);
+
+     // Set mode to 'mock' and save
+     setDataMode('mock');
+     localStorage.setItem(DATA_MODE_STORAGE_KEY, 'mock');
+     // Note: The toast message is handled in the settings page where this is called
+
+     // IMPORTANT: Force a reload to ensure all components re-fetch data with the new mode
+     // and clear any potentially cached user data in component state.
+     window.location.reload();
+
+   }, [toast]); // Removed toast from dependencies as it's handled in the caller
+
+  const value = { dataMode, switchToUserDataMode, resetToMockMode, isLoading };
 
   return (
     <DataModeContext.Provider value={value}>

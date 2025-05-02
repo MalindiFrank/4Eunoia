@@ -4,7 +4,7 @@ import { parseISO } from 'date-fns';
 import { loadMockData } from '@/lib/data-loader'; // Assuming data-loader is accessible
 
 // Define the localStorage key
-const CALENDAR_EVENTS_STORAGE_KEY = 'prodev-calendar-events';
+export const CALENDAR_EVENTS_STORAGE_KEY = 'prodev-calendar-events';
 
 /**
  * Represents an event in a calendar.
@@ -48,9 +48,9 @@ export const saveUserEvents = (events: CalendarEvent[]) => {
       end: event.end.toISOString(),
     }));
     localStorage.setItem(CALENDAR_EVENTS_STORAGE_KEY, JSON.stringify(eventsToStore));
-  } catch (e) { // Fix: Added opening curly brace
+  } catch (e) {
       console.error("Error saving calendar events to localStorage:", e);
-  } // Fix: Added closing curly brace
+  }
 };
 
 

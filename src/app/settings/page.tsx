@@ -1,8 +1,9 @@
+
 'use client';
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Link as LinkIcon, Brain, User, Palette } from 'lucide-react';
+import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash } from 'lucide-react'; // Added Trash icon
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
+import { cn } from '@/lib/utils'; // Added cn
 
 // Placeholder types for settings
 interface UserPreferences {
@@ -41,6 +45,7 @@ const SETTINGS_STORAGE_KEY = 'prodev-app-settings';
 
 const SettingsPage: FC = () => {
   const { toast } = useToast();
+  const { resetToMockMode } = useDataMode(); // Get the reset function
 
   // Initialize state with default values
   const [preferences, setPreferences] = useState<UserPreferences>({ theme: 'system', defaultView: '/' });
@@ -118,6 +123,18 @@ const SettingsPage: FC = () => {
    const handleNeurodivergentChange = <K extends keyof NeurodivergentSettings>(key: K, value: NeurodivergentSettings[K]) => {
         setNeurodivergent(prev => ({ ...prev, [key]: value }));
    };
+
+   // Reset handler
+   const handleResetApp = () => {
+        resetToMockMode();
+        // Optionally reset local settings state as well, or rely on page reload triggered by context change
+        setPreferences({ theme: 'system', defaultView: '/' });
+        setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
+        setIntegrations({ googleCalendarSync: false });
+        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
+        toast({ title: "Application Reset", description: "All your data has been cleared. Switched back to Mock Data mode.", variant: "destructive" });
+        // Consider window.location.reload() if state changes aren't fully reflected
+   }
 
 
   if (isLoading) {
@@ -213,13 +230,13 @@ const SettingsPage: FC = () => {
        <Card>
          <CardHeader>
            <CardTitle className="flex items-center gap-2"><LinkIcon className="h-5 w-5" /> Integrations</CardTitle>
-           <CardDescription>Connect ProDev LifeTracker with other services.</CardDescription>
+           <CardDescription>Connect 4Eunoia with other services.</CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
            <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                     <Label htmlFor="google-calendar-sync" className="font-medium">Google Calendar Sync</Label>
-                    <p className="text-xs text-muted-foreground">Sync events between ProDev and Google Calendar.</p>
+                    <p className="text-xs text-muted-foreground">Sync events between 4Eunoia and Google Calendar.</p>
                 </div>
                 <Switch
                  id="google-calendar-sync"
@@ -293,6 +310,35 @@ const SettingsPage: FC = () => {
             )}
 
         </CardContent>
+      </Card>
+
+      {/* Reset Section */}
+      <Card className="border-destructive">
+         <CardHeader>
+             <CardTitle className="flex items-center gap-2 text-destructive"><Trash className="h-5 w-5" /> Reset Application</CardTitle>
+             <CardDescription className="text-destructive/90">This action will permanently delete all your saved data (tasks, logs, expenses, etc.) and reset the app to its initial state using mock data.</CardDescription>
+         </CardHeader>
+         <CardContent>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive"><Trash className="mr-2 h-4 w-4" /> Clear All My Data & Reset</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. All your personal data stored in this browser will be deleted permanently. The application will switch back to using mock data.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetApp} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>
+                            Yes, Delete Everything
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+         </CardContent>
       </Card>
 
       {/* Save Button */}
