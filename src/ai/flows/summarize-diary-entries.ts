@@ -10,29 +10,26 @@
 
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isWithinInterval, formatISO, subDays } from 'date-fns'; // Added subDays
+import { formatISO } from 'date-fns'; // Keep only necessary imports
 
-// Define the structure expected from localStorage
-interface StoredLogEntry {
-  id: string;
-  date: string; // Date stored as ISO string
-  activity: string;
-  notes?: string;
-  diaryEntry?: string;
-}
+// Define structure for individual diary entries passed to the flow
+const InputDiaryEntrySchema = z.object({
+  date: z.string().datetime(), // Expect ISO string
+  text: z.string(),
+});
 
 const SummarizeDiaryEntriesInputSchema = z.object({
   frequency: z.enum(['weekly', 'monthly']).describe('The frequency of summarization (weekly or monthly).'),
+  // Add diary entries as input
+  diaryEntries: z.array(InputDiaryEntrySchema).describe('An array of diary entry objects to summarize.'),
+  // Dates are now part of the context, determined by component based on frequency
+   startDate: z.string().datetime().describe('The start date (ISO 8601 format) of the period being summarized.'),
+   endDate: z.string().datetime().describe('The end date (ISO 8601 format) of the period being summarized.'),
 });
 export type SummarizeDiaryEntriesInput = z.infer<typeof SummarizeDiaryEntriesInputSchema>;
 
-// Diary Entry type used within the flow
-interface DiaryEntry {
-      date: Date; // Use Date object internally
-      text: string;
-};
 
-// Zod schema for diary entries passed *to the prompt*. Use string for date.
+// Zod schema for diary entries passed *to the prompt*. Keep string date.
 const DiaryEntryPromptSchema = z.object({
       date: z.string().datetime().describe('The date of the diary entry (ISO 8601 format).'),
       text: z.string().describe('The text content of the diary entry.'),
@@ -52,57 +49,13 @@ const SummarizeDiaryEntriesOutputSchema = z.object({
 });
 export type SummarizeDiaryEntriesOutput = z.infer<typeof SummarizeDiaryEntriesOutputSchema>;
 
-// Function to load and parse logs from localStorage (runs server-side but accesses client concept)
-// IMPORTANT: This direct localStorage access won't work in a real server environment.
-// It works here because Next.js Server Actions *can* run code that might behave like client-side code
-// during development or under certain conditions. For production, data needs to be fetched via API/DB.
-const loadAndFilterLogs = (startDate: Date, endDate: Date): DiaryEntry[] => {
-  // This is a conceptual placeholder. Direct localStorage access in Server Actions is not reliable.
-  // In a real app, this data would come from a database via a service function.
-  console.warn("Attempting to access localStorage in summarizeDiaryEntries flow. This is for demonstration and may not work in production.");
-  // const storedLogsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-daily-logs') : null;
-   const storedLogsRaw = null; // Simulate server environment where localStorage is unavailable
-
-   let storedLogs: StoredLogEntry[] = [];
-   if (storedLogsRaw) {
-       try {
-           storedLogs = JSON.parse(storedLogsRaw);
-       } catch (e) {
-           console.error("Error parsing logs from storage in AI flow:", e);
-           return [];
-       }
-   } else {
-        // Provide mock data if localStorage isn't accessible or empty (for demonstration)
-         console.log("localStorage not available or empty in AI flow, using mock diary data.");
-         const today = new Date();
-          storedLogs = [
-            { id: 'log-mock-1', date: subDays(today, 1).toISOString(), activity: 'Completed project proposal draft', notes: 'Sent for review to Jane.', diaryEntry: 'Felt productive today. The proposal took longer than expected but happy with the result.' },
-            { id: 'log-mock-2', date: subDays(today, 2).toISOString(), activity: 'Team meeting and brainstorming session', notes: 'Discussed Q3 goals. Good ideas generated.', diaryEntry: 'Meeting was energizing. Need to follow up on action items.' },
-            { id: 'log-mock-3', date: subDays(today, 8).toISOString(), activity: 'Worked on coding feature X', notes: 'Encountered a bug, spent time debugging.', diaryEntry: 'Frustrating day with the bug, but learned something new about the framework.' },
-            { id: 'log-mock-4', date: subDays(today, 15).toISOString(), activity: 'Client call and presentation prep', notes: 'Call went well. Presentation needs more polishing.', diaryEntry: 'A bit nervous about the client feedback.' },
-        ];
-   }
-
-
-  return storedLogs
-    .map(log => ({
-      ...log,
-      date: parseISO(log.date), // Ensure date is a Date object
-    }))
-    .filter(log => log.diaryEntry && isWithinInterval(log.date, { start: startDate, end: endDate })) // Filter by date range and ensure diary entry exists
-    .map(log => ({
-      date: log.date,
-      text: log.diaryEntry!, // Non-null assertion as we filtered
-    }))
-     .sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort chronologically for the prompt
-};
-
 
 export async function summarizeDiaryEntries(input: SummarizeDiaryEntriesInput): Promise<SummarizeDiaryEntriesOutput> {
+  // Input already contains diaryEntries, startDate, endDate
   return summarizeDiaryEntriesFlow(input);
 }
 
-// Define the prompt input schema using string dates
+// Define the prompt input schema using string dates (as received in flow input)
 const PromptInputSchema = z.object({
       diaryEntries: z.array(DiaryEntryPromptSchema).describe('An array of diary entries to summarize, sorted chronologically.'),
       frequency: z.enum(['weekly', 'monthly']).describe('The frequency of summarization (weekly or monthly).'),
@@ -145,62 +98,49 @@ const prompt = ai.definePrompt({
 });
 
 const summarizeDiaryEntriesFlow = ai.defineFlow<
-  typeof SummarizeDiaryEntriesInputSchema,
+  typeof SummarizeDiaryEntriesInputSchema, // Includes diaryEntries, frequency, startDate, endDate
   typeof SummarizeDiaryEntriesOutputSchema
 >({
   name: 'summarizeDiaryEntriesFlow',
   inputSchema: SummarizeDiaryEntriesInputSchema,
   outputSchema: SummarizeDiaryEntriesOutputSchema,
 }, async (input) => {
-    const now = new Date();
-    let startDate: Date;
-    let endDate: Date;
-
-    if (input.frequency === 'weekly') {
-        startDate = startOfWeek(now, { weekStartsOn: 1 }); // Assuming week starts on Monday
-        endDate = endOfWeek(now, { weekStartsOn: 1 });
-    } else { // monthly
-        startDate = startOfMonth(now);
-        endDate = endOfMonth(now);
-    }
-
-    // Fetch and filter diary entries (returns DiaryEntry[] with Date objects)
-    const diaryEntries = loadAndFilterLogs(startDate, endDate);
+    const { diaryEntries, frequency, startDate, endDate } = input;
 
     // Handle no entries case before calling the prompt
-    if (diaryEntries.length === 0) {
+    if (!diaryEntries || diaryEntries.length === 0) {
         return {
-            summary: `No diary entries found for this ${input.frequency}.`,
+            summary: `No diary entries found for this ${frequency}.`,
             keyEvents: [],
             emotions: [],
             reflections: [],
             entryCount: 0,
-            dateRange: { start: formatISO(startDate), end: formatISO(endDate) }, // Format as ISO string
+            dateRange: { start: startDate, end: endDate }, // Use dates passed from component
         };
     }
 
-    // Prepare data for the prompt: convert dates to ISO strings
-    const promptDiaryEntries = diaryEntries.map(entry => ({
-        date: formatISO(entry.date),
-        text: entry.text,
-    }));
-
-    const promptInput: z.infer<typeof PromptInputSchema> = {
-        diaryEntries: promptDiaryEntries,
-        frequency: input.frequency,
-        startDate: formatISO(startDate),
-        endDate: formatISO(endDate),
+    // Prepare data for the prompt (dates are already ISO strings)
+    const promptInputData: z.infer<typeof PromptInputSchema> = {
+        diaryEntries: diaryEntries.map(entry => ({ // Ensure structure matches prompt schema
+            date: entry.date,
+            text: entry.text,
+        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), // Sort chronologically
+        frequency: frequency,
+        startDate: startDate,
+        endDate: endDate,
     };
 
-    const {output} = await prompt(promptInput);
+    const {output} = await prompt(promptInputData);
 
-    // Combine AI output with calculated data (use ISO strings for dateRange)
+    // Combine AI output with calculated data
     return {
         summary: output?.summary || "Could not generate summary.",
         keyEvents: output?.keyEvents || [],
         emotions: output?.emotions || [],
         reflections: output?.reflections || [],
         entryCount: diaryEntries.length,
-        dateRange: { start: formatISO(startDate), end: formatISO(endDate) }, // Format as ISO string
+        dateRange: { start: startDate, end: endDate }, // Use dates passed from component
     };
 });
+
+    

@@ -10,129 +10,35 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { parseISO, isWithinInterval, formatISO, subDays, startOfDay, endOfDay } from 'date-fns';
-
-// --- Data Loading (Adapting from other flows) ---
-// Define necessary data structures
-interface StoredLogEntry {
-  id: string;
-  date: string; // ISO string
-  mood?: string; // e.g., "😠 Stressed", "😴 Tired"
-  activity?: string; // To gauge workload/activity level
-}
-interface Task {
-  id: string;
-  status: 'Pending' | 'In Progress' | 'Completed';
-  dueDate?: string; // ISO string
-}
-interface CalendarEvent {
-    start: string; // ISO String
-    end: string; // ISO String
-    // Potentially duration or type (e.g., meeting, focus work)
-}
-
-interface BurnoutDataSource {
-    recentLogs: StoredLogEntry[];
-    recentTasks: Task[];
-    recentEvents: CalendarEvent[];
-    // Potentially add sleep data, screen time, etc. if tracked
-}
-
-// Function to load recent data (e.g., last 14-30 days)
-const loadRecentData = (days: number = 14): BurnoutDataSource => {
-    const endDate = endOfDay(new Date());
-    const startDate = startOfDay(subDays(endDate, days - 1));
-
-    console.warn("Attempting to access localStorage in estimateBurnoutRisk flow. This is for demonstration.");
-
-    // Load Logs
-    // const storedLogsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-daily-logs') : null;
-    const storedLogsRaw = null;
-    let allLogs: StoredLogEntry[] = [];
-    if (storedLogsRaw) {
-        try { allLogs = JSON.parse(storedLogsRaw); } catch (e) { console.error("Error parsing logs:", e); }
-    } else {
-        // Mock logs with relevant moods
-        allLogs = [
-            { id: 'log-mock-b1', date: subDays(new Date(), 1).toISOString(), mood: '😠 Stressed', activity: 'Long day, many meetings' },
-            { id: 'log-mock-b2', date: subDays(new Date(), 2).toISOString(), mood: '😴 Tired', activity: 'Worked late' },
-            { id: 'log-mock-b3', date: subDays(new Date(), 4).toISOString(), mood: '😟 Anxious', activity: 'Deadline approaching' },
-            { id: 'log-mock-b4', date: subDays(new Date(), 5).toISOString(), mood: '😠 Stressed' },
-            { id: 'log-mock-b5', date: subDays(new Date(), 7).toISOString(), mood: '😊 Happy', activity: 'Weekend break' }, // Contrasting mood
-            { id: 'log-mock-b6', date: subDays(new Date(), 8).toISOString(), mood: '😴 Tired' },
-             { id: 'log-mock-b7', date: subDays(new Date(), 10).toISOString(), mood: '⚡ Productive' }, // Contrasting mood
-             { id: 'log-mock-b8', date: subDays(new Date(), 12).toISOString(), mood: '😠 Stressed', activity: 'Unexpected issues arose' },
-        ];
-    }
-    const recentLogs = allLogs.filter(log => isWithinInterval(parseISO(log.date), { start: startDate, end: endDate }));
-
-    // Load Tasks
-     // const storedTasksRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-tasks') : null;
-     const storedTasksRaw = null;
-    let allTasks: Task[] = [];
-     if (storedTasksRaw) {
-        try { allTasks = JSON.parse(storedTasksRaw); } catch (e) { console.error("Error parsing tasks:", e); }
-     } else {
-         // Mock tasks with overdue/pending status
-         allTasks = [
-             { id: 'task-mock-b1', status: 'In Progress', dueDate: addDays(new Date(), 1).toISOString() },
-             { id: 'task-mock-b2', status: 'Pending', dueDate: subDays(new Date(), 2).toISOString() }, // Overdue
-             { id: 'task-mock-b3', status: 'Pending', dueDate: addDays(new Date(), 5).toISOString() },
-             { id: 'task-mock-b4', status: 'Pending', dueDate: subDays(new Date(), 5).toISOString() }, // Overdue
-             { id: 'task-mock-b5', status: 'In Progress' }, // No due date but in progress
-             { id: 'task-mock-b6', status: 'Pending' },
-             { id: 'task-mock-b7', status: 'Completed', dueDate: subDays(new Date(), 3).toISOString() }, // Completed
-         ];
-     }
-     // Filter for tasks relevant to the period (e.g., created, due, or worked on recently)
-     // Simple filter: include pending/in-progress tasks, especially overdue ones.
-     const recentTasks = allTasks.filter(task =>
-        task.status !== 'Completed' || (task.dueDate && parseISO(task.dueDate) >= startDate) // Include recently completed
-     );
-
-    // Load Calendar Events (Mock/Placeholder)
-    const recentEvents: CalendarEvent[] = [
-         { start: subDays(new Date(), 1).toISOString(), end: subDays(new Date(), 1).toISOString() }, // Assume events indicate activity
-         { start: subDays(new Date(), 3).toISOString(), end: subDays(new Date(), 3).toISOString() },
-         { start: subDays(new Date(), 5).toISOString(), end: subDays(new Date(), 5).toISOString() },
-         { start: subDays(new Date(), 6).toISOString(), end: subDays(new Date(), 6).toISOString() },
-          { start: subDays(new Date(), 8).toISOString(), end: subDays(new Date(), 8).toISOString() },
-          { start: subDays(new Date(), 9).toISOString(), end: subDays(new Date(), 9).toISOString() },
-           { start: subDays(new Date(), 10).toISOString(), end: subDays(new Date(), 10).toISOString() },
-           { start: subDays(new Date(), 11).toISOString(), end: subDays(new Date(), 11).toISOString() },
-            { start: subDays(new Date(), 13).toISOString(), end: subDays(new Date(), 13).toISOString() },
-    ]; // Filter actual events by date range if available
-
-    return { recentLogs, recentTasks, recentEvents };
-};
-// Helper imports
-import { addDays } from 'date-fns';
-
+// No date-fns needed here as calculations are done in component
 
 // --- Input/Output Schemas ---
-const EstimateBurnoutRiskInputSchema = z.object({
-    // Could add user input like perceived stress level if desired
-    // analysisPeriodDays: z.number().optional().default(14).describe('Number of past days to analyze.'),
-}).describe("Input for estimating burnout risk. Analyzes recent user data.");
-export type EstimateBurnoutRiskInput = z.infer<typeof EstimateBurnoutRiskInputSchema>;
 
-// Keep data passed to prompt simple (counts and summaries)
-const PromptDataSourceSchema = z.object({
+// Define the structure of the summarized data passed into the flow
+const InputDataSummarySchema = z.object({
      logSummary: z.object({
-         totalLogs: z.number(),
-         stressedAnxiousTiredCount: z.number().describe("Count of logs with moods like Stressed, Anxious, Tired."),
-         positiveMoodCount: z.number().describe("Count of logs with moods like Happy, Calm, Productive.")
+         totalLogs: z.number().int().min(0),
+         stressedAnxiousTiredCount: z.number().int().min(0).describe("Count of logs with moods like Stressed, Anxious, Tired."),
+         positiveMoodCount: z.number().int().min(0).describe("Count of logs with moods like Happy, Calm, Productive.")
      }),
      taskSummary: z.object({
-         pendingInProgressCount: z.number().describe("Total count of tasks currently Pending or In Progress."),
-         overdueCount: z.number().describe("Count of tasks whose due date is in the past but are not Completed."),
+         pendingInProgressCount: z.number().int().min(0).describe("Total count of tasks currently Pending or In Progress."),
+         overdueCount: z.number().int().min(0).describe("Count of tasks whose due date is in the past but are not Completed."),
      }),
      eventSummary: z.object({
-         totalEvents: z.number().describe("Total count of calendar events in the period (proxy for busyness).")
+         totalEvents: z.number().int().min(0).describe("Total count of calendar events in the period (proxy for busyness).")
      }),
-     analysisPeriodDays: z.number(),
+     analysisPeriodDays: z.number().int().positive(),
 });
 
+
+const EstimateBurnoutRiskInputSchema = z.object({
+    // The input to the flow is now the pre-calculated summary
+    dataSummary: InputDataSummarySchema.describe('Summarized data about recent logs, tasks, and events.'),
+}).describe("Input for estimating burnout risk, requiring pre-summarized data.");
+export type EstimateBurnoutRiskInput = z.infer<typeof EstimateBurnoutRiskInputSchema>;
+
+// Output schema remains the same
 const EstimateBurnoutRiskOutputSchema = z.object({
   riskLevel: z.enum(['Low', 'Moderate', 'High', 'Very High']).describe('Estimated level of burnout risk.'),
   riskScore: z.number().min(0).max(100).describe('Numerical score representing the burnout risk (0-100).'),
@@ -146,10 +52,14 @@ export type EstimateBurnoutRiskOutput = z.infer<typeof EstimateBurnoutRiskOutput
 export async function estimateBurnoutRisk(
   input: EstimateBurnoutRiskInput
 ): Promise<EstimateBurnoutRiskOutput> {
+    // Input contains the dataSummary object
     return estimateBurnoutRiskFlow(input);
 }
 
 // --- Prompt Definition ---
+// Prompt input is exactly the structure of InputDataSummarySchema
+const PromptDataSourceSchema = InputDataSummarySchema;
+
 const estimateBurnoutPrompt = ai.definePrompt({
   name: 'estimateBurnoutRiskPrompt',
   input: { schema: PromptDataSourceSchema },
@@ -177,53 +87,30 @@ Generate the output in the specified JSON format. Be cautious and provide action
 
 // --- Flow Definition ---
 const estimateBurnoutRiskFlow = ai.defineFlow<
-  typeof EstimateBurnoutRiskInputSchema,
+  typeof EstimateBurnoutRiskInputSchema, // Input is dataSummary object
   typeof EstimateBurnoutRiskOutputSchema
 >({
   name: 'estimateBurnoutRiskFlow',
   inputSchema: EstimateBurnoutRiskInputSchema,
   outputSchema: EstimateBurnoutRiskOutputSchema,
 }, async (input) => {
-    const analysisPeriodDays = 14; // Default analysis period
-    const data = loadRecentData(analysisPeriodDays);
-    const today = startOfDay(new Date());
+    const { dataSummary } = input;
 
-    // Summarize data for the prompt
-    const logSummary = {
-        totalLogs: data.recentLogs.length,
-        stressedAnxiousTiredCount: data.recentLogs.filter(l => l.mood?.includes('Stressed') || l.mood?.includes('Anxious') || l.mood?.includes('Tired')).length,
-        positiveMoodCount: data.recentLogs.filter(l => l.mood?.includes('Happy') || l.mood?.includes('Calm') || l.mood?.includes('Productive')).length,
-    };
-
-    const taskSummary = {
-        pendingInProgressCount: data.recentTasks.filter(t => t.status === 'Pending' || t.status === 'In Progress').length,
-        overdueCount: data.recentTasks.filter(t => t.status !== 'Completed' && t.dueDate && parseISO(t.dueDate) < today).length,
-    };
-
-    const eventSummary = {
-        totalEvents: data.recentEvents.length,
-    };
-
-    // Handle case with very little data
-    if (logSummary.totalLogs < 3 && taskSummary.pendingInProgressCount < 3 && eventSummary.totalEvents < 3) {
+    // Handle case with very little data based on summary counts
+    if (dataSummary.logSummary.totalLogs < 3 && dataSummary.taskSummary.pendingInProgressCount < 3 && dataSummary.eventSummary.totalEvents < 3) {
          return {
              riskLevel: 'Low',
              riskScore: 10, // Assign a low score due to lack of data
-             assessmentSummary: "Insufficient recent data to provide a detailed burnout risk assessment. Risk assessed as Low by default.",
+             assessmentSummary: `Insufficient recent data over the past ${dataSummary.analysisPeriodDays} days to provide a detailed burnout risk assessment. Risk assessed as Low by default.`,
              contributingFactors: ["Lack of recent activity data."],
              recommendations: ["Continue logging activities and moods for a better assessment.", "Check in with how you're feeling regularly."],
          };
      }
 
+    // Pass the summary data directly to the prompt
+    const promptInputData: z.infer<typeof PromptDataSourceSchema> = dataSummary;
 
-    const promptInput: z.infer<typeof PromptDataSourceSchema> = {
-        logSummary,
-        taskSummary,
-        eventSummary,
-        analysisPeriodDays,
-    };
-
-    const { output } = await estimateBurnoutPrompt(promptInput);
+    const { output } = await estimateBurnoutPrompt(promptInputData);
 
      // Handle potential null output from AI
      if (!output) {
@@ -240,3 +127,5 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     return output;
 });
+
+    

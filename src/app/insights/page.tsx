@@ -1,12 +1,12 @@
 'use client';
 
 import type { FC } from 'react';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react'; // Added useEffect
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, formatISO, parseISO } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap } from 'lucide-react'; // Added Zap for assistant feed
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,9 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress'; // For Burnout Meter
+import { Progress } from '@/components/ui/progress';
 
-// --- Import Existing AI Flows ---
+// --- Import AI Flows ---
 import {
   analyzeProductivityPatterns,
   AnalyzeProductivityPatternsInput,
@@ -39,8 +39,8 @@ import {
 } from '@/ai/flows/analyze-expense-trends';
 import {
   analyzeTaskCompletion,
-  AnalyzeTaskCompletionInput,
-  AnalyzeTaskCompletionOutputSchema, // Keep using schema to infer type
+  AnalyzeTaskCompletionInput, // Use the updated input schema type
+  AnalyzeTaskCompletionOutput, // Keep output schema for result type
 } from '@/ai/flows/analyze-task-completion';
 import {
     analyzeSentimentTrends,
@@ -57,14 +57,25 @@ import {
     EstimateBurnoutRiskInput,
     EstimateBurnoutRiskOutput,
 } from '@/ai/flows/estimate-burnout-risk';
-// Import Daily Feed Flow (Placeholder - assumed to exist)
+// Placeholder for Daily Feed Flow (implement later)
 // import { generateDailyFeed, GenerateDailyFeedOutput } from '@/ai/flows/generate-daily-feed';
 
 
+// --- Import Services ---
+import { getTasks, type Task } from '@/services/task'; // Import task service
+import { getDailyLogs, type LogEntry } from '@/services/daily-log';
+import { getExpenses, type Expense } from '@/services/expense';
+import { getNotes, type Note } from '@/services/note';
+import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
+import { useDataMode } from '@/context/data-mode-context';
+
+
 // --- Types ---
-// Assuming OutputTask is defined elsewhere or inferred correctly
-type DisplayTask = z.infer<typeof AnalyzeTaskCompletionOutputSchema['shape']['overdueTasks']['element']>;
-type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk'; // Add other potential types if needed
+// Infer type from schema to ensure consistency
+type TaskCompletionOutput = z.infer<typeof AnalyzeTaskCompletionOutput>;
+type DisplayTask = TaskCompletionOutput['overdueTasks'][number]; // Get type for a single task in the output array
+
+type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk';
 
 // --- Form Schema ---
 const insightsRequestSchema = z.object({
@@ -101,7 +112,7 @@ const InsightsPage: FC = () => {
   const [productivityInsights, setProductivityInsights] = useState<AnalyzeProductivityPatternsOutput | null>(null);
   const [diarySummary, setDiarySummary] = useState<SummarizeDiaryEntriesOutput | null>(null);
   const [expenseTrends, setExpenseTrends] = useState<AnalyzeExpenseTrendsOutput | null>(null);
-  const [taskCompletion, setTaskCompletion] = useState<z.infer<typeof AnalyzeTaskCompletionOutputSchema> | null>(null);
+  const [taskCompletion, setTaskCompletion] = useState<TaskCompletionOutput | null>(null);
   const [sentimentAnalysis, setSentimentAnalysis] = useState<AnalyzeSentimentTrendsOutput | null>(null);
   const [lifeBalance, setLifeBalance] = useState<AssessLifeBalanceOutput | null>(null);
   const [burnoutRisk, setBurnoutRisk] = useState<EstimateBurnoutRiskOutput | null>(null);
@@ -110,6 +121,7 @@ const InsightsPage: FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { dataMode } = useDataMode(); // Get current data mode
 
   const form = useForm<InsightsRequestFormValues>({
     resolver: zodResolver(insightsRequestSchema),
@@ -159,7 +171,7 @@ const InsightsPage: FC = () => {
      try {
        const { insightType, startDate, endDate, frequency } = data;
 
-       // --- Input Validation ---
+       // --- Input Validation (already handled by refine, but good practice) ---
         const requiresDateRange: InsightType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis'];
        if (requiresDateRange.includes(insightType) && (!startDate || !endDate)) {
            throw new Error("Please select a start and end date for this insight type.");
@@ -177,30 +189,48 @@ const InsightsPage: FC = () => {
 
         switch (insightType) {
              case 'productivity':
+                 // TODO: Fetch relevant data (logs, tasks, events etc.) and pass to flow
                  const prodResult = await analyzeProductivityPatterns(dateInput as AnalyzeProductivityPatternsInput);
                  setProductivityInsights(prodResult);
                  break;
              case 'diarySummary':
+                  // TODO: Fetch logs and pass to flow
                  const diaryResult = await summarizeDiaryEntries({ frequency: frequency! } as SummarizeDiaryEntriesInput);
                  setDiarySummary(diaryResult);
                  break;
              case 'expenseTrends':
+                  // TODO: Fetch expenses and pass to flow
                  const expenseResult = await analyzeExpenseTrends(dateInput as AnalyzeExpenseTrendsInput);
                  setExpenseTrends(expenseResult);
                  break;
              case 'taskCompletion':
-                 const taskResult = await analyzeTaskCompletion(dateInput as AnalyzeTaskCompletionInput);
+                  // Fetch tasks here
+                 const tasks = await getTasks(dataMode);
+                 // Prepare tasks for the flow's input schema (dates as ISO strings)
+                 const tasksForFlow = tasks.map(t => ({
+                    ...t,
+                    dueDate: t.dueDate ? formatISO(t.dueDate) : undefined,
+                    createdAt: t.createdAt ? formatISO(t.createdAt) : undefined,
+                 }));
+                 // Call the flow with dates and the fetched tasks
+                 const taskResult = await analyzeTaskCompletion({
+                     ...(dateInput as { startDate: string; endDate: string }), // Ensure dates are present
+                     tasks: tasksForFlow,
+                 });
                  setTaskCompletion(taskResult);
                  break;
              case 'sentimentAnalysis':
+                   // TODO: Fetch logs/notes and pass to flow
                   const sentimentResult = await analyzeSentimentTrends(dateInput as AnalyzeSentimentTrendsInput);
                   setSentimentAnalysis(sentimentResult);
                   break;
              case 'lifeBalance':
+                   // TODO: Fetch all relevant data and pass to flow
                   const balanceResult = await assessLifeBalance({} as AssessLifeBalanceInput);
                   setLifeBalance(balanceResult);
                   break;
              case 'burnoutRisk':
+                   // TODO: Fetch all relevant data and pass to flow
                   const burnoutResult = await estimateBurnoutRisk({} as EstimateBurnoutRiskInput);
                   setBurnoutRisk(burnoutResult);
                   break;
@@ -220,7 +250,7 @@ const InsightsPage: FC = () => {
      } finally {
        setIsLoading(false);
      }
-   }, [toast]);
+   }, [toast, dataMode]); // Add dataMode dependency
 
    // --- Dynamic Form Rendering ---
    const renderDateRangePicker = () => (
@@ -301,36 +331,12 @@ const InsightsPage: FC = () => {
       </div>
 
       {/* Daily Feed Placeholder */}
-        {/*
-        <Card className="shadow-lg border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
-             <CardHeader>
-                 <CardTitle className="text-lg flex items-center gap-2">
-                     <Zap className="h-5 w-5 text-primary" /> Today's Feed
-                 </CardTitle>
-                 <CardDescription>Your personalized assistant for the day.</CardDescription>
-             </CardHeader>
-             <CardContent>
-                 {dailyFeed ? (
-                     <div className="space-y-3 text-sm">
-                        <p>☀️ {dailyFeed.greeting}</p>
-                        {dailyFeed.moodForecast && <p>🔮 Mood Forecast: {dailyFeed.moodForecast}</p>}
-                        {dailyFeed.motivationalQuote && <p className="italic">"{dailyFeed.motivationalQuote.quote}" - {dailyFeed.motivationalQuote.author}</p>}
-                        {dailyFeed.upcomingEvents.length > 0 && (<div><strong>Upcoming:</strong><ul className="list-disc list-inside ml-4">{dailyFeed.upcomingEvents.map((e,i)=><li key={i}>{e}</li>)}</ul></div>)}
-                        {dailyFeed.goalProgress && <p>🎯 Goal Focus: {dailyFeed.goalProgress}</p>}
-                        {dailyFeed.routineStatus && <p>🔄 Routine Status: {dailyFeed.routineStatus}</p>}
-                        {dailyFeed.suggestedBlocks && dailyFeed.suggestedBlocks.length > 0 && (<div><strong>Suggestions:</strong><ul className="list-disc list-inside ml-4">{dailyFeed.suggestedBlocks.map((b,i)=><li key={i}>{b}</li>)}</ul></div>)}
-                     </div>
-                 ) : (
-                     <Skeleton className="h-20 w-full" /> // Loader for feed
-                 )}
-             </CardContent>
-         </Card>
-         */}
+        {/* ... (existing feed placeholder) ... */}
 
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Generate Insights</CardTitle>
-          <CardDescription>Select the type of insight and parameters to analyze your data.</CardDescription>
+          <CardDescription>Select the type of insight and parameters to analyze your data ({dataMode === 'mock' ? 'using Mock Data' : 'using Your Data'}).</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -356,7 +362,7 @@ const InsightsPage: FC = () => {
                          if (requiresFreq.includes(value) && !form.getValues('frequency')){
                              form.setValue('frequency', 'weekly'); // Default frequency
                         }
-                    }} defaultValue={field.value}>
+                    }} defaultValue={field.value} value={field.value}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select insight type" /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="productivity"><div className="flex items-center gap-2"><BarChartHorizontalBig className="h-4 w-4" /> Productivity Patterns</div></SelectItem>
@@ -404,7 +410,9 @@ const InsightsPage: FC = () => {
            </Card>
          )}
 
-        {/* Render specific insight cards based on state */}
+        {/* ----- Render specific insight cards based on state ----- */}
+
+        {/* Productivity Insights */}
         {!isLoading && productivityInsights && form.getValues("startDate") && form.getValues("endDate") && (
             <Card className="shadow-md bg-secondary/30">
                 <CardHeader>
@@ -420,6 +428,7 @@ const InsightsPage: FC = () => {
             </Card>
         )}
 
+        {/* Expense Trends */}
         {!isLoading && expenseTrends && form.getValues("startDate") && form.getValues("endDate") && (
             <Card className="shadow-md bg-secondary/30">
                 <CardHeader>
@@ -436,6 +445,7 @@ const InsightsPage: FC = () => {
             </Card>
         )}
 
+        {/* Task Completion */}
         {!isLoading && taskCompletion && form.getValues("startDate") && form.getValues("endDate") && (
             <Card className="shadow-md bg-secondary/30">
                 <CardHeader>
@@ -444,13 +454,14 @@ const InsightsPage: FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div><h3 className="font-semibold text-lg mb-1">Completion Summary</h3><p className="text-sm text-secondary-foreground">{taskCompletion.completionSummary}</p></div>
-                     <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(1)}%</p></div></div>
+                     <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(0)}%</p></div></div> {/* Fixed toFixed */}
                     <Separator />
                     <div><h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>{taskCompletion.overdueTasks.length > 0 ? (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>{taskCompletion.overdueTasks.length} Overdue!</AlertTitle><AlertDescription><ul className="list-disc list-inside mt-2 space-y-1">{taskCompletion.overdueTasks.map((task: DisplayTask) => (<li key={task.id} className="text-sm">{task.title} {task.dueDate && `(Due: ${format(parseISO(task.dueDate), 'PP')})`}</li>))}</ul></AlertDescription></Alert>) : (<p className="text-sm text-muted-foreground italic">No overdue tasks. Keep it up!</p>)}</div>
                 </CardContent>
             </Card>
         )}
 
+        {/* Diary Summary */}
         {!isLoading && diarySummary && (
             <Card className="shadow-md bg-secondary/30">
                 <CardHeader>
@@ -466,12 +477,11 @@ const InsightsPage: FC = () => {
             </Card>
         )}
 
-        {/* NEW Insight Cards */}
+        {/* Sentiment Analysis */}
          {!isLoading && sentimentAnalysis && form.getValues("startDate") && form.getValues("endDate") && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Smile className="h-5 w-5" /> Sentiment Analysis</CardTitle>
-                      {/* Assume sentiment analysis used the same date range */}
                       <CardDescription>Sentiment trends from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')} ({sentimentAnalysis.entryCount} entries)</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
@@ -488,6 +498,7 @@ const InsightsPage: FC = () => {
              </Card>
          )}
 
+         {/* Life Balance */}
           {!isLoading && lifeBalance && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
@@ -515,6 +526,7 @@ const InsightsPage: FC = () => {
              </Card>
          )}
 
+         {/* Burnout Risk */}
          {!isLoading && burnoutRisk && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
@@ -540,3 +552,5 @@ const InsightsPage: FC = () => {
 };
 
 export default InsightsPage;
+
+    

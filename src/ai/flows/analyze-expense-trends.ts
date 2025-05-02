@@ -10,63 +10,32 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-// import { getExpenses } from '@/services/expense'; // Fetch directly now
-import { differenceInDays, parseISO, isWithinInterval } from 'date-fns';
+import { differenceInDays, parseISO, isWithinInterval, formatISO } from 'date-fns';
 
-// Define Expense structure consistent with localStorage data
-interface Expense {
+// Define Expense structure consistent with what the component will pass
+interface InputExpense {
   id: string;
   description: string;
   amount: number;
-  date: Date; // Use Date object internally
+  date: Date; // Expect Date object from component
   category: string;
 }
 
-// Function to load expenses from localStorage (runs server-side context)
-// IMPORTANT: See warning in other flows about localStorage access.
-async function loadExpensesFromStorage(): Promise<Expense[]> {
-     console.warn("Attempting localStorage access in analyzeExpenseTrends flow. This is for demonstration and may not work in production.");
-    // const storedExpensesRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-expenses') : null;
-     const storedExpensesRaw = null; // Simulate server environment
-
-    if (storedExpensesRaw) {
-        try {
-            // Parse directly into Expense with Date objects
-            return JSON.parse(storedExpensesRaw).map((e: any) => ({
-                ...e,
-                date: parseISO(e.date), // Ensure date is Date object
-                amount: Number(e.amount) || 0, // Ensure amount is number
-            }));
-        } catch (e) {
-            console.error("Error parsing expenses from storage in AI flow:", e);
-            return generateMockExpenses(); // Fallback to mock
-        }
-    } else {
-        console.log("No expenses found in localStorage, using mock data for analysis.");
-        return generateMockExpenses(); // Use mock data if none found
-    }
-}
-// Mock Expense Generation (for fallback) - Ensure date-fns imported if used here
-import { subDays, startOfMonth } from 'date-fns';
-const generateMockExpenses = (): Expense[] => {
-    const today = new Date();
-    const monthStart = startOfMonth(today);
-    return [
-        { id: 'exp-mock-1', description: 'Groceries', amount: 75.50, date: subDays(today, 2), category: 'Food' },
-        { id: 'exp-mock-3', description: 'Gasoline', amount: 55.00, date: subDays(today, 3), category: 'Transport' },
-        { id: 'exp-mock-4', description: 'Movie Tickets', amount: 30.00, date: subDays(today, 5), category: 'Entertainment' },
-        { id: 'exp-mock-6', description: 'New Shirt', amount: 45.99, date: subDays(today, 7), category: 'Shopping' },
-        { id: 'exp-mock-8', description: 'Lunch Out', amount: 18.20, date: subDays(today, 4), category: 'Food' },
-        { id: 'exp-mock-10', description: 'Streaming Subscription', amount: 15.99, date: subDays(today, 12), category: 'Entertainment' },
-         { id: 'exp-mock-13', description: 'Dinner', amount: 60.00, date: subDays(today, 9), category: 'Food' },
-          { id: 'exp-mock-14', description: 'Train Ticket', amount: 25.00, date: subDays(today, 15), category: 'Transport' },
-    ];
-};
+// Schema for expenses passed into the flow
+const InputExpenseSchema = z.object({
+    id: z.string(),
+    description: z.string(),
+    amount: z.number(),
+    date: z.string().datetime(), // Expect ISO string for validation
+    category: z.string(),
+});
 
 
 const AnalyzeExpenseTrendsInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing expense trends.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing expense trends.'),
+  // Add expenses as input
+  expenses: z.array(InputExpenseSchema).describe('An array of expense objects relevant to the user.'),
 });
 export type AnalyzeExpenseTrendsInput = z.infer<
   typeof AnalyzeExpenseTrendsInputSchema
@@ -142,12 +111,14 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     const startDate = parseISO(input.startDate);
     const endDate = parseISO(input.endDate);
 
-    // Fetch all expenses
-    const allExpenses = await loadExpensesFromStorage();
+    // Use expenses passed in the input
+    const allExpenses: InputExpense[] = input.expenses.map(e => ({
+        ...e,
+        date: parseISO(e.date), // Parse date string to Date object
+    }));
 
     // Filter expenses within the date range
     const filteredExpenses = allExpenses.filter(expense => {
-       // Expense date is already a Date object
        return isWithinInterval(expense.date, { start: startDate, end: endDate });
      });
 
@@ -184,9 +155,8 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
 
 
     // Call the AI prompt with calculated data for summary generation
-    // Pass original string dates to the prompt
-    const promptInput: z.infer<typeof PromptInputSchema> = {
-      startDate: input.startDate,
+    const promptInputData: z.infer<typeof PromptInputSchema> = {
+      startDate: input.startDate, // Pass original ISO strings
       endDate: input.endDate,
       totalSpending: parseFloat(totalSpending.toFixed(2)),
       averageDailySpending: averageDailySpending,
@@ -196,15 +166,16 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
 
      let summary = "Summary could not be generated."; // Default summary
      try {
-        const { output } = await analyzeExpenseTrendsPrompt(promptInput);
+        const { output } = await analyzeExpenseTrendsPrompt(promptInputData);
          if (output?.spendingSummary) {
             summary = output.spendingSummary;
         } else {
              console.warn("AnalyzeExpenseTrendsPrompt did not return a summary.");
+             summary = `Total spending: $${totalSpending.toFixed(2)}. Avg daily: $${averageDailySpending.toFixed(2)}. Top category: ${topSpendingCategories[0]?.category || 'N/A'}.`;
         }
      } catch (error) {
          console.error("Error calling analyzeExpenseTrendsPrompt:", error);
-         summary = "Error generating expense trend summary.";
+         summary = `Error generating summary. ($${totalSpending.toFixed(2)} total, $${averageDailySpending.toFixed(2)} avg daily).`;
      }
 
 
@@ -217,3 +188,5 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     };
   }
 );
+
+    

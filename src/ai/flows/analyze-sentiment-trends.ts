@@ -10,90 +10,27 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { parseISO, isWithinInterval, formatISO } from 'date-fns';
+import { formatISO } from 'date-fns'; // Keep necessary imports
 
-// --- Data Loading (Adapting from other flows) ---
-// Assume StoredLogEntry and Note structures from their respective pages/flows
-interface StoredLogEntry {
-  id: string;
-  date: string; // ISO string
-  diaryEntry?: string;
-}
-interface Note {
-  id: string;
-  content: string;
-  createdAt: string; // ISO string
-  updatedAt: string; // ISO string
-}
-interface TextEntry {
-    date: Date; // Use Date object internally
-    text: string;
-    source: 'diary' | 'note';
-}
 
-const loadTextEntries = (startDate: Date, endDate: Date): TextEntry[] => {
-    const entries: TextEntry[] = [];
-    console.warn("Attempting to access localStorage in analyzeSentimentTrends flow. This is for demonstration and may not work in production.");
-
-    // Load Diary Entries
-    // const storedLogsRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-daily-logs') : null;
-    const storedLogsRaw = null; // Simulate server environment
-    let storedLogs: StoredLogEntry[] = [];
-    if (storedLogsRaw) {
-        try { storedLogs = JSON.parse(storedLogsRaw); } catch (e) { console.error("Error parsing logs:", e); }
-    } else {
-        // Add mock diary data if none found
-         storedLogs = [
-            { id: 'log-mock-s1', date: subDays(new Date(), 1).toISOString(), diaryEntry: 'Great progress today, feeling very accomplished!' },
-            { id: 'log-mock-s2', date: subDays(new Date(), 3).toISOString(), diaryEntry: 'Struggled with the bug again. Feeling frustrated and stuck.' },
-            { id: 'log-mock-s3', date: subDays(new Date(), 5).toISOString(), diaryEntry: 'Had a relaxing weekend. Feeling refreshed.' },
-        ];
-    }
-
-    storedLogs.forEach(log => {
-        if (log.diaryEntry) {
-            const logDate = parseISO(log.date);
-            if (isWithinInterval(logDate, { start: startDate, end: endDate })) {
-                entries.push({ date: logDate, text: log.diaryEntry, source: 'diary' });
-            }
-        }
-    });
-
-    // Load Notes
-    // const storedNotesRaw = typeof window !== 'undefined' ? window.localStorage.getItem('prodev-notes') : null;
-    const storedNotesRaw = null; // Simulate server environment
-    let storedNotes: Note[] = [];
-     if (storedNotesRaw) {
-         try { storedNotes = JSON.parse(storedNotesRaw); } catch (e) { console.error("Error parsing notes:", e); }
-     } else {
-          // Add mock notes data if none found
-          storedNotes = [
-              { id: 'note-mock-s1', title: 'Meeting Feedback', content: 'Received positive feedback on the presentation. Very encouraging.', createdAt: subDays(new Date(), 2).toISOString(), updatedAt: subDays(new Date(), 2).toISOString() },
-              { id: 'note-mock-s2', title: 'Project Concerns', content: 'Worried about the upcoming deadline. Need to manage time better.', createdAt: subDays(new Date(), 4).toISOString(), updatedAt: subDays(new Date(), 4).toISOString() },
-          ];
-     }
-
-    storedNotes.forEach(note => {
-         const noteDate = parseISO(note.createdAt); // Use createdAt for sentiment analysis context
-         if (isWithinInterval(noteDate, { start: startDate, end: endDate })) {
-             // Combine title and content for better context, or just use content
-             entries.push({ date: noteDate, text: `${note.title}: ${note.content}`, source: 'note' });
-         }
-    });
-
-     return entries.sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort chronologically
-};
-// Helper imports (if needed for mock data)
-import { subDays } from 'date-fns';
+// Define structure for text entries passed into the flow
+const InputTextEntrySchema = z.object({
+    date: z.string().datetime(), // Expect ISO string
+    text: z.string(),
+    source: z.enum(['diary', 'note']),
+});
 
 // --- Input/Output Schemas ---
 const AnalyzeSentimentTrendsInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing sentiment.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing sentiment.'),
+  // Add text entries as input
+  textEntries: z.array(InputTextEntrySchema).describe('An array of text entry objects (from diary/notes) to analyze.'),
 });
 export type AnalyzeSentimentTrendsInput = z.infer<typeof AnalyzeSentimentTrendsInputSchema>;
 
-// Use string date for prompt input schema
+
+// Use string date for prompt input schema (already matches InputTextEntrySchema)
 const TextEntryPromptSchema = z.object({
       date: z.string().datetime().describe('The date of the entry (ISO 8601 format).'),
       text: z.string().describe('The text content of the entry.'),
@@ -114,6 +51,7 @@ export type AnalyzeSentimentTrendsOutput = z.infer<typeof AnalyzeSentimentTrends
 export async function analyzeSentimentTrends(
   input: AnalyzeSentimentTrendsInput
 ): Promise<AnalyzeSentimentTrendsOutput> {
+    // Input already contains textEntries, startDate, endDate
     return analyzeSentimentTrendsFlow(input);
 }
 
@@ -162,18 +100,14 @@ Generate the output in the specified JSON format. If no entries are found, retur
 
 // --- Flow Definition ---
 const analyzeSentimentTrendsFlow = ai.defineFlow<
-  typeof AnalyzeSentimentTrendsInputSchema,
+  typeof AnalyzeSentimentTrendsInputSchema, // Includes textEntries, startDate, endDate
   typeof AnalyzeSentimentTrendsOutputSchema
 >({
   name: 'analyzeSentimentTrendsFlow',
   inputSchema: AnalyzeSentimentTrendsInputSchema,
   outputSchema: AnalyzeSentimentTrendsOutputSchema,
 }, async (input) => {
-    const startDate = parseISO(input.startDate);
-    const endDate = parseISO(input.endDate);
-
-    // Load text entries (returns TextEntry[] with Date objects)
-    const textEntries = loadTextEntries(startDate, endDate);
+    const { textEntries = [], startDate, endDate } = input;
 
     // Handle no entries case
     if (textEntries.length === 0) {
@@ -187,20 +121,17 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
         };
     }
 
-    // Prepare data for the prompt (convert dates back to ISO strings)
-    const promptTextEntries = textEntries.map(entry => ({
-        date: formatISO(entry.date),
-        text: entry.text,
-        source: entry.source,
-    }));
+    // Prepare data for the prompt (dates are already ISO strings)
+    // Sort chronologically for the prompt
+    const promptTextEntries = [...textEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const promptInput: z.infer<typeof PromptInputSchema> = {
-        textEntries: promptTextEntries,
-        startDate: input.startDate, // Pass original ISO strings
-        endDate: input.endDate,
+    const promptInputData: z.infer<typeof PromptInputSchema> = {
+        textEntries: promptTextEntries, // Pass the sorted array
+        startDate: startDate,
+        endDate: endDate,
     };
 
-    const { output } = await analyzeSentimentPrompt(promptInput);
+    const { output } = await analyzeSentimentPrompt(promptInputData);
 
      // Handle potential null output from AI
      if (!output) {
@@ -222,3 +153,5 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
         entryCount: textEntries.length,
     };
 });
+
+    
