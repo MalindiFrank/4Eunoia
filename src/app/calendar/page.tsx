@@ -24,6 +24,9 @@ import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
+import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+
 
 // Event Form Schema
 const eventSchema = z.object({
