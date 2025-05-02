@@ -48,8 +48,9 @@ export const saveUserEvents = (events: CalendarEvent[]) => {
       end: event.end.toISOString(),
     }));
     localStorage.setItem(CALENDAR_EVENTS_STORAGE_KEY, JSON.stringify(eventsToStore));
-  } catch (e)      console.error("Error saving calendar events to localStorage:", e);
-  }
+  } catch (e) { // Fix: Added opening curly brace
+      console.error("Error saving calendar events to localStorage:", e);
+  } // Fix: Added closing curly brace
 };
 
 
