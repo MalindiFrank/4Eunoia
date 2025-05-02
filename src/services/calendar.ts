@@ -3,7 +3,7 @@
 import { parseISO } from 'date-fns';
 import { loadMockData } from '@/lib/data-loader'; // Assuming data-loader is accessible
 
-// Define the localStorage key
+// Define the localStorage key and EXPORT it
 export const CALENDAR_EVENTS_STORAGE_KEY = 'prodev-calendar-events';
 
 /**
