@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { differenceInDays, parseISO, isWithinInterval, formatISO } from 'date-fns';
+import { differenceInDays, parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; // Added isValid
 import type { Expense } from '@/services/expense'; // Use type from service
 
 // Schema for expenses passed into the flow (matches service type structure)
@@ -55,7 +55,14 @@ export type AnalyzeExpenseTrendsOutput = z.infer<
 export async function analyzeExpenseTrends(
   input: AnalyzeExpenseTrendsInput
 ): Promise<AnalyzeExpenseTrendsOutput> {
-  return analyzeExpenseTrendsFlow(input);
+    // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for expense analysis.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for expense analysis.");
+    }
+    return analyzeExpenseTrendsFlow(input);
 }
 
 // Define prompt input schema matching the data we will pass
@@ -113,19 +120,26 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     outputSchema: AnalyzeExpenseTrendsOutputSchema,
   },
   async (input) => {
-    // Parse input date strings into Date objects
+    // Parse input date strings into Date objects safely
     const startDate = parseISO(input.startDate);
     const endDate = parseISO(input.endDate);
 
-    // Use expenses passed in the input
-    const allExpenses: Expense[] = input.expenses.map(e => ({
-        ...e,
-        date: parseISO(e.date), // Parse date string to Date object
-    }));
+    // Use expenses passed in the input, parsing dates safely
+    const allExpenses: Expense[] = input.expenses
+        .map(e => {
+            try {
+                const date = parseISO(e.date);
+                if (isValid(date)) {
+                    return { ...e, date };
+                }
+            } catch { /* Ignore invalid dates */ }
+            return null; // Return null for invalid entries
+        })
+        .filter((e): e is Expense => e !== null); // Filter out null entries
 
     // Filter expenses within the date range
     const filteredExpenses = allExpenses.filter(expense => {
-       return isWithinInterval(expense.date, { start: startDate, end: endDate });
+       return isValid(expense.date) && isWithinInterval(expense.date, { start: startDate, end: endDate });
      });
 
      // --- Calculations ---
@@ -209,3 +223,5 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     };
   }
 );
+
+    

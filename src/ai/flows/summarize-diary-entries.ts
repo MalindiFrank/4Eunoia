@@ -11,7 +11,7 @@
 
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
-import { formatISO, parseISO } from 'date-fns';
+import { formatISO, parseISO, isValid } from 'date-fns'; // Added isValid
 import type { LogEntry } from '@/services/daily-log'; // Use service type
 
 // Define structure for individual diary entries passed to the flow
@@ -55,7 +55,13 @@ export type SummarizeDiaryEntriesOutput = z.infer<typeof SummarizeDiaryEntriesOu
 
 
 export async function summarizeDiaryEntries(input: SummarizeDiaryEntriesInput): Promise<SummarizeDiaryEntriesOutput> {
-  // Input already contains diaryEntries, startDate, endDate
+   // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for diary summary.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for diary summary.");
+    }
   return summarizeDiaryEntriesFlow(input);
 }
 
@@ -108,12 +114,21 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
   inputSchema: SummarizeDiaryEntriesInputSchema,
   outputSchema: SummarizeDiaryEntriesOutputSchema,
 }, async (input) => {
-    const { diaryEntries, frequency, startDate, endDate } = input;
+    const { diaryEntries = [], frequency, startDate, endDate } = input;
+
+    // Filter out entries with invalid dates before processing
+    const validDiaryEntries = diaryEntries.filter(entry => {
+        try {
+            return isValid(parseISO(entry.date));
+        } catch {
+            return false;
+        }
+    });
 
     // Handle no entries case before calling the prompt
-    if (!diaryEntries || diaryEntries.length === 0) {
+    if (validDiaryEntries.length === 0) {
         return {
-            summary: `No diary entries found for this ${frequency} period (${formatISO(parseISO(startDate), { representation: 'date'})} to ${formatISO(parseISO(endDate), { representation: 'date'})}).`,
+            summary: `No valid diary entries found for this ${frequency} period (${formatISO(parseISO(startDate), { representation: 'date'})} to ${formatISO(parseISO(endDate), { representation: 'date'})}).`,
             keyEvents: [],
             emotions: [],
             reflections: [],
@@ -124,11 +139,21 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
 
     // Prepare data for the prompt (dates are already ISO strings)
     const promptInputData: z.infer<typeof PromptInputSchema> = {
-        diaryEntries: diaryEntries.map(entry => ({ // Ensure structure matches prompt schema
+        diaryEntries: validDiaryEntries.map(entry => ({ // Ensure structure matches prompt schema
             id: entry.id, // Pass ID
             date: entry.date,
             text: entry.text,
-        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()), // Sort chronologically
+        })).sort((a, b) => {
+            // Safely parse dates for sorting
+             try {
+                 const dateA = parseISO(a.date).getTime();
+                 const dateB = parseISO(b.date).getTime();
+                 if (!isNaN(dateA) && !isNaN(dateB)) {
+                     return dateA - dateB;
+                 }
+             } catch { /* Ignore parsing errors during sort */ }
+             return 0;
+        }), // Sort chronologically
         frequency: frequency,
         startDate: startDate,
         endDate: endDate,
@@ -144,7 +169,7 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
              keyEvents: [],
              emotions: [],
              reflections: [],
-             entryCount: diaryEntries.length,
+             entryCount: validDiaryEntries.length,
              dateRange: { start: startDate, end: endDate },
          };
      }
@@ -155,7 +180,9 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
         keyEvents: output.keyEvents,
         emotions: output.emotions,
         reflections: output.reflections,
-        entryCount: diaryEntries.length,
+        entryCount: validDiaryEntries.length,
         dateRange: { start: startDate, end: endDate }, // Use dates passed from component
     };
 });
+
+    

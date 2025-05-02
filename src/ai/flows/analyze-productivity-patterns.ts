@@ -14,6 +14,7 @@ import type { LogEntry } from '@/services/daily-log'; // Uses focusLevel
 import type { Task } from '@/services/task';
 import type { CalendarEvent } from '@/services/calendar';
 import type { Note } from '@/services/note';
+import { formatISO, isValid, parseISO } from 'date-fns'; // Added isValid, parseISO
 
 // Define expected input structure for Zod validation (ISO dates)
 const EventSchema = z.object({
@@ -26,9 +27,9 @@ const TaskSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().optional(),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z.string().datetime().optional().nullable(), // Allow null
   status: z.enum(['Pending', 'In Progress', 'Completed']),
-  createdAt: z.string().datetime().optional(),
+  createdAt: z.string().datetime().optional().nullable(), // Allow null
 });
 const NoteSchema = z.object({
   id: z.string(),
@@ -44,7 +45,7 @@ const LogEntrySchema = z.object({
   notes: z.string().optional(),
   diaryEntry: z.string().optional(),
   mood: z.string().optional(),
-  focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel
+  focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
 });
 
 
@@ -91,6 +92,13 @@ export type AnalyzeProductivityPatternsOutput = z.infer<
 export async function analyzeProductivityPatterns(
   input: AnalyzeProductivityPatternsInput
 ): Promise<AnalyzeProductivityPatternsOutput> {
+    // Validate input dates before passing to the flow
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided.");
+    }
     return analyzeProductivityPatternsFlow(input);
 }
 
@@ -160,12 +168,55 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          additionalContext,
      } = input;
 
+     // Helper function to safely format dates
+     const safeFormatDate = (dateString: string | undefined | null, formatStr: string = 'yyyy-MM-dd'): string | null => {
+         if (!dateString) return null;
+         try {
+            const date = parseISO(dateString);
+            return isValid(date) ? formatISO(date, { representation: 'date' }) : null;
+         } catch {
+            return null;
+         }
+     };
+
+     // Helper function to calculate duration safely
+     const calculateDuration = (startStr: string | undefined | null, endStr: string | undefined | null): number | null => {
+         if (!startStr || !endStr) return null;
+         try {
+             const start = parseISO(startStr);
+             const end = parseISO(endStr);
+             if (isValid(start) && isValid(end) && end >= start) {
+                 return Math.round((end.getTime() - start.getTime()) / 60000);
+             }
+         } catch { /* Ignore parsing errors */ }
+         return null;
+     };
+
+
     // Create simplified JSON strings for the prompt
-    const calendarEventsString = JSON.stringify(calendarEvents.map(e => ({ title: e.title, start: e.start, durationMinutes: (new Date(e.end).getTime() - new Date(e.start).getTime()) / 60000 })));
-    const tasksString = JSON.stringify(tasks.map(t => ({ title: t.title, status: t.status, due: t.dueDate ? t.dueDate.substring(0,10) : null, created: t.createdAt?.substring(0,10) })));
-    const notesString = JSON.stringify(notes.map(n => ({ title: n.title, createdAt: n.createdAt.substring(0,10) })));
+     const calendarEventsString = JSON.stringify(calendarEvents.map(e => ({
+         title: e.title,
+         start: safeFormatDate(e.start),
+         durationMinutes: calculateDuration(e.start, e.end)
+     })));
+     const tasksString = JSON.stringify(tasks.map(t => ({
+         title: t.title,
+         status: t.status,
+         due: safeFormatDate(t.dueDate),
+         created: safeFormatDate(t.createdAt)
+     })));
+     const notesString = JSON.stringify(notes.map(n => ({
+         title: n.title,
+         createdAt: safeFormatDate(n.createdAt)
+     })));
     // Include focusLevel and indication of diary entry presence in the log summary
-    const dailyLogsString = JSON.stringify(dailyLogs.map(l => ({ date: l.date.substring(0,10), activity: l.activity, mood: l.mood, focusLevel: l.focusLevel, hasDiary: !!l.diaryEntry })));
+     const dailyLogsString = JSON.stringify(dailyLogs.map(l => ({
+         date: safeFormatDate(l.date),
+         activity: l.activity,
+         mood: l.mood,
+         focusLevel: l.focusLevel, // Pass focusLevel directly
+         hasDiary: !!l.diaryEntry
+     })));
 
     const hasData = calendarEvents.length > 0 || tasks.length > 0 || notes.length > 0 || dailyLogs.length > 0;
 
@@ -180,7 +231,7 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
 
     // Prepare input for the prompt
     const promptInputData: z.infer<typeof PromptInputSchema> = {
-       startDate: startDate,
+       startDate: startDate, // These are validated before flow entry
        endDate: endDate,
        calendarEventsJson: calendarEventsString,
        tasksJson: tasksString,
@@ -193,14 +244,18 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
 
     if (!output) {
         console.error('AI analysis failed to return output for productivity patterns.');
+        // Provide a more informative fallback
         return {
             peakPerformanceTimes: "Analysis could not determine peak performance times.",
             commonDistractionsOrObstacles: "Analysis could not identify common distractions or obstacles.",
-            suggestedStrategies: "Could not generate suggested strategies.",
+            suggestedStrategies: "Could not generate suggested strategies. Try logging more data.",
             overallAssessment: "Productivity analysis failed to generate an assessment.",
+             attentionQualityAssessment: undefined, // Ensure all fields exist even in error
         };
     }
 
     return output;
   }
 );
+
+    

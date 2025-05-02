@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, startOfDay, endOfDay } from 'date-fns';
+import { formatISO, startOfDay, endOfDay, parseISO, isValid } from 'date-fns'; // Added parseISO, isValid
 
 // --- Input Data Schemas ---
 const InputLogSchema = z.object({
@@ -17,14 +17,14 @@ const InputLogSchema = z.object({
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional(),
+    focusLevel: z.number().min(1).max(5).optional().nullable(), // Allow null
     diaryEntry: z.string().optional(),
 });
 const InputTaskSchema = z.object({
     id: z.string(),
     title: z.string(),
     status: z.enum(['Pending', 'In Progress', 'Completed']),
-    dueDate: z.string().datetime().optional(),
+    dueDate: z.string().datetime().optional().nullable(), // Allow null
 });
 const InputEventSchema = z.object({
     title: z.string(),
@@ -40,7 +40,7 @@ const InputHabitSchema = z.object({
     id: z.string(),
     title: z.string(),
     frequency: z.string(),
-    lastCompleted: z.string().datetime().optional(),
+    lastCompleted: z.string().datetime().optional().nullable(), // Allow null
 });
 
 // --- Flow Input/Output Schemas ---
@@ -82,6 +82,10 @@ export type GenerateDailyPlanOutput = z.infer<typeof GenerateDailyPlanOutputSche
 export async function generateDailyPlan(
   input: GenerateDailyPlanInput
 ): Promise<GenerateDailyPlanOutput> {
+     // Validate target date
+     if (!input.targetDate || !isValid(parseISO(input.targetDate))) {
+         throw new Error("Invalid or missing target date provided for daily plan generation.");
+     }
     return generateDailyPlanFlow(input);
 }
 
@@ -135,23 +139,61 @@ const generateDailyPlanFlow = ai.defineFlow<
     if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length) {
         return {
             suggestedPlan: [
-                { startTime: "Morning", activity: "Review priorities & habits", category: "Routine" },
-                { startTime: "Afternoon", activity: "Work on a goal or important task", category: "Goal" },
-                { startTime: "Evening", activity: "Relax and wind down", category: "Personal" },
+                { startTime: "Morning", activity: "Review priorities & habits", category: "Habit", reasoning: "Start the day with intention." }, // Changed category
+                { startTime: "Afternoon", activity: "Work on a goal or important task", category: "Goal", reasoning: "Allocate time for progress." },
+                { startTime: "Evening", activity: "Relax and wind down", category: "Personal", reasoning: "Prepare for rest." },
             ],
             planRationale: "Generated a basic plan as limited data was available for the target date.",
             warnings: ["Limited data for planning. Add tasks, events, or logs for better suggestions."],
         };
     }
 
-    // Pass the input directly to the prompt
-    const { output } = await generatePlanPrompt(input);
+     // Prepare data for the prompt - ensure dates are valid ISO strings
+     const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
+        return items.map(item => {
+            const newItem: Record<string, any> = { ...item };
+            dateKeys.forEach(key => {
+                const dateValue = item[key];
+                 if (dateValue instanceof Date && isValid(dateValue)) {
+                    newItem[key] = formatISO(dateValue);
+                 } else if (typeof dateValue === 'string') {
+                     try {
+                         const parsedDate = parseISO(dateValue);
+                         if (isValid(parsedDate)) {
+                             newItem[key] = formatISO(parsedDate); // Convert potentially string dates from storage
+                         } else {
+                             newItem[key] = null; // Or handle invalid string dates
+                         }
+                     } catch {
+                         newItem[key] = null;
+                     }
+                 } else {
+                    newItem[key] = null; // Handle null/undefined/non-date values
+                 }
+            });
+            return newItem;
+        });
+    };
+
+    const promptInput: GenerateDailyPlanInput = {
+        ...input,
+        recentLogs: formatForPrompt(input.recentLogs, ['date']),
+        tasksForDate: formatForPrompt(input.tasksForDate, ['dueDate']),
+        eventsForDate: formatForPrompt(input.eventsForDate, ['start', 'end']),
+        activeHabits: formatForPrompt(input.activeHabits, ['lastCompleted']),
+        // Goals don't typically have dates directly passed to this prompt in this structure
+        activeGoals: input.activeGoals, // Pass goals as is
+    };
+
+
+    // Pass the validated and potentially formatted input to the prompt
+    const { output } = await generatePlanPrompt(promptInput);
 
      // Handle potential null output from AI
      if (!output) {
          console.error('AI analysis failed to return output for daily plan.');
          return {
-             suggestedPlan: [{ startTime: "Full Day", activity: "Plan could not be generated.", category: "Other" }],
+             suggestedPlan: [{ startTime: "Full Day", activity: "Plan could not be generated.", category: "Other" }], // Changed category
              planRationale: "Error: AI failed to generate a plan.",
              warnings: ["Plan generation failed."],
          };
@@ -159,3 +201,5 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
+
+    

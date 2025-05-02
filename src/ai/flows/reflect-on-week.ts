@@ -11,13 +11,37 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, parseISO } from 'date-fns';
+import { formatISO, parseISO, isValid } from 'date-fns'; // Added isValid
 
 // --- Input Data Schemas (Similar to other flows) ---
-const InputLogSchema = z.object({ id: z.string(), date: z.string().datetime(), activity: z.string(), mood: z.string().optional(), diaryEntry: z.string().optional() });
-const InputTaskSchema = z.object({ id: z.string(), title: z.string(), status: z.enum(['Pending', 'In Progress', 'Completed']), createdAt: z.string().datetime().optional(), dueDate: z.string().datetime().optional() });
-const InputGoalSchema = z.object({ id: z.string(), title: z.string(), status: z.string(), updatedAt: z.string().datetime() });
-const InputHabitSchema = z.object({ id: z.string(), title: z.string(), frequency: z.string(), streak: z.number(), lastCompleted: z.string().datetime().optional() });
+const InputLogSchema = z.object({
+    id: z.string(),
+    date: z.string().datetime(),
+    activity: z.string(),
+    mood: z.string().optional(),
+    diaryEntry: z.string().optional()
+});
+const InputTaskSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.enum(['Pending', 'In Progress', 'Completed']),
+    createdAt: z.string().datetime().optional().nullable(),
+    dueDate: z.string().datetime().optional().nullable()
+});
+const InputGoalSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    updatedAt: z.string().datetime(),
+    targetDate: z.string().datetime().optional().nullable(), // Added targetDate
+});
+const InputHabitSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    frequency: z.string(),
+    streak: z.number(),
+    lastCompleted: z.string().datetime().optional().nullable()
+});
 // Add others as needed (Events, Expenses)
 
 // --- Input/Output Schemas for the Flow ---
@@ -52,6 +76,13 @@ export type ReflectOnWeekOutput = z.infer<typeof ReflectOnWeekOutputSchema>;
 export async function reflectOnWeek(
   input: ReflectOnWeekInput
 ): Promise<ReflectOnWeekOutput> {
+     // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for reflection.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for reflection.");
+    }
     return reflectOnWeekFlow(input);
 }
 
@@ -106,10 +137,43 @@ const reflectOnWeekFlow = ai.defineFlow<
   outputSchema: ReflectOnWeekOutputSchema,
 }, async (input) => {
 
-    // Data transformation/summarization for the prompt could happen here if needed
-    // For now, pass the input directly as it matches the prompt schema
+     // Prepare data for the prompt - ensure dates are valid ISO strings
+      const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
+        return items.map(item => {
+            const newItem: Record<string, any> = { ...item };
+            dateKeys.forEach(key => {
+                const dateValue = item[key];
+                 if (dateValue instanceof Date && isValid(dateValue)) {
+                    newItem[key] = formatISO(dateValue);
+                 } else if (typeof dateValue === 'string') {
+                     try {
+                         const parsedDate = parseISO(dateValue);
+                         if (isValid(parsedDate)) {
+                             newItem[key] = formatISO(parsedDate);
+                         } else {
+                             newItem[key] = null;
+                         }
+                     } catch {
+                         newItem[key] = null;
+                     }
+                 } else {
+                    newItem[key] = null;
+                 }
+            });
+            return newItem;
+        });
+    };
 
-    const { output } = await reflectOnWeekPrompt(input);
+     const promptInput: ReflectOnWeekInput = {
+         ...input,
+         logs: formatForPrompt(input.logs, ['date']),
+         tasks: formatForPrompt(input.tasks, ['createdAt', 'dueDate']),
+         goals: formatForPrompt(input.goals, ['updatedAt', 'targetDate']),
+         habits: formatForPrompt(input.habits, ['lastCompleted']),
+     };
+
+
+    const { output } = await reflectOnWeekPrompt(promptInput);
 
      // Handle potential null output from AI
      if (!output) {
@@ -123,3 +187,5 @@ const reflectOnWeekFlow = ai.defineFlow<
 
     return output;
 });
+
+    

@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO } from 'date-fns';
+import { formatISO, parseISO, isValid } from 'date-fns'; // Added isValid
 import type { LogEntry } from '@/services/daily-log'; // Use service types
 import type { Note } from '@/services/note';
 
@@ -55,6 +55,13 @@ export type AnalyzeSentimentTrendsOutput = z.infer<typeof AnalyzeSentimentTrends
 export async function analyzeSentimentTrends(
   input: AnalyzeSentimentTrendsInput
 ): Promise<AnalyzeSentimentTrendsOutput> {
+     // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for sentiment analysis.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for sentiment analysis.");
+    }
     return analyzeSentimentTrendsFlow(input);
 }
 
@@ -112,22 +119,42 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
 }, async (input) => {
     const { textEntries = [], startDate, endDate } = input;
 
+    // Filter out entries with invalid dates before processing
+    const validTextEntries = textEntries.filter(entry => {
+        try {
+            return isValid(parseISO(entry.date));
+        } catch {
+            return false;
+        }
+    });
+
+
     // Handle no entries case
-    if (textEntries.length === 0) {
+    if (validTextEntries.length === 0) {
         return {
             overallSentiment: 'Neutral',
             sentimentScore: 0,
             positiveKeywords: [],
             negativeKeywords: [],
-            analysisSummary: "No diary entries or notes found for sentiment analysis in this period.",
+            analysisSummary: "No valid diary entries or notes found for sentiment analysis in this period.",
             entryCount: 0,
         };
     }
 
     // Prepare data for the prompt (dates are already ISO strings)
     // Sort chronologically for the prompt
-    const promptTextEntries = [...textEntries]
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const promptTextEntries = [...validTextEntries]
+        .sort((a, b) => {
+             // Safely parse dates for sorting
+             try {
+                 const dateA = parseISO(a.date).getTime();
+                 const dateB = parseISO(b.date).getTime();
+                 if (!isNaN(dateA) && !isNaN(dateB)) {
+                     return dateA - dateB;
+                 }
+             } catch { /* Ignore parsing errors during sort */ }
+             return 0; // Keep original order if parsing fails
+         })
         .map(entry => ({ // Ensure structure matches prompt schema
              id: entry.id,
              date: entry.date,
@@ -153,13 +180,15 @@ const analyzeSentimentTrendsFlow = ai.defineFlow<
              positiveKeywords: [],
              negativeKeywords: [],
              analysisSummary: "Error: Could not analyze sentiment.",
-             entryCount: textEntries.length, // Still know how many entries we had
+             entryCount: validTextEntries.length, // Still know how many valid entries we had
          };
      }
 
     // Combine AI output with calculated entry count
     return {
         ...output, // Spread the AI-generated fields
-        entryCount: textEntries.length,
+        entryCount: validTextEntries.length,
     };
 });
+
+    

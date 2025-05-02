@@ -5,8 +5,8 @@
  import { zodResolver } from '@hookform/resolvers/zod';
  import { useForm } from 'react-hook-form';
  import { z } from 'zod';
- import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
- import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map } from 'lucide-react'; // Added Loader2, Map
+ import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns'; // Added startOfDay, endOfDay
+ import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map } from 'lucide-react';
 
  import { Button } from '@/components/ui/button';
  import { Calendar } from '@/components/ui/calendar';
@@ -20,50 +20,50 @@
  import { Separator } from '@/components/ui/separator';
  import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
  import { Progress } from '@/components/ui/progress';
- import { Textarea } from '@/components/ui/textarea'; // Import Textarea
- import { Label } from '@/components/ui/label'; // Import Label
+ import { Textarea } from '@/components/ui/textarea';
+ import { Label } from '@/components/ui/label';
 
 
  // --- Import AI Flows ---
  import {
    analyzeProductivityPatterns,
-   AnalyzeProductivityPatternsInput,
-   AnalyzeProductivityPatternsOutput,
+   type AnalyzeProductivityPatternsInput,
+   type AnalyzeProductivityPatternsOutput,
  } from '@/ai/flows/analyze-productivity-patterns';
  import {
    summarizeDiaryEntries,
-   SummarizeDiaryEntriesInput,
-   SummarizeDiaryEntriesOutput
+   type SummarizeDiaryEntriesInput,
+   type SummarizeDiaryEntriesOutput
  } from '@/ai/flows/summarize-diary-entries';
  import {
    analyzeExpenseTrends,
-   AnalyzeExpenseTrendsInput,
-   AnalyzeExpenseTrendsOutput,
+   type AnalyzeExpenseTrendsInput,
+   type AnalyzeExpenseTrendsOutput,
  } from '@/ai/flows/analyze-expense-trends';
  import {
    analyzeTaskCompletion,
-   AnalyzeTaskCompletionInput,
-   AnalyzeTaskCompletionOutput,
+   type AnalyzeTaskCompletionInput,
+   type AnalyzeTaskCompletionOutput,
  } from '@/ai/flows/analyze-task-completion';
  import {
      analyzeSentimentTrends,
-     AnalyzeSentimentTrendsInput,
-     AnalyzeSentimentTrendsOutput,
+     type AnalyzeSentimentTrendsInput,
+     type AnalyzeSentimentTrendsOutput,
  } from '@/ai/flows/analyze-sentiment-trends';
  import {
      assessLifeBalance,
-     AssessLifeBalanceInput,
-     AssessLifeBalanceOutput,
+     type AssessLifeBalanceInput,
+     type AssessLifeBalanceOutput,
  } from '@/ai/flows/assess-life-balance';
  import {
      estimateBurnoutRisk,
-     EstimateBurnoutRiskInput,
-     EstimateBurnoutRiskOutput,
+     type EstimateBurnoutRiskInput,
+     type EstimateBurnoutRiskOutput,
  } from '@/ai/flows/estimate-burnout-risk';
  // Import reflection and suggestion flows
- import { reflectOnWeek, ReflectOnWeekInput, ReflectOnWeekOutput } from '@/ai/flows/reflect-on-week';
- import { generateDailySuggestions, GenerateDailySuggestionsInput, GenerateDailySuggestionsOutput } from '@/ai/flows/generate-daily-suggestions';
- import { generateDailyPlan, GenerateDailyPlanInput, GenerateDailyPlanOutput } from '@/ai/flows/generate-daily-plan'; // Import Daily Plan flow
+ import { reflectOnWeek, type ReflectOnWeekInput, type ReflectOnWeekOutput } from '@/ai/flows/reflect-on-week';
+ import { generateDailySuggestions, type GenerateDailySuggestionsInput, type GenerateDailySuggestionsOutput } from '@/ai/flows/generate-daily-suggestions';
+ import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanOutput } from '@/ai/flows/generate-daily-plan';
 
 
  // --- Import Services ---
@@ -81,30 +81,33 @@
  type DisplayTask = AnalyzeTaskCompletionOutput['overdueTasks'][number];
 
  type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk';
- type AIServiceType = InsightType | 'reflection' | 'dailySuggestion' | 'dailyPlan'; // Add 'dailyPlan'
+ type AIServiceType = InsightType | 'reflection' | 'dailySuggestion' | 'dailyPlan';
 
 
  // --- Form Schema ---
  const insightsRequestSchema = z.object({
-   insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion', 'dailyPlan']), // Added dailyPlan
+   insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion', 'dailyPlan']),
    startDate: z.date().optional(),
    endDate: z.date().optional(),
    frequency: z.enum(['weekly', 'monthly']).optional(),
  }).refine(data => {
-     const requiresDateRange: AIServiceType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan']; // Added dailyPlan
+     const requiresDateRange: AIServiceType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'];
      if (requiresDateRange.includes(data.insightType) && (!data.startDate || !data.endDate)) {
          return false;
      }
       if (data.insightType === 'diarySummary' && !data.frequency) {
-          return false;
+          // Diary summary only needs frequency if dates aren't provided, but here we always provide dates derived from frequency
+          // So, if dates are missing (which shouldn't happen based on above check), frequency IS required.
+          // The main check should be on dates for diarySummary too.
+          return data.startDate && data.endDate;
       }
      if (data.startDate && data.endDate && data.endDate < data.startDate) {
          return false;
      }
      return true;
  }, {
-     message: "Valid date range required for most insights. Frequency required for Diary summaries. End date cannot be before start date.",
-     path: ["startDate"],
+     message: "Valid date range required for most insights. End date cannot be before start date.",
+     path: ["startDate"], // Indicate error is related to dates
  });
 
  type InsightsRequestFormValues = z.infer<typeof insightsRequestSchema>;
@@ -121,7 +124,7 @@
    const [burnoutRisk, setBurnoutRisk] = useState<EstimateBurnoutRiskOutput | null>(null);
    const [reflectionState, setReflectionState] = useState<{ conversation: { questions: string[], responses: string[] }, output: ReflectOnWeekOutput | null }>({ conversation: { questions: [], responses: [] }, output: null });
    const [dailySuggestions, setDailySuggestions] = useState<GenerateDailySuggestionsOutput | null>(null);
-   const [dailyPlan, setDailyPlan] = useState<GenerateDailyPlanOutput | null>(null); // Added state for daily plan
+   const [dailyPlan, setDailyPlan] = useState<GenerateDailyPlanOutput | null>(null);
    const [reflectionUserInput, setReflectionUserInput] = useState('');
 
 
@@ -141,38 +144,41 @@
 
     const selectedInsightType = form.watch('insightType');
 
+     // Helper to format data for flows, ensuring dates are ISO strings or undefined/null
+     const formatForFlow = <T extends Record<string, any>>(items: T[], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
+        return items.map(item => {
+            const newItem: Record<string, any> = { ...item };
+            dateKeys.forEach(key => {
+                const dateValue = item[key];
+                if (dateValue instanceof Date) {
+                    newItem[key] = formatISO(dateValue);
+                } else {
+                    // Ensure null/undefined are passed through correctly, rather than potentially breaking the flow
+                    newItem[key] = dateValue === undefined ? undefined : (dateValue === null ? null : dateValue);
+                }
+            });
+            return newItem;
+        });
+     };
+
     // Fetch Daily Suggestions on initial load or when data mode changes
     useEffect(() => {
          const fetchDailySuggestions = async () => {
              setIsLoading('dailySuggestion');
              try {
                   const now = new Date();
-                  const yesterday = subDays(now, 1);
-                  const tomorrow = subDays(now, -1);
+                  const yesterday = startOfDay(subDays(now, 1)); // Start of yesterday
+                  const tomorrow = endOfDay(subDays(now, -1)); // End of tomorrow
+                  const todayStart = startOfDay(now);
+                  const todayEnd = endOfDay(now);
 
                   const [logs, tasks, events, habits, goals] = await Promise.all([
-                     getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)),
-                     getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && task.dueDate && task.dueDate <= tomorrow)),
-                     getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= now && ev.start <= endOfWeek(now))),
-                     getHabits(dataMode),
-                     getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
+                     getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)), // Logs from yesterday onwards
+                     getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrow))), // Pending/progress tasks due by tomorrow
+                     getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= todayStart && ev.start <= todayEnd)), // Events strictly today
+                     getHabits(dataMode), // All active habits
+                     getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')), // Active goals
                   ]);
-
-                  // Helper to format data for flows
-                  const formatForFlow = <T extends Record<string, any>>(items: T[], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
-                    return items.map(item => {
-                        const newItem: Record<string, any> = { ...item };
-                        dateKeys.forEach(key => {
-                            if (item[key] && item[key] instanceof Date) {
-                                newItem[key] = formatISO(item[key]);
-                            } else if (item[key] === undefined || item[key] === null) {
-                                // Handle undefined/null if necessary
-                            }
-                        });
-                        return newItem;
-                    });
-                 };
-
 
                   const input: GenerateDailySuggestionsInput = {
                       currentDateTime: formatISO(now),
@@ -198,7 +204,7 @@
     }, [dataMode, toast]);
 
 
-    const clearResults = () => {
+    const clearResults = useCallback(() => {
       setProductivityInsights(null);
       setDiarySummary(null);
       setExpenseTrends(null);
@@ -207,30 +213,34 @@
       setLifeBalance(null);
       setBurnoutRisk(null);
       setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
-      setDailyPlan(null); // Clear daily plan
+      setDailyPlan(null);
       // Keep daily suggestions
-    };
+    }, []); // No dependencies needed for clearResults
 
     // --- API Call Logic ---
-    const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: 'reflection' | 'dailyPlan' | 'dailySuggestion' }) => { // Allow dailyPlan/suggestion type here
+    const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: 'reflection' | 'dailyPlan' | 'dailySuggestion' }) => {
       setIsLoading(data.insightType);
-      if (!['reflection', 'dailySuggestion', 'dailyPlan'].includes(data.insightType)) { // Keep results for these types
-          clearResults();
-      }
+       // Clear previous non-persistent results
+       if (!['reflection', 'dailySuggestion'].includes(data.insightType)) {
+           clearResults();
+       }
 
       try {
         const { insightType } = data;
 
-        // Use form values if not a reflection/plan/suggestion turn or provide defaults
-        const startDate = 'startDate' in data && data.startDate ? data.startDate : subDays(new Date(), 7); // Default start date
-        const endDate = 'endDate' in data && data.endDate ? data.endDate : new Date(); // Default end date
-        const frequency = 'frequency' in data ? data.frequency : undefined;
+        // Use form values if available, otherwise use defaults or context
+        const startDate = 'startDate' in data && data.startDate ? data.startDate : subDays(new Date(), 7);
+        const endDate = 'endDate' in data && data.endDate ? data.endDate : new Date();
+        const frequency = 'frequency' in data && data.frequency ? data.frequency : undefined;
+
+        // Ensure dates are valid Date objects before formatting
+         if (!(startDate instanceof Date) || !(endDate instanceof Date)) {
+             throw new Error("Invalid date objects provided for insights generation.");
+         }
+         const dateInput = { startDate: formatISO(startDate), endDate: formatISO(endDate) };
 
 
-        // Common date input (ISO strings)
-        const dateInput = { startDate: formatISO(startDate), endDate: formatISO(endDate) };
-
-         // Fetch necessary data based on insight type
+         // --- Fetch Data ---
          let logs: LogEntry[] = [], tasks: Task[] = [], events: CalendarEvent[] = [], expenses: Expense[] = [], notes: Note[] = [], goals: Goal[] = [], habits: Habit[] = [];
 
          const requiresLogs = ['productivity', 'diarySummary', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'].includes(insightType);
@@ -241,8 +251,6 @@
          const requiresGoals = ['lifeBalance', 'reflection', 'dailyPlan'].includes(insightType);
          const requiresHabits = ['lifeBalance', 'reflection', 'dailyPlan'].includes(insightType);
 
-
-         // Optimize fetching
          const fetchDataPromises: Promise<any>[] = [];
          if (requiresLogs) fetchDataPromises.push(getDailyLogs(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
          if (requiresTasks) fetchDataPromises.push(getTasks(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
@@ -252,62 +260,32 @@
          if (requiresGoals) fetchDataPromises.push(getGoals(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
          if (requiresHabits) fetchDataPromises.push(getHabits(dataMode)); else fetchDataPromises.push(Promise.resolve([]));
 
-
          [logs, tasks, events, expenses, notes, goals, habits] = await Promise.all(fetchDataPromises);
 
 
-          // Filter data by date range *after* fetching
+          // --- Filter Data By Date Range ---
           const filterByDate = <T extends { date?: Date; createdAt?: Date; updatedAt?: Date; start?: Date }>(item: T): boolean => {
               const itemDate = item.date || item.createdAt || item.updatedAt || item.start;
-              return itemDate ? itemDate >= startDate && itemDate <= endDate : false;
+              // Check if itemDate is a valid Date object before comparison
+               return itemDate instanceof Date && !isNaN(itemDate.getTime()) && isWithinInterval(itemDate, { start: startDate, end: endDate });
           };
 
-          // Specific filtering logic based on insight type needs
-          let logsInRange = logs;
-          let tasksInRange = tasks;
-          let eventsInRange = events;
-          let expensesInRange = expenses;
-          let notesInRange = notes;
-          let goalsInRange = goals;
-          let habitsInRange = habits;
-
-          // Apply date filtering where needed
-           if (['productivity', 'diarySummary', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(insightType)) {
-               logsInRange = logs.filter(filterByDate);
-               notesInRange = notes.filter(filterByDate);
-               goalsInRange = goals.filter(filterByDate);
-               habitsInRange = habits.filter(filterByDate);
-               eventsInRange = events.filter(filterByDate);
-           }
-           if (['expenseTrends', 'lifeBalance'].includes(insightType)) {
-               expensesInRange = expenses.filter(filterByDate);
-           }
-           if (['productivity', 'taskCompletion', 'lifeBalance', 'burnoutRisk', 'reflection'].includes(insightType)) {
-               // Filter tasks relevant to the date range (due or created within)
-                tasksInRange = tasks.filter(task => {
-                    const created = task.createdAt;
-                    const due = task.dueDate;
-                    return (created && created >= startDate && created <= endDate) || (due && due >= startDate && due <= endDate);
-                });
-           }
+          let logsInRange = requiresLogs ? logs.filter(filterByDate) : [];
+          let tasksInRange = requiresTasks ? tasks.filter(task => {
+                const created = task.createdAt;
+                const due = task.dueDate;
+                const isCreatedInRange = created instanceof Date && !isNaN(created.getTime()) && isWithinInterval(created, { start: startDate, end: endDate });
+                const isDueInRange = due instanceof Date && !isNaN(due.getTime()) && isWithinInterval(due, { start: startDate, end: endDate });
+                return isCreatedInRange || isDueInRange;
+            }) : [];
+          let eventsInRange = requiresEvents ? events.filter(filterByDate) : [];
+          let expensesInRange = requiresExpenses ? expenses.filter(filterByDate) : [];
+          let notesInRange = requiresNotes ? notes.filter(filterByDate) : [];
+          let goalsInRange = requiresGoals ? goals.filter(g => g.updatedAt instanceof Date && !isNaN(g.updatedAt.getTime()) && isWithinInterval(g.updatedAt, { start: startDate, end: endDate })) : [];
+          let habitsInRange = requiresHabits ? habits.filter(h => h.updatedAt instanceof Date && !isNaN(h.updatedAt.getTime()) && isWithinInterval(h.updatedAt, { start: startDate, end: endDate })) : [];
 
 
-          // Helper to format data for flows
-          const formatForFlow = <T extends Record<string, any>>(items: T[], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
-              return items.map(item => {
-                  const newItem: Record<string, any> = { ...item };
-                  dateKeys.forEach(key => {
-                      if (item[key] && item[key] instanceof Date) {
-                          newItem[key] = formatISO(item[key]);
-                      } else if (item[key] === undefined || item[key] === null) {
-                          // Handle undefined/null
-                      }
-                  });
-                  return newItem;
-              });
-          };
-
-
+          // --- Call AI Flows ---
          switch (insightType) {
               case 'productivity':
                   const prodInput: AnalyzeProductivityPatternsInput = {
@@ -323,8 +301,8 @@
 
               case 'diarySummary':
                    const diaryEntries = logsInRange.filter(l => l.diaryEntry).map(l => ({ id: l.id, date: formatISO(l.date), text: l.diaryEntry! }));
-                   if (!frequency) throw new Error("Frequency is required for diary summary.");
-                   const diaryInput: SummarizeDiaryEntriesInput = { frequency, diaryEntries, ...dateInput };
+                   const effectiveFrequency = frequency ?? 'weekly'; // Default if somehow frequency is missing but dates are fine
+                   const diaryInput: SummarizeDiaryEntriesInput = { frequency: effectiveFrequency, diaryEntries, ...dateInput };
                    const diaryResult = await summarizeDiaryEntries(diaryInput);
                    setDiarySummary(diaryResult);
                    break;
@@ -336,7 +314,7 @@
                   break;
 
               case 'taskCompletion':
-                  // Pass ALL tasks to the flow for accurate completion calculation
+                  // Pass ALL tasks (not just in range) for accurate completion/overdue check
                   const taskInput: AnalyzeTaskCompletionInput = { ...dateInput, tasks: formatForFlow(tasks, ['createdAt', 'dueDate']) };
                   const taskResult = await analyzeTaskCompletion(taskInput);
                   setTaskCompletion(taskResult);
@@ -357,8 +335,8 @@
                       tasks: formatForFlow(tasksInRange, ['createdAt', 'dueDate']),
                       calendarEvents: formatForFlow(eventsInRange, ['start', 'end']),
                       expenses: formatForFlow(expensesInRange, ['date']),
-                      habits: formatForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
-                      goals: formatForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
+                      habits: formatForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']), // Include habits
+                      goals: formatForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']), // Include goals
                    };
                    const balanceResult = await assessLifeBalance(balanceInput);
                    setLifeBalance(balanceResult);
@@ -377,7 +355,7 @@
 
                case 'reflection':
                    const reflectionInput: ReflectOnWeekInput = {
-                      ...dateInput,
+                      ...dateInput, // Use selected/default dates
                       logs: formatForFlow(logsInRange, ['date']),
                       tasks: formatForFlow(tasksInRange, ['createdAt', 'dueDate']),
                       goals: formatForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
@@ -397,40 +375,59 @@
                       },
                       output: reflectionResult,
                   }));
-                  setReflectionUserInput('');
+                  setReflectionUserInput(''); // Clear input after submission
                   break;
 
-
               case 'dailySuggestion':
-                  // Use current data for suggestions
-                 const now = new Date();
-                 const yesterday = subDays(now, 1);
-                 const tomorrow = subDays(now, -1);
+                  // Re-fetch current data for suggestions
+                 const nowSuggest = new Date();
+                 const yesterdaySuggest = startOfDay(subDays(nowSuggest, 1));
+                 const tomorrowSuggest = endOfDay(subDays(nowSuggest, -1));
+                 const todayStartSuggest = startOfDay(nowSuggest);
+                 const todayEndSuggest = endOfDay(nowSuggest);
+
+                 const [logsSuggest, tasksSuggest, eventsSuggest, habitsSuggest, goalsSuggest] = await Promise.all([
+                     getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterdaySuggest)),
+                     getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrowSuggest))),
+                     getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= todayStartSuggest && ev.start <= todayEndSuggest)),
+                     getHabits(dataMode),
+                     getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
+                  ]);
+
                  const suggestionInput: GenerateDailySuggestionsInput = {
-                     currentDateTime: formatISO(now),
-                     recentLogs: formatForFlow(logs.filter(l => l.date >= yesterday), ['date']),
-                     upcomingTasks: formatForFlow(tasks.filter(t => t.status !== 'Completed' && t.dueDate && t.dueDate <= tomorrow), ['createdAt', 'dueDate']),
-                     todaysEvents: formatForFlow(events.filter(e => e.start >= now && e.start <= endOfWeek(now)), ['start', 'end']),
-                     activeHabits: formatForFlow(habits, ['createdAt', 'updatedAt', 'lastCompleted']),
-                     activeGoals: formatForFlow(goals.filter(g => g.status === 'In Progress'), ['createdAt', 'updatedAt', 'targetDate']),
+                     currentDateTime: formatISO(nowSuggest),
+                     recentLogs: formatForFlow(logsSuggest, ['date']),
+                     upcomingTasks: formatForFlow(tasksSuggest, ['createdAt', 'dueDate']),
+                     todaysEvents: formatForFlow(eventsSuggest, ['start', 'end']),
+                     activeHabits: formatForFlow(habitsSuggest, ['createdAt', 'updatedAt', 'lastCompleted']),
+                     activeGoals: formatForFlow(goalsSuggest, ['createdAt', 'updatedAt', 'targetDate']),
                   };
                   const suggestionResult = await generateDailySuggestions(suggestionInput);
                   setDailySuggestions(suggestionResult);
                   break;
 
               case 'dailyPlan':
-                 // Use data relevant to the target date (defaulting to today)
-                 const targetDate = 'startDate' in data && data.startDate ? data.startDate : new Date(); // Use start date as target if provided, else today
+                 // Use data relevant to the selected target date (start date from form)
+                 const targetDate = startDate; // Use start date from the form
                  const planStartDate = startOfDay(subDays(targetDate, 2)); // Context from last few days
                  const planEndDate = endOfDay(targetDate);
 
+                 // Filter data based on the *target date* for plan generation
+                 const [logsPlan, tasksPlan, eventsPlan, goalsPlan, habitsPlan] = await Promise.all([
+                    getDailyLogs(dataMode).then(d => d.filter(l => l.date >= planStartDate && l.date <= planEndDate)),
+                    getTasks(dataMode).then(t => t.filter(task => (task.dueDate && task.dueDate >= startOfDay(targetDate) && task.dueDate <= endOfDay(targetDate)) || task.status !== 'Completed')),
+                    getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startOfDay(targetDate) && ev.start <= endOfDay(targetDate))),
+                    getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
+                    getHabits(dataMode),
+                 ]);
+
                  const planInput: GenerateDailyPlanInput = {
                       targetDate: formatISO(targetDate),
-                      recentLogs: formatForFlow(logs.filter(l => l.date >= planStartDate && l.date <= planEndDate), ['date']),
-                      tasksForDate: formatForFlow(tasks.filter(t => (t.dueDate && t.dueDate >= startOfDay(targetDate) && t.dueDate <= endOfDay(targetDate)) || t.status !== 'Completed'), ['createdAt', 'dueDate']),
-                      eventsForDate: formatForFlow(events.filter(e => e.start >= startOfDay(targetDate) && e.start <= endOfDay(targetDate)), ['start', 'end']),
-                      activeGoals: formatForFlow(goals.filter(g => g.status === 'In Progress'), ['createdAt', 'updatedAt', 'targetDate']),
-                      activeHabits: formatForFlow(habits, ['createdAt', 'updatedAt', 'lastCompleted']),
+                      recentLogs: formatForFlow(logsPlan, ['date']),
+                      tasksForDate: formatForFlow(tasksPlan, ['createdAt', 'dueDate']),
+                      eventsForDate: formatForFlow(eventsPlan, ['start', 'end']),
+                      activeGoals: formatForFlow(goalsPlan, ['createdAt', 'updatedAt', 'targetDate']),
+                      activeHabits: formatForFlow(habitsPlan, ['createdAt', 'updatedAt', 'lastCompleted']),
                  };
                  const planResult = await generateDailyPlan(planInput);
                  setDailyPlan(planResult);
@@ -438,7 +435,9 @@
 
 
               default:
-                  throw new Error("Invalid insight type selected.");
+                  // Ensure exhaustive check (shouldn't happen with zod enum)
+                  const exhaustiveCheck: never = insightType;
+                  throw new Error(`Unhandled insight type: ${exhaustiveCheck}`);
           }
 
          if (insightType !== 'reflection') {
@@ -452,10 +451,16 @@
           description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
           variant: "destructive",
         });
+         // Clear potentially inconsistent results on error
+         if (!['reflection', 'dailySuggestion'].includes(data.insightType)) {
+             clearResults();
+         } else if (data.insightType === 'dailyPlan') {
+             setDailyPlan(null);
+         }
       } finally {
         setIsLoading(false);
       }
-    }, [toast, dataMode, reflectionState, reflectionUserInput]);
+    }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults]); // Include clearResults
 
 
      // --- Reflection Input Handler ---
@@ -478,7 +483,7 @@
                             <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button variant={'outline'} className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}>
-                                        {field.value ? format(field.value, 'PPP') : <span>Pick start date</span>}
+                                        {field.value instanceof Date && !isNaN(field.value.getTime()) ? format(field.value, 'PPP') : <span>Pick start date</span>}
                                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
                                 </FormControl>
@@ -500,7 +505,7 @@
                             <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button variant={'outline'} className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}>
-                                        {field.value ? format(field.value, 'PPP') : <span>Pick end date</span>}
+                                        {field.value instanceof Date && !isNaN(field.value.getTime()) ? format(field.value, 'PPP') : <span>Pick end date</span>}
                                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
                                 </FormControl>
@@ -522,7 +527,21 @@
              render={({ field }) => (
                  <FormItem>
                      <FormLabel>Summarization Period</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                     <Select onValueChange={(value: 'weekly' | 'monthly') => {
+                          field.onChange(value);
+                          // Automatically set dates based on frequency selection
+                          const now = new Date();
+                          let start: Date, end: Date;
+                          if (value === 'weekly') {
+                              start = startOfWeek(now);
+                              end = endOfWeek(now);
+                          } else { // monthly
+                              start = startOfMonth(now);
+                              end = endOfMonth(now);
+                          }
+                          form.setValue('startDate', start);
+                          form.setValue('endDate', end);
+                     }} value={field.value}>
                          <FormControl><SelectTrigger><SelectValue placeholder="Select period" /></SelectTrigger></FormControl>
                          <SelectContent>
                              <SelectItem value="weekly">This Week</SelectItem>
@@ -553,7 +572,7 @@
                   <CardDescription>Context-aware suggestions for your day.</CardDescription>
              </CardHeader>
              <CardContent>
-                 {isLoading === 'dailySuggestion' && !dailySuggestions ? ( // Show skeleton only initially
+                 {isLoading === 'dailySuggestion' && !dailySuggestions ? (
                      <div className="space-y-3">
                          <Skeleton className="h-5 w-3/4"/>
                          <Skeleton className="h-5 w-1/2"/>
@@ -597,34 +616,39 @@
                      <FormLabel>Analysis / Tool Type</FormLabel>
                      <Select onValueChange={(value: AIServiceType) => {
                          field.onChange(value);
-                         if (!['reflection', 'dailySuggestion', 'dailyPlan'].includes(value)) { // Don't clear results for these
-                             clearResults();
-                         }
-                          // Set default dates based on type
-                         if (['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk'].includes(value)) {
-                              form.setValue('startDate', subDays(new Date(), 7));
-                              form.setValue('endDate', new Date());
+                          // Clear previous results for most types
+                          if (!['reflection', 'dailySuggestion'].includes(value)) {
+                              clearResults();
                           }
-                          if (value === 'diarySummary') {
-                              form.setValue('frequency', 'weekly');
-                              const now = new Date();
-                              form.setValue('startDate', startOfWeek(now));
-                              form.setValue('endDate', endOfWeek(now));
+
+                          // Set default dates based on type
+                          const now = new Date();
+                          if (['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk'].includes(value)) {
+                              form.setValue('startDate', subDays(now, 7), { shouldValidate: true });
+                              form.setValue('endDate', now, { shouldValidate: true });
+                          } else if (value === 'diarySummary') {
+                              form.setValue('frequency', 'weekly'); // Default frequency
+                              form.setValue('startDate', startOfWeek(now), { shouldValidate: true });
+                              form.setValue('endDate', endOfWeek(now), { shouldValidate: true });
                           } else if (value === 'reflection') {
-                              const now = new Date();
-                              form.setValue('startDate', startOfWeek(subDays(now, 7)));
-                              form.setValue('endDate', endOfWeek(subDays(now, 7)));
+                              form.setValue('startDate', startOfWeek(subDays(now, 7)), { shouldValidate: true }); // Previous week
+                              form.setValue('endDate', endOfWeek(subDays(now, 7)), { shouldValidate: true });
                           } else if (value === 'dailyPlan') {
-                             // Default to today for daily plan
-                             form.setValue('startDate', startOfDay(new Date()));
-                             form.setValue('endDate', endOfDay(new Date()));
-                         }
+                              form.setValue('startDate', startOfDay(now), { shouldValidate: true }); // Target today
+                              form.setValue('endDate', endOfDay(now), { shouldValidate: true }); // End of today
+                          } else {
+                               // Clear dates for types that don't need them (like dailySuggestion)
+                              form.setValue('startDate', undefined);
+                              form.setValue('endDate', undefined);
+                              form.setValue('frequency', undefined);
+                          }
+
 
                      }} defaultValue={field.value} value={field.value}>
                        <FormControl><SelectTrigger><SelectValue placeholder="Select analysis/tool" /></SelectTrigger></FormControl>
                        <SelectContent>
                          <SelectItem value="dailySuggestion"><div className="flex items-center gap-2"><Zap className="h-4 w-4" /> Get Daily Suggestions</div></SelectItem>
-                         <SelectItem value="dailyPlan"><div className="flex items-center gap-2"><Map className="h-4 w-4" /> Generate Daily Plan</div></SelectItem> {/* Added Daily Plan */}
+                         <SelectItem value="dailyPlan"><div className="flex items-center gap-2"><Map className="h-4 w-4" /> Generate Daily Plan</div></SelectItem>
                          <SelectItem value="productivity"><div className="flex items-center gap-2"><BarChartHorizontalBig className="h-4 w-4" /> Productivity Patterns</div></SelectItem>
                          <SelectItem value="expenseTrends"><div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Expense Trends</div></SelectItem>
                          <SelectItem value="taskCompletion"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Completion</div></SelectItem>
@@ -641,12 +665,12 @@
                />
 
                  {/* Conditionally render date/frequency pickers */}
-                 {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'].includes(selectedInsightType) && renderDateRangePicker()}
-                 {selectedInsightType === 'diarySummary' && renderFrequencySelector()}
+                  {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'].includes(selectedInsightType) && renderDateRangePicker()}
+                  {selectedInsightType === 'diarySummary' && renderFrequencySelector()}
 
 
-                 {!['reflection', 'dailySuggestion'].includes(selectedInsightType) && ( // Exclude button for suggestion/reflection (handled elsewhere)
-                      <Button type="submit" disabled={!!isLoading}>
+                 {!['reflection', 'dailySuggestion'].includes(selectedInsightType) && (
+                      <Button type="submit" disabled={!!isLoading || (isLoading !== false && isLoading !== selectedInsightType)}>
                           {isLoading === selectedInsightType ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
                           {isLoading === selectedInsightType ? 'Generating...' : 'Generate Insights'}
                       </Button>
@@ -662,7 +686,7 @@
 
        {/* Display Insights Area */}
        <div className="space-y-6">
-         {isLoading && !['dailySuggestion', 'reflection'].includes(isLoading as AIServiceType) && ( // General loading skeleton for main insights
+         {isLoading && !['dailySuggestion', 'reflection', 'dailyPlan'].includes(isLoading as AIServiceType) && ( // General loading skeleton
             <Card>
                 <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
                 <CardContent className="space-y-4">
@@ -676,11 +700,13 @@
          {/* ----- Render specific insight cards based on state ----- */}
 
          {/* Daily Plan */}
-         {!isLoading && dailyPlan && (
+          {isLoading === 'dailyPlan' ? (
+              <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+          ) : dailyPlan && (
               <Card className="shadow-md bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300"><Map className="h-5 w-5" /> Suggested Daily Plan</CardTitle>
-                      <CardDescription>AI-generated plan for {form.getValues("startDate") ? format(form.getValues("startDate")!, 'PPP') : 'today'}.</CardDescription>
+                      <CardDescription>AI-generated plan for {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : 'today'}.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                        <p className="text-sm font-semibold italic text-blue-600 dark:text-blue-400">{dailyPlan.planRationale}</p>
@@ -714,14 +740,14 @@
           )}
 
          {/* Reflection Coach */}
-         {selectedInsightType === 'reflection' && (
-             <Card className="shadow-md bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700">
+          {selectedInsightType === 'reflection' && (
+              <Card className="shadow-md bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-300"><BrainCircuit className="h-5 w-5" /> Weekly Reflection Coach</CardTitle>
-                      <CardDescription>Reflect on your week {form.getValues("startDate") && form.getValues("endDate") && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
+                       <CardDescription>Reflect on your week {form.getValues("startDate") instanceof Date && form.getValues("endDate") instanceof Date && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                       {isLoading === 'reflection' && !reflectionState.output && (
+                       {isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && ( // Show loader only on initial load
                           <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-purple-500" /></div>
                       )}
                       {/* Display Conversation History */}
@@ -731,10 +757,14 @@
                               {reflectionState.conversation.responses[index] && (
                                   <p className="text-sm pl-4 text-gray-700 dark:text-gray-300">You: <span className="font-normal">{reflectionState.conversation.responses[index]}</span></p>
                               )}
+                               {/* Show loading spinner while waiting for the *next* AI response */}
+                               {isLoading === 'reflection' && index === reflectionState.conversation.questions.length - 1 && !reflectionState.output?.isComplete && (
+                                     <div className="flex items-center pl-4 pt-2"><Loader2 className="h-4 w-4 animate-spin text-purple-500 mr-2" /> <span className="text-xs italic text-purple-600 dark:text-purple-400">Coach is thinking...</span></div>
+                                )}
                           </div>
                        ))}
 
-                      {/* Display current AI prompt if reflection is ongoing */}
+                      {/* Display input form if reflection is ongoing */}
                       {reflectionState.output && !reflectionState.output.isComplete && (
                           <form onSubmit={handleReflectionResponse} className="space-y-3 mt-4">
                               <Label htmlFor="reflection-response" className="sr-only">Your Response:</Label>
@@ -745,6 +775,7 @@
                                  onChange={(e) => setReflectionUserInput(e.target.value)}
                                  rows={4}
                                  disabled={isLoading === 'reflection'}
+                                 aria-label="Your reflection response"
                               />
                               <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim()}>
                                  {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Send Response
@@ -770,15 +801,16 @@
 
 
          {/* Productivity Insights */}
-         {!isLoading && productivityInsights && (
+         {productivityInsights && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><BarChartHorizontalBig className="h-5 w-5" /> Productivity Patterns Analysis</CardTitle>
-                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+                     <CardDescription>Based on data from {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} to {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'}</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                      <div><h3 className="font-semibold text-lg mb-1">Overall Assessment</h3><p className="text-sm text-secondary-foreground">{productivityInsights.overallAssessment}</p></div><Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Peak Performance Times</h3><p className="text-sm text-secondary-foreground">{productivityInsights.peakPerformanceTimes}</p></div><Separator/>
+                     {productivityInsights.attentionQualityAssessment && (<><div><h3 className="font-semibold text-lg mb-1">Attention Quality</h3><p className="text-sm text-secondary-foreground">{productivityInsights.attentionQualityAssessment}</p></div><Separator/></>)}
                      <div><h3 className="font-semibold text-lg mb-1">Common Distractions/Obstacles</h3><p className="text-sm text-secondary-foreground">{productivityInsights.commonDistractionsOrObstacles}</p></div><Separator/>
                      <div><h3 className="font-semibold text-lg mb-1">Suggested Strategies</h3><p className="text-sm text-secondary-foreground">{productivityInsights.suggestedStrategies}</p></div>
                  </CardContent>
@@ -786,11 +818,11 @@
          )}
 
          {/* Expense Trends */}
-         {!isLoading && expenseTrends && (
+         {expenseTrends && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Expense Trend Analysis</CardTitle>
-                     <CardDescription>Based on data from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+                     <CardDescription>Based on data from {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} to {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'}</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                      <div className="grid grid-cols-2 gap-4"><p className="text-sm text-muted-foreground">Total Spending</p><p className="text-xl font-bold">${expenseTrends.totalSpending.toFixed(2)}</p></div>
@@ -805,28 +837,28 @@
          )}
 
          {/* Task Completion */}
-         {!isLoading && taskCompletion && (
+         {taskCompletion && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><ListTodo className="h-5 w-5" /> Task Completion Analysis</CardTitle>
-                     <CardDescription>Tasks due between {format(form.getValues("startDate")!, 'PPP')} and {format(form.getValues("endDate")!, 'PPP')}</CardDescription>
+                     <CardDescription>Tasks due between {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} and {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'}</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                       <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Tasks Due</p><p className="text-xl font-bold">{taskCompletion.totalTasksConsidered}</p></div><div><p className="text-sm text-muted-foreground">Completed</p><p className="text-xl font-bold">{taskCompletion.completedTasks}</p></div><div><p className="text-sm text-muted-foreground">Rate</p><p className="text-xl font-bold">{taskCompletion.completionRate.toFixed(0)}%</p></div></div>
                      <Separator />
                       <div><h3 className="font-semibold text-lg mb-1">Completion Summary</h3><p className="text-sm text-secondary-foreground">{taskCompletion.completionSummary}</p></div>
                      <Separator />
-                     <div><h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>{taskCompletion.overdueTasks.length > 0 ? (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>{taskCompletion.overdueTasks.length} Overdue!</AlertTitle><AlertDescription><ul className="list-disc list-inside mt-2 space-y-1">{taskCompletion.overdueTasks.map((task: DisplayTask) => (<li key={task.id} className="text-sm">{task.title} {task.dueDate && `(Due: ${format(parseISO(task.dueDate), 'PP')})`}</li>))}</ul></AlertDescription></Alert>) : (<p className="text-sm text-muted-foreground italic">No overdue tasks. Keep it up!</p>)}</div>
+                      <div><h3 className="font-semibold text-lg mb-2">Overdue Tasks</h3>{taskCompletion.overdueTasks.length > 0 ? (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>{taskCompletion.overdueTasks.length} Overdue!</AlertTitle><AlertDescription><ul className="list-disc list-inside mt-2 space-y-1">{taskCompletion.overdueTasks.map((task: DisplayTask) => (<li key={task.id} className="text-sm">{task.title} {task.dueDate && `(Due: ${format(parseISO(task.dueDate), 'PP')})`}</li>))}</ul></AlertDescription></Alert>) : (<p className="text-sm text-muted-foreground italic">No overdue tasks. Keep it up!</p>)}</div>
                  </CardContent>
              </Card>
          )}
 
          {/* Diary Summary */}
-         {!isLoading && diarySummary && (
+         {diarySummary && (
              <Card className="shadow-md bg-secondary/30">
                  <CardHeader>
                      <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Diary Summary</CardTitle>
-                     <CardDescription>{`Summary for ${form.getValues("frequency") === 'weekly' ? 'This Week' : 'This Month'} (${diarySummary.entryCount} entries)`} {diarySummary.dateRange && `(${format(parseISO(diarySummary.dateRange.start), 'PP')} - ${format(parseISO(diarySummary.dateRange.end), 'PP')})`}</CardDescription>
+                      <CardDescription>{`Summary for ${form.getValues("frequency") ?? 'period'} (${diarySummary.entryCount} entries)`} {diarySummary.dateRange && `(${format(parseISO(diarySummary.dateRange.start), 'PP')} - ${format(parseISO(diarySummary.dateRange.end), 'PP')})`}</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
                       <div><h3 className="font-semibold text-lg mb-1">Summary</h3><p className="text-sm text-secondary-foreground whitespace-pre-wrap">{diarySummary.summary}</p></div><Separator/>
@@ -838,11 +870,11 @@
          )}
 
          {/* Sentiment Analysis */}
-          {!isLoading && sentimentAnalysis && (
+          {sentimentAnalysis && (
               <Card className="shadow-md bg-secondary/30">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2"><Smile className="h-5 w-5" /> Sentiment Analysis</CardTitle>
-                       <CardDescription>Sentiment trends from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')} ({sentimentAnalysis.entryCount} entries)</CardDescription>
+                       <CardDescription>Sentiment trends from {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} to {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'} ({sentimentAnalysis.entryCount} entries)</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                      <div className="grid grid-cols-2 gap-4">
@@ -859,11 +891,11 @@
           )}
 
           {/* Life Balance */}
-           {!isLoading && lifeBalance && (
+           {lifeBalance && (
               <Card className="shadow-md bg-secondary/30">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5" /> Life Balance Assessment</CardTitle>
-                      <CardDescription>Distribution of focus from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}.</CardDescription>
+                      <CardDescription>Distribution of focus from {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} to {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'}.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                       <div><h3 className="font-semibold text-lg mb-1">Balance Summary</h3><p className="text-sm text-secondary-foreground">{lifeBalance.balanceSummary}</p></div>
@@ -895,11 +927,11 @@
           )}
 
           {/* Burnout Risk */}
-          {!isLoading && burnoutRisk && (
+          {burnoutRisk && (
               <Card className="shadow-md bg-secondary/30">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5" /> Burnout Risk Estimation</CardTitle>
-                      <CardDescription>Assessment from {format(form.getValues("startDate")!, 'PPP')} to {format(form.getValues("endDate")!, 'PPP')}.</CardDescription>
+                      <CardDescription>Assessment from {form.getValues("startDate") instanceof Date ? format(form.getValues("startDate")!, 'PPP') : '?'} to {form.getValues("endDate") instanceof Date ? format(form.getValues("endDate")!, 'PPP') : '?'}.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                       <div><h3 className="font-semibold text-lg mb-1">Risk Level: {burnoutRisk.riskLevel}</h3>
@@ -920,3 +952,5 @@
  };
 
  export default InsightsPage;
+
+    

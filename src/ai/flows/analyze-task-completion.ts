@@ -11,17 +11,18 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { parseISO, isWithinInterval, formatISO, format } from 'date-fns';
+import { parseISO, isWithinInterval, formatISO, format, isValid } from 'date-fns'; // Added isValid
 import type { Task } from '@/services/task'; // Use type from service
 
 // Zod schema for tasks included *in the output*. Use string().datetime() for dueDate.
 const TaskSchemaForOutput = z.object({
     id: z.string(),
     title: z.string(),
-    description: z.string().optional(),
-    dueDate: z.string().datetime().optional().describe("The task's due date (ISO 8601 format), if available."),
+    description: z.string().optional().nullable(),
+    // Ensure dueDate is optional and accepts string ISO format for the output
+    dueDate: z.string().datetime().optional().nullable().describe("The task's due date (ISO 8601 format), if available."),
     status: z.enum(['Pending', 'In Progress', 'Completed']).describe("The task's current status."),
-    createdAt: z.string().datetime().optional().describe("The task's creation date (ISO 8601 format), if available."),
+    createdAt: z.string().datetime().optional().nullable().describe("The task's creation date (ISO 8601 format), if available."),
 });
 
 
@@ -32,11 +33,11 @@ const AnalyzeTaskCompletionInputSchema = z.object({
   tasks: z.array(z.object({ // Define the expected structure of tasks passed in
       id: z.string(),
       title: z.string(),
-      description: z.string().optional(),
+      description: z.string().optional().nullable(),
       // Expect dates as ISO strings in the Zod schema for validation robustness
-      dueDate: z.string().datetime().optional(),
+      dueDate: z.string().datetime().optional().nullable(), // Allow null/undefined
       status: z.enum(['Pending', 'In Progress', 'Completed']),
-      createdAt: z.string().datetime().optional(),
+      createdAt: z.string().datetime().optional().nullable(), // Allow null/undefined
     })).describe('An array of task objects relevant to the user.'),
 });
 export type AnalyzeTaskCompletionInput = z.infer<
@@ -59,7 +60,14 @@ export type AnalyzeTaskCompletionOutput = z.infer<
 export async function analyzeTaskCompletion(
   input: AnalyzeTaskCompletionInput
 ): Promise<AnalyzeTaskCompletionOutput> {
-  return analyzeTaskCompletionFlow(input);
+     // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for task analysis.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for task analysis.");
+    }
+    return analyzeTaskCompletionFlow(input);
 }
 
 // Define prompt input schema matching the data we will pass *to the prompt*
@@ -118,19 +126,29 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
     const endDate = parseISO(input.endDate);
     const today = new Date(); // Use a fixed date for overdue comparison within the flow
 
-    // Use the tasks passed directly in the input, parsing dates
-    const allTasks: Task[] = input.tasks.map(t => ({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
-        createdAt: t.createdAt ? parseISO(t.createdAt) : undefined,
-    }));
+    // Use the tasks passed directly in the input, parsing dates safely
+    const allTasks: Task[] = input.tasks
+        .map(t => {
+            try {
+                return {
+                    id: t.id,
+                    title: t.title,
+                    description: t.description,
+                    status: t.status,
+                    dueDate: t.dueDate ? parseISO(t.dueDate) : undefined,
+                    createdAt: t.createdAt ? parseISO(t.createdAt) : undefined,
+                };
+            } catch {
+                return null; // Handle potential errors during date parsing
+            }
+        })
+        .filter((t): t is Task => t !== null && (!t.dueDate || isValid(t.dueDate)) && (!t.createdAt || isValid(t.createdAt))); // Filter out nulls and tasks with invalid dates
 
-    // Filter tasks considered for the period (must have a due date within the range)
+
+    // Filter tasks considered for the period (must have a valid due date within the range)
     const tasksConsidered = allTasks.filter(task =>
         task.dueDate && // Must have a due date
+        isValid(task.dueDate) && // Due date must be valid
         isWithinInterval(task.dueDate, { start: startDate, end: endDate }) // Due date within range
     );
 
@@ -141,7 +159,7 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
 
     // Identify overdue tasks among those considered
     const overdueTasksRaw = tasksConsidered.filter(t =>
-        t.status !== 'Completed' && t.dueDate && t.dueDate < today // Due date is in the past, and not completed
+        t.status !== 'Completed' && t.dueDate && isValid(t.dueDate) && t.dueDate < today // Due date is valid, in the past, and not completed
     );
 
     // Format overdue tasks for the final output (using ISO strings for dates)
@@ -149,16 +167,17 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         id: t.id,
         title: t.title,
         description: t.description,
-        dueDate: t.dueDate ? formatISO(t.dueDate) : undefined, // Format as ISO string
+        // Format valid dates as ISO string, otherwise pass null/undefined
+        dueDate: t.dueDate && isValid(t.dueDate) ? formatISO(t.dueDate) : null,
         status: t.status,
-        createdAt: t.createdAt ? formatISO(t.createdAt) : undefined,
+        createdAt: t.createdAt && isValid(t.createdAt) ? formatISO(t.createdAt) : null,
      }));
 
      // Format overdue tasks for prompt context (using human-readable dates)
      const overdueTasksJsonForPrompt = JSON.stringify(
          overdueTasksRaw.map(t => ({
              title: t.title,
-             dueDate: t.dueDate ? format(t.dueDate, 'PP') : 'No due date' // Human-readable date
+             dueDate: t.dueDate && isValid(t.dueDate) ? format(t.dueDate, 'PP') : 'No due date' // Human-readable date
          }))
      );
 
@@ -208,8 +227,10 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         totalTasksConsidered: totalConsidered,
         completedTasks: completedInPeriod,
         completionRate: completionRate,
-        overdueTasks: overdueTasksForOutput, // Use the array with ISO strings
+        overdueTasks: overdueTasksForOutput, // Use the array with potentially null/undefined ISO strings
         completionSummary: summary,
     };
   }
 );
+
+    

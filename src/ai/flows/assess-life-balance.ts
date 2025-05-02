@@ -16,7 +16,7 @@ import type { CalendarEvent } from '@/services/calendar';
 import type { Expense } from '@/services/expense';
 import type { Habit } from '@/services/habit';
 import type { Goal } from '@/services/goal';
-import { parseISO, isWithinInterval, formatISO } from 'date-fns';
+import { parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; // Added isValid
 
 // --- Constants ---
 const LIFE_AREAS = ['Work/Career', 'Personal Growth', 'Health/Wellness', 'Social/Relationships', 'Finance', 'Hobbies/Leisure', 'Responsibilities/Chores'] as const;
@@ -28,13 +28,41 @@ const InputLogSchema = z.object({
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel
+    focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
 });
-const InputTaskSchema = z.object({ id: z.string(), title: z.string(), status: z.enum(['Pending', 'In Progress', 'Completed']), createdAt: z.string().datetime().optional(), dueDate: z.string().datetime().optional() });
-const InputEventSchema = z.object({ title: z.string(), start: z.string().datetime(), end: z.string().datetime() });
-const InputExpenseSchema = z.object({ id: z.string(), category: z.string(), date: z.string().datetime(), description: z.string() }); // Added description
-const InputHabitSchema = z.object({ id: z.string(), title: z.string(), frequency: z.string(), lastCompleted: z.string().datetime().optional(), updatedAt: z.string().datetime() }); // Added updatedAt
-const InputGoalSchema = z.object({ id: z.string(), title: z.string(), status: z.string(), updatedAt: z.string().datetime() });
+const InputTaskSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.enum(['Pending', 'In Progress', 'Completed']),
+    createdAt: z.string().datetime().optional().nullable(),
+    dueDate: z.string().datetime().optional().nullable()
+});
+const InputEventSchema = z.object({
+    title: z.string(),
+    start: z.string().datetime(),
+    end: z.string().datetime()
+});
+const InputExpenseSchema = z.object({
+    id: z.string(),
+    category: z.string(),
+    date: z.string().datetime(),
+    description: z.string()
+});
+const InputHabitSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    frequency: z.string(),
+    lastCompleted: z.string().datetime().optional().nullable(),
+    updatedAt: z.string().datetime()
+});
+const InputGoalSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    updatedAt: z.string().datetime(),
+    targetDate: z.string().datetime().optional().nullable(), // Added targetDate
+});
+
 
 const AssessLifeBalanceInputSchema = z.object({
     startDate: z.string().datetime().describe('The start date (ISO 8601 format) for the analysis period.'),
@@ -65,7 +93,7 @@ export type AssessLifeBalanceOutput = z.infer<typeof AssessLifeBalanceOutputSche
 
 // --- Categorization Logic ---
 // More nuanced categorization hints
-function categorizeActivity(activity: string | undefined, categoryHint?: string, focusLevel?: number): LifeArea | 'Uncategorized' {
+function categorizeActivity(activity: string | undefined, categoryHint?: string, focusLevel?: number | null): LifeArea | 'Uncategorized' {
     if (!activity) return 'Uncategorized';
     const lowerActivity = activity.toLowerCase();
     const lowerHint = categoryHint?.toLowerCase();
@@ -87,9 +115,10 @@ function categorizeActivity(activity: string | undefined, categoryHint?: string,
     if (lowerActivity.includes('chore') || lowerActivity.includes('clean') || lowerActivity.includes('errand') || lowerActivity.includes('grocery') || lowerActivity.includes('cook') || lowerActivity.includes('fix') || lowerActivity.includes('household') || lowerActivity.includes('laundry') || lowerActivity.includes('dishes')) return 'Responsibilities/Chores';
 
     // Consider focus level for ambiguity (e.g., 'Reading' could be Growth or Leisure)
-    // if (lowerActivity.includes('read')) {
-    //     return (focusLevel && focusLevel >= 4) ? 'Personal Growth' : 'Hobbies/Leisure';
-    // }
+    if (lowerActivity.includes('read')) {
+         // Default to Leisure if focus not high, Personal Growth otherwise
+         return (focusLevel && focusLevel >= 4) ? 'Personal Growth' : 'Hobbies/Leisure';
+    }
 
     return 'Uncategorized';
 }
@@ -99,6 +128,13 @@ function categorizeActivity(activity: string | undefined, categoryHint?: string,
 export async function assessLifeBalance(
   input: AssessLifeBalanceInput
 ): Promise<AssessLifeBalanceOutput> {
+     // Validate input dates
+    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+        throw new Error("Invalid or missing start date provided for life balance assessment.");
+    }
+    if (!input.endDate || !isValid(parseISO(input.endDate))) {
+        throw new Error("Invalid or missing end date provided for life balance assessment.");
+    }
     return assessLifeBalanceFlow(input);
 }
 
@@ -157,6 +193,17 @@ const assessLifeBalanceFlow = ai.defineFlow<
     const end = parseISO(endDate);
     const analysisPeriodDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
+    // Helper to safely parse dates and check interval
+    const isDateInRange = (dateString: string | null | undefined): boolean => {
+        if (!dateString) return false;
+        try {
+            const date = parseISO(dateString);
+            return isValid(date) && isWithinInterval(date, { start, end });
+        } catch {
+            return false;
+        }
+    };
+
     // --- Activity Categorization & Focus Tracking ---
     const areaCounts: Record<LifeArea | 'Uncategorized', number> =
         Object.fromEntries([...LIFE_AREAS, 'Uncategorized'].map(area => [area, 0])) as any;
@@ -165,11 +212,11 @@ const assessLifeBalanceFlow = ai.defineFlow<
 
     // Categorize logs
     dailyLogs
-        .filter(log => isWithinInterval(parseISO(log.date), { start, end }))
+        .filter(log => isDateInRange(log.date))
         .forEach(log => {
             const area = categorizeActivity(log.activity, undefined, log.focusLevel);
             areaCounts[area]++;
-            if (area !== 'Uncategorized' && log.focusLevel) {
+            if (area !== 'Uncategorized' && typeof log.focusLevel === 'number') {
                 areaFocusTotals[area] += log.focusLevel;
                 areaFocusCounts[area]++;
             }
@@ -177,12 +224,7 @@ const assessLifeBalanceFlow = ai.defineFlow<
 
     // Categorize tasks
     tasks
-        .filter(task => {
-            const createdAt = task.createdAt ? parseISO(task.createdAt) : null;
-            const dueDate = task.dueDate ? parseISO(task.dueDate) : null;
-            return (createdAt && isWithinInterval(createdAt, { start, end })) ||
-                   (dueDate && isWithinInterval(dueDate, { start, end }));
-        })
+        .filter(task => isDateInRange(task.createdAt) || isDateInRange(task.dueDate))
         .forEach(task => {
             const area = categorizeActivity(task.title);
             areaCounts[area]++;
@@ -190,7 +232,7 @@ const assessLifeBalanceFlow = ai.defineFlow<
 
      // Categorize events
      calendarEvents
-         .filter(event => isWithinInterval(parseISO(event.start), { start, end }))
+         .filter(event => isDateInRange(event.start))
          .forEach(event => {
              const area = categorizeActivity(event.title);
              areaCounts[area]++;
@@ -198,22 +240,15 @@ const assessLifeBalanceFlow = ai.defineFlow<
 
      // Categorize expenses
      expenses
-         .filter(exp => isWithinInterval(parseISO(exp.date), { start, end }))
+         .filter(exp => isDateInRange(exp.date))
          .forEach(exp => {
              const area = categorizeActivity(exp.description, exp.category);
              areaCounts[area]++;
-              if (area === 'Finance') { // Track financial activities specifically?
-                 // Could add finance-specific tracking here if needed
-              }
          });
 
      // Categorize habits
      habits
-         .filter(habit => {
-             const updatedAt = parseISO(habit.updatedAt);
-             const lastCompleted = habit.lastCompleted ? parseISO(habit.lastCompleted) : null;
-             return isWithinInterval(updatedAt, { start, end }) || (lastCompleted && isWithinInterval(lastCompleted, { start, end }));
-         })
+         .filter(habit => isDateInRange(habit.updatedAt) || isDateInRange(habit.lastCompleted))
          .forEach(habit => {
              const area = categorizeActivity(habit.title);
              areaCounts[area]++;
@@ -221,7 +256,7 @@ const assessLifeBalanceFlow = ai.defineFlow<
 
       // Categorize goals
       goals
-          .filter(goal => isWithinInterval(parseISO(goal.updatedAt), { start, end }))
+          .filter(goal => isDateInRange(goal.updatedAt) || isDateInRange(goal.targetDate))
           .forEach(goal => {
               const area = categorizeActivity(goal.title);
               areaCounts[area]++;
@@ -285,3 +320,5 @@ const assessLifeBalanceFlow = ai.defineFlow<
         suggestions: output.suggestions,
     };
 });
+
+    

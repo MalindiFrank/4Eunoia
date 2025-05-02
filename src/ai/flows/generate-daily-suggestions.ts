@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO } from 'date-fns'; // Removed getDay, getHours
+import { formatISO, parseISO, isValid } from 'date-fns'; // Added parseISO, isValid
 
 // Define Zod schemas for input data types (expecting ISO strings)
 const InputLogSchema = z.object({
@@ -18,13 +18,13 @@ const InputLogSchema = z.object({
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel
+    focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
 });
 const InputTaskSchema = z.object({
     id: z.string(),
     title: z.string(),
     status: z.enum(['Pending', 'In Progress', 'Completed']),
-    dueDate: z.string().datetime().optional(),
+    dueDate: z.string().datetime().optional().nullable(), // Allow null
 });
 const InputEventSchema = z.object({
     title: z.string(),
@@ -35,7 +35,7 @@ const InputHabitSchema = z.object({
     id: z.string(),
     title: z.string(),
     frequency: z.string(),
-    lastCompleted: z.string().datetime().optional(),
+    lastCompleted: z.string().datetime().optional().nullable(), // Allow null
 });
 const InputGoalSchema = z.object({
     id: z.string(),
@@ -76,6 +76,10 @@ export type GenerateDailySuggestionsOutput = z.infer<typeof GenerateDailySuggest
 export async function generateDailySuggestions(
   input: GenerateDailySuggestionsInput
 ): Promise<GenerateDailySuggestionsOutput> {
+     // Validate currentDateTime
+     if (!input.currentDateTime || !isValid(parseISO(input.currentDateTime))) {
+         throw new Error("Invalid or missing currentDateTime provided for suggestions.");
+     }
     return generateDailySuggestionsFlow(input);
 }
 
@@ -145,7 +149,45 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         };
     }
 
-    const { output } = await generateSuggestionsPrompt(input);
+     // Prepare data for the prompt - ensure dates are valid ISO strings
+      const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
+        return items.map(item => {
+            const newItem: Record<string, any> = { ...item };
+            dateKeys.forEach(key => {
+                const dateValue = item[key];
+                 if (dateValue instanceof Date && isValid(dateValue)) {
+                    newItem[key] = formatISO(dateValue);
+                 } else if (typeof dateValue === 'string') {
+                     try {
+                         const parsedDate = parseISO(dateValue);
+                         if (isValid(parsedDate)) {
+                             newItem[key] = formatISO(parsedDate);
+                         } else {
+                             newItem[key] = null;
+                         }
+                     } catch {
+                         newItem[key] = null;
+                     }
+                 } else {
+                    newItem[key] = null;
+                 }
+            });
+            return newItem;
+        });
+    };
+
+     const promptInput: GenerateDailySuggestionsInput = {
+        ...input,
+        recentLogs: formatForPrompt(input.recentLogs, ['date']),
+        upcomingTasks: formatForPrompt(input.upcomingTasks, ['dueDate']),
+        todaysEvents: formatForPrompt(input.todaysEvents, ['start', 'end']),
+        activeHabits: formatForPrompt(input.activeHabits, ['lastCompleted']),
+        // Goals don't have dates in this context
+        activeGoals: input.activeGoals,
+    };
+
+
+    const { output } = await generateSuggestionsPrompt(promptInput);
 
      if (!output) {
          console.error('AI analysis failed to return output for daily suggestions.');
@@ -157,3 +199,5 @@ const generateDailySuggestionsFlow = ai.defineFlow<
 
     return output;
 });
+
+    
