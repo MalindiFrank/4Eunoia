@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; // Removed subDays, addDays
-import { Calendar as CalendarIcon, Plus, Trash2 } from 'lucide-react'; // Removed Smile, Added Trash2
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,14 +20,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { getDailyLogs, addUserLog, type LogEntry, type Mood, DAILY_LOG_STORAGE_KEY } from '@/services/daily-log'; // Import from new service file
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useDataMode } from '@/context/data-mode-context';
+import { getDailyLogs, addUserLog, deleteUserLog, type LogEntry, type Mood } from '@/services/daily-log';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Slider } from "@/components/ui/slider"; // Import Slider
 
 // --- Types and Schemas ---
 const moodOptions = ['😊 Happy', '😌 Calm', '😕 Neutral', '😟 Anxious', '😢 Sad', '😠 Stressed', '⚡ Productive', '😴 Tired', '❓ Other'] as const;
-// Mood type is now exported from service
 
 const logEntrySchema = z.object({
   date: z.date({
@@ -35,6 +35,7 @@ const logEntrySchema = z.object({
   }),
   activity: z.string().min(1, 'Activity description cannot be empty.'),
   mood: z.enum(moodOptions).optional(),
+  focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel schema
   notes: z.string().optional(),
   diaryEntry: z.string().optional(),
 });
@@ -46,7 +47,7 @@ const DailyLogPage: FC = () => {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use the data mode context
+  const { dataMode } = useDataMode();
 
   // Load logs based on dataMode
   useEffect(() => {
@@ -64,7 +65,7 @@ const DailyLogPage: FC = () => {
         }
     };
     loadLogs();
-  }, [dataMode, toast]); // Reload when dataMode changes
+  }, [dataMode, toast]);
 
   const form = useForm<LogEntryFormValues>({
     resolver: zodResolver(logEntrySchema),
@@ -72,6 +73,7 @@ const DailyLogPage: FC = () => {
       date: new Date(),
       activity: '',
       mood: undefined,
+      focusLevel: undefined, // Default focus level
       notes: '',
       diaryEntry: '',
     },
@@ -84,11 +86,18 @@ const DailyLogPage: FC = () => {
      }
 
     try {
-        const newEntry = addUserLog(data); // Use service function to add
-        // Prepend new entry to the state for immediate UI update
+        // Pass focusLevel from form data
+        const newEntry = addUserLog({
+            date: data.date,
+            activity: data.activity,
+            mood: data.mood,
+            focusLevel: data.focusLevel,
+            notes: data.notes,
+            diaryEntry: data.diaryEntry,
+        });
         setLogEntries(prevLogs => [newEntry, ...prevLogs].sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        form.reset({ date: new Date(), activity: '', mood: undefined, notes: '', diaryEntry: '' }); // Reset form
+        form.reset({ date: new Date(), activity: '', mood: undefined, focusLevel: undefined, notes: '', diaryEntry: '' }); // Reset form
         toast({
             title: "Log Entry Added",
             description: "Your daily log has been updated.",
@@ -100,19 +109,24 @@ const DailyLogPage: FC = () => {
     }
   };
 
-   // Delete Log Function (Optional, as logs might be append-only)
-   const deleteLog = (logId: string) => {
+   const handleDeleteLog = (logId: string) => {
        if (dataMode === 'mock') {
            toast({ title: "Read-only Mode", description: "Cannot delete log entries in mock data mode.", variant: "destructive"});
            return;
        }
-       // TODO: Implement deleteUserLog in service if needed
-       console.warn("Log deletion not fully implemented in service yet.");
-       // Example front-end removal:
-       // const logToDelete = logEntries.find(l => l.id === logId);
-       // setLogEntries(prev => prev.filter(l => l.id !== logId));
-       // // Call saveUserLogs(updatedLogs) from service
-       // toast({ title: "Log Deleted", description: `Log entry from ${logToDelete ? format(logToDelete.date, 'PP') : ''} deleted.`, variant: "destructive" });
+       const logToDelete = logEntries.find(l => l.id === logId);
+       try {
+           const success = deleteUserLog(logId);
+           if (success) {
+               setLogEntries(prev => prev.filter(l => l.id !== logId));
+               toast({ title: "Log Deleted", description: `Log entry from ${logToDelete ? format(logToDelete.date, 'PP') : ''} deleted.`, variant: "default" });
+           } else {
+                throw new Error("Failed to find log to delete.");
+           }
+       } catch (error) {
+           console.error("Error deleting log:", error);
+           toast({ title: "Error", description: "Could not delete log entry.", variant: "destructive"});
+       }
    };
 
   return (
@@ -202,6 +216,30 @@ const DailyLogPage: FC = () => {
                 )}
               />
 
+                {/* Focus Level Slider */}
+                <FormField
+                    control={form.control}
+                    name="focusLevel"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Focus Level during Activity (Optional): {field.value ? `${field.value}/5` : 'Not set'}</FormLabel>
+                        <FormControl>
+                            <Slider
+                                defaultValue={[3]} // Default visual position if no value
+                                value={field.value ? [field.value] : undefined} // Controlled value
+                                onValueChange={(value) => field.onChange(value[0])} // Update form state
+                                max={5}
+                                min={1}
+                                step={1}
+                                className="w-full"
+                            />
+                        </FormControl>
+                         <FormDescription>Rate your focus: 1 (Distracted) to 5 (Flow State).</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+
               <FormField
                 control={form.control}
                 name="notes"
@@ -258,10 +296,14 @@ const DailyLogPage: FC = () => {
              ) : (
                logEntries.map((entry, index) => (
                  <React.Fragment key={entry.id}>
-                   <div className="mb-4 p-3 rounded-lg group hover:bg-accent transition-colors relative"> {/* Added group and relative */}
+                   <div className="mb-4 p-3 rounded-lg group hover:bg-accent transition-colors relative">
                      <div className="flex justify-between items-center mb-1">
                         <h3 className="font-semibold text-lg">{format(entry.date, 'PPP')}</h3>
-                        {entry.mood && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary">{entry.mood}</span>}
+                        <div className="flex items-center gap-2">
+                            {entry.mood && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary">{entry.mood}</span>}
+                             {/* Display Focus Level */}
+                             {entry.focusLevel && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">Focus: {entry.focusLevel}/5</span>}
+                        </div>
                      </div>
                      <p className="text-sm font-medium text-primary mb-2">{entry.activity}</p>
                      {entry.notes && (
@@ -276,7 +318,6 @@ const DailyLogPage: FC = () => {
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{entry.diaryEntry}</p>
                          </>
                      )}
-                      {/* Optional Delete Button */}
                       {dataMode === 'user' && (
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                              <AlertDialog>
@@ -295,7 +336,7 @@ const DailyLogPage: FC = () => {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => deleteLog(entry.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>
+                                        <AlertDialogAction onClick={() => handleDeleteLog(entry.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>
                                             Delete
                                         </AlertDialogAction>
                                     </AlertDialogFooter>

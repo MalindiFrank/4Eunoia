@@ -20,10 +20,12 @@ import '@/ai/flows/analyze-task-completion.ts';
 import '@/ai/flows/analyze-sentiment-trends.ts';
 import '@/ai/flows/assess-life-balance.ts';
 import '@/ai/flows/estimate-burnout-risk.ts';
-
-// New Flows
 import '@/ai/flows/reflect-on-week.ts';
 import '@/ai/flows/generate-daily-suggestions.ts';
+
+// New Flows
+import '@/ai/flows/generate-daily-plan.ts'; // Added Emotionally-Informed Planning
+
 // Placeholder for Daily Feed flow (implement later)
 // import '@/ai/flows/generate-daily-feed.ts';
 

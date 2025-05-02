@@ -4,6 +4,7 @@
     "date": "2025-04-29T00:00:00.000Z",
     "activity": "Completed project proposal draft",
     "mood": "⚡ Productive",
+    "focusLevel": 5,
     "notes": "Sent for review to Jane.",
     "diaryEntry": "Felt productive today. The proposal took longer than expected but happy with the result."
   },
@@ -12,6 +13,7 @@
     "date": "2025-04-28T00:00:00.000Z",
     "activity": "Team meeting and brainstorming session",
     "mood": "😊 Happy",
+    "focusLevel": 4,
     "notes": "Discussed Q3 goals. Good ideas generated.",
     "diaryEntry": "Meeting was energizing. Need to follow up on action items."
   },
@@ -20,6 +22,7 @@
     "date": "2025-04-27T00:00:00.000Z",
     "activity": "Worked on coding feature X",
     "mood": "😠 Stressed",
+    "focusLevel": 2,
     "notes": "Encountered a bug, spent time debugging.",
     "diaryEntry": "Frustrating day with the bug, but learned something new about the framework."
   },
@@ -28,6 +31,7 @@
     "date": "2025-04-25T00:00:00.000Z",
     "activity": "Client call and presentation prep",
     "mood": "😟 Anxious",
+    "focusLevel": 3,
     "notes": "Call went well. Presentation needs more polishing.",
     "diaryEntry": ""
   },
@@ -36,6 +40,7 @@
     "date": "2025-04-23T00:00:00.000Z",
     "activity": "Personal development - Read book on leadership",
     "mood": "😌 Calm",
+    "focusLevel": 4,
     "notes": "Chapter 3 finished.",
     "diaryEntry": "Interesting concepts on delegation. Need to apply them."
   },
@@ -44,6 +49,7 @@
     "date": "2025-04-20T00:00:00.000Z",
     "activity": "Attended webinar on AI trends",
     "mood": "😊 Happy",
+    "focusLevel": 3,
     "notes": "",
     "diaryEntry": "Mind-blowing advancements. Need to explore how we can leverage this."
   },
@@ -51,13 +57,15 @@
     "id": "log-mock-lb1",
     "date": "2025-04-29T00:00:00.000Z",
     "activity": "Worked on project presentation",
-    "mood": "⚡ Productive"
+    "mood": "⚡ Productive",
+    "focusLevel": 5
   },
   {
     "id": "log-mock-lb2",
     "date": "2025-04-28T00:00:00.000Z",
     "activity": "Gym session and meditation",
-    "mood": "😌 Calm"
+    "mood": "😌 Calm",
+    "focusLevel": 4
   },
   {
     "id": "log-mock-lb3",
@@ -69,13 +77,15 @@
     "id": "log-mock-lb4",
     "date": "2025-04-26T00:00:00.000Z",
     "activity": "Read book on leadership",
-    "mood": "😌 Calm"
+    "mood": "😌 Calm",
+    "focusLevel": 4
   },
   {
     "id": "log-mock-lb5",
     "date": "2025-04-25T00:00:00.000Z",
     "activity": "Pay monthly bills",
-    "mood": "😕 Neutral"
+    "mood": "😕 Neutral",
+    "focusLevel": 3
   },
   {
     "id": "log-mock-lb6",
@@ -93,36 +103,42 @@
     "id": "log-mock-lb8",
     "date": "2025-04-22T00:00:00.000Z",
     "activity": "Client call",
-    "mood": "⚡ Productive"
+    "mood": "⚡ Productive",
+    "focusLevel": 4
   },
   {
     "id": "log-mock-lb9",
     "date": "2025-04-21T00:00:00.000Z",
     "activity": "Yoga class",
-    "mood": "😌 Calm"
+    "mood": "😌 Calm",
+    "focusLevel": 5
   },
   {
     "id": "log-mock-b1",
     "date": "2025-04-29T00:00:00.000Z",
     "mood": "😠 Stressed",
-    "activity": "Long day, many meetings"
+    "activity": "Long day, many meetings",
+    "focusLevel": 2
   },
   {
     "id": "log-mock-b2",
     "date": "2025-04-28T00:00:00.000Z",
     "mood": "😴 Tired",
-    "activity": "Worked late"
+    "activity": "Worked late",
+    "focusLevel": 3
   },
   {
     "id": "log-mock-b3",
     "date": "2025-04-26T00:00:00.000Z",
     "mood": "😟 Anxious",
-    "activity": "Deadline approaching"
+    "activity": "Deadline approaching",
+    "focusLevel": 2
   },
   {
     "id": "log-mock-b4",
     "date": "2025-04-25T00:00:00.000Z",
-    "mood": "😠 Stressed"
+    "mood": "😠 Stressed",
+    "focusLevel": 1
   },
   {
     "id": "log-mock-b5",
@@ -138,23 +154,27 @@
   {
     "id": "log-mock-b7",
     "date": "2025-04-20T00:00:00.000Z",
-    "mood": "⚡ Productive"
+    "mood": "⚡ Productive",
+    "focusLevel": 4
   },
   {
     "id": "log-mock-b8",
     "date": "2025-04-18T00:00:00.000Z",
     "mood": "😠 Stressed",
-    "activity": "Unexpected issues arose"
+    "activity": "Unexpected issues arose",
+    "focusLevel": 2
   },
    {
     "id": "log-mock-s1",
     "date": "2025-04-29T00:00:00.000Z",
-    "diaryEntry": "Great progress today, feeling very accomplished!"
+    "diaryEntry": "Great progress today, feeling very accomplished!",
+    "focusLevel": 5
   },
   {
     "id": "log-mock-s2",
     "date": "2025-04-27T00:00:00.000Z",
-    "diaryEntry": "Struggled with the bug again. Feeling frustrated and stuck."
+    "diaryEntry": "Struggled with the bug again. Feeling frustrated and stuck.",
+    "focusLevel": 1
   },
   {
     "id": "log-mock-s3",

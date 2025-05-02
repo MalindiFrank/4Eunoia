@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -11,28 +10,52 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, getDay, getHours } from 'date-fns';
+import { formatISO } from 'date-fns'; // Removed getDay, getHours
 
 // Define Zod schemas for input data types (expecting ISO strings)
-const InputLogSchema = z.object({ id: z.string(), date: z.string().datetime(), activity: z.string(), mood: z.string().optional() });
-const InputTaskSchema = z.object({ id: z.string(), title: z.string(), status: z.enum(['Pending', 'In Progress', 'Completed']), dueDate: z.string().datetime().optional() });
-const InputEventSchema = z.object({ title: z.string(), start: z.string().datetime(), end: z.string().datetime() });
-const InputHabitSchema = z.object({ id: z.string(), title: z.string(), frequency: z.string(), lastCompleted: z.string().datetime().optional() });
-const InputGoalSchema = z.object({ id: z.string(), title: z.string(), status: z.string() });
+const InputLogSchema = z.object({
+    id: z.string(),
+    date: z.string().datetime(),
+    activity: z.string(),
+    mood: z.string().optional(),
+    focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel
+});
+const InputTaskSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.enum(['Pending', 'In Progress', 'Completed']),
+    dueDate: z.string().datetime().optional(),
+});
+const InputEventSchema = z.object({
+    title: z.string(),
+    start: z.string().datetime(),
+    end: z.string().datetime(),
+});
+const InputHabitSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    frequency: z.string(),
+    lastCompleted: z.string().datetime().optional(),
+});
+const InputGoalSchema = z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+});
 
 
 // --- Input/Output Schemas ---
 const GenerateDailySuggestionsInputSchema = z.object({
     currentDateTime: z.string().datetime().describe('The current date and time in ISO 8601 format.'),
     // Pass recent/relevant data summaries
-    recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the last 1-2 days.'),
+    recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the last 1-2 days, including mood and focus levels.'),
     upcomingTasks: z.array(InputTaskSchema).optional().describe('Pending or In Progress tasks due soon (next 1-2 days).'),
     todaysEvents: z.array(InputEventSchema).optional().describe("Today's calendar events."),
     activeHabits: z.array(InputHabitSchema).optional().describe("User's active habits."),
     activeGoals: z.array(InputGoalSchema).optional().describe("User's 'In Progress' goals."),
     // Optional context
-    userLocation: z.string().optional().describe('User\'s current general location (e.g., "City, Country") for weather/context.'), // Placeholder
-    weatherCondition: z.string().optional().describe('Brief description of current weather (e.g., "Rainy", "Sunny", "Cold").'), // Placeholder
+    userLocation: z.string().optional().describe('User\'s current general location (e.g., "City, Country") for weather/context.'),
+    weatherCondition: z.string().optional().describe('Brief description of current weather (e.g., "Rainy", "Sunny", "Cold").'),
     growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's preferred personal growth pace setting."),
 });
 export type GenerateDailySuggestionsInput = z.infer<typeof GenerateDailySuggestionsInputSchema>;
@@ -40,12 +63,11 @@ export type GenerateDailySuggestionsInput = z.infer<typeof GenerateDailySuggesti
 const SuggestionSchema = z.object({
     suggestion: z.string().describe("The specific suggestion text."),
     category: z.enum(['Routine', 'Focus', 'Break', 'Self-care', 'Goal', 'Habit', 'Other']).describe("The category of the suggestion."),
-    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood log', 'Upcoming deadline')."),
+    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline')."), // Updated reasoning examples
 });
 
 const GenerateDailySuggestionsOutputSchema = z.object({
     suggestions: z.array(SuggestionSchema).describe('A list of 2-4 context-aware suggestions for the user.'),
-    // Maybe add a general motivational quote or focus for the day
     dailyFocus: z.string().optional().describe("A brief motivational focus or theme for the day."),
 });
 export type GenerateDailySuggestionsOutput = z.infer<typeof GenerateDailySuggestionsOutputSchema>;
@@ -58,7 +80,7 @@ export async function generateDailySuggestions(
 }
 
 // --- Prompt Definition ---
-const PromptInputSchema = GenerateDailySuggestionsInputSchema; // Use the same schema for simplicity
+const PromptInputSchema = GenerateDailySuggestionsInputSchema;
 
 const generateSuggestionsPrompt = ai.definePrompt({
   name: 'generateDailySuggestionsPrompt',
@@ -73,7 +95,7 @@ Current Context:
 - Growth Pace Setting: {{growthPace | default "Moderate"}}
 
 Recent Data Summary:
-- Recent Logs (Mood/Activity): {{#if recentLogs}} {{jsonStringify recentLogs}} {{else}} None {{/if}}
+- Recent Logs (Mood/Activity/Focus): {{#if recentLogs}} {{jsonStringify recentLogs}} {{else}} None {{/if}}
 - Upcoming Tasks (Due Soon): {{#if upcomingTasks}} {{jsonStringify upcomingTasks}} {{else}} None {{/if}}
 - Today's Events: {{#if todaysEvents}} {{jsonStringify todaysEvents}} {{else}} None {{/if}}
 - Active Habits: {{#if activeHabits}} {{jsonStringify activeHabits}} {{else}} None {{/if}}
@@ -81,7 +103,7 @@ Recent Data Summary:
 
 Generate 2-4 suggestions based on the *combination* of these factors. Consider:
 - **Time of Day:** Morning suggestions might focus on routines or planning, afternoon on focus/breaks, evening on winding down or self-care.
-- **Mood:** If mood logs indicate stress/low energy, suggest breaks, self-care, or easier tasks. If productive, suggest tackling a challenging task or goal.
+- **Mood & Focus:** If logs indicate stress/low energy/low focus, suggest breaks, self-care, easier tasks, or focus-enhancing activities. If productive/high focus, suggest tackling a challenging task or goal.
 - **Schedule:** If the calendar is busy, suggest short breaks or quick wins. If open, suggest focus blocks or goal work.
 - **Tasks:** If deadlines are near, suggest focusing on those tasks.
 - **Habits:** Remind or suggest incorporating habits (e.g., "Time for your daily meditation?").
@@ -95,7 +117,7 @@ Optionally, provide a brief **Daily Focus** theme.
 Example Suggestion Structure:
 { suggestion: "Schedule a 15-min walk outside.", category: "Break", reasoning: "Sunny weather and calendar looks open." }
 { suggestion: "Tackle the 'Report Draft' task.", category: "Focus", reasoning: "Upcoming deadline and logged 'Productive' mood earlier." }
-{ suggestion: "Try a 5-minute breathing exercise.", category: "Self-care", reasoning: "Logged 'Anxious' mood recently." }
+{ suggestion: "Try a 5-minute breathing exercise.", category: "Self-care", reasoning: "Logged 'Anxious' mood and low focus recently." }
 
 Generate the output in the specified JSON format. Be positive, supportive, and actionable.`,
 });
@@ -110,11 +132,9 @@ const generateDailySuggestionsFlow = ai.defineFlow<
   outputSchema: GenerateDailySuggestionsOutputSchema,
 }, async (input) => {
 
-    // Basic check for any data
     const hasData = input.recentLogs?.length || input.upcomingTasks?.length || input.todaysEvents?.length || input.activeHabits?.length || input.activeGoals?.length;
 
     if (!hasData) {
-        // Provide generic suggestions if no specific data is available
         return {
             suggestions: [
                 { suggestion: "Plan your top 3 priorities for today.", category: "Routine", reasoning: "Setting intentions helps focus." },
@@ -125,16 +145,10 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         };
     }
 
-    // The prompt expects the input directly, no major transformation needed here unless
-    // we want to further summarize the lists passed to the prompt for token efficiency.
-    // For now, pass the input as is.
-
     const { output } = await generateSuggestionsPrompt(input);
 
-     // Handle potential null output from AI
      if (!output) {
          console.error('AI analysis failed to return output for daily suggestions.');
-         // Provide a generic fallback
          return {
              suggestions: [{ suggestion: "Review your tasks and schedule for the day.", category: "Routine" }],
              dailyFocus: "Focus on making steady progress today.",

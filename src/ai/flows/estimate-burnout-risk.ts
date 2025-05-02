@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -11,13 +10,20 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import type { LogEntry } from '@/services/daily-log';
+import type { LogEntry } from '@/services/daily-log'; // Includes focusLevel
 import type { Task } from '@/services/task';
 import type { CalendarEvent } from '@/services/calendar';
-import { parseISO, isWithinInterval, formatISO } from 'date-fns'; // Add imports
+import { parseISO, isWithinInterval, formatISO } from 'date-fns';
 
 // Define Zod schemas for input data types (expecting ISO strings)
-const InputLogSchema = z.object({ id: z.string(), date: z.string().datetime(), activity: z.string(), mood: z.string().optional(), diaryEntry: z.string().optional() });
+const InputLogSchema = z.object({
+    id: z.string(),
+    date: z.string().datetime(),
+    activity: z.string(),
+    mood: z.string().optional(),
+    diaryEntry: z.string().optional(),
+    focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel
+});
 const InputTaskSchema = z.object({ id: z.string(), title: z.string(), status: z.enum(['Pending', 'In Progress', 'Completed']), createdAt: z.string().datetime().optional(), dueDate: z.string().datetime().optional() });
 const InputEventSchema = z.object({ title: z.string(), start: z.string().datetime(), end: z.string().datetime() });
 
@@ -25,7 +31,7 @@ const InputEventSchema = z.object({ title: z.string(), start: z.string().datetim
 const EstimateBurnoutRiskInputSchema = z.object({
     startDate: z.string().datetime().describe('The start date (ISO 8601 format) for the analysis period.'),
     endDate: z.string().datetime().describe('The end date (ISO 8601 format) for the analysis period.'),
-    dailyLogs: z.array(InputLogSchema).optional().describe('Daily logs within the period.'),
+    dailyLogs: z.array(InputLogSchema).optional().describe('Daily logs within the period, including mood and focus level.'),
     tasks: z.array(InputTaskSchema).optional().describe('All tasks (used to calculate pending/overdue).'),
     calendarEvents: z.array(InputEventSchema).optional().describe('Calendar events within the period (proxy for busyness).'),
 }).describe("Input for estimating burnout risk, requiring raw data arrays.");
@@ -36,8 +42,8 @@ const EstimateBurnoutRiskOutputSchema = z.object({
   riskLevel: z.enum(['Low', 'Moderate', 'High', 'Very High']).describe('Estimated level of burnout risk.'),
   riskScore: z.number().min(0).max(100).describe('Numerical score representing the burnout risk (0-100).'),
   assessmentSummary: z.string().describe('A brief (2-3 sentence) explanation of the assessed risk level based on the data, highlighting key indicators.'),
-  contributingFactors: z.array(z.string()).describe('List of key factors identified from the data that contribute to the risk (e.g., "High task load," "Frequent negative mood," "High event density," "Mentions of stress in diary").'),
-  recommendations: z.array(z.string()).describe('List of 2-3 actionable recommendations to mitigate the risk (e.g., "Prioritize overdue tasks," "Schedule relaxation/breaks," "Practice mindfulness," "Delegate tasks if possible").'),
+  contributingFactors: z.array(z.string()).describe('List of key factors identified from the data that contribute to the risk (e.g., "High task load," "Frequent negative mood," "High event density," "Mentions of stress in diary", "Consistent low focus levels").'), // Added focus example
+  recommendations: z.array(z.string()).describe('List of 2-3 actionable recommendations to mitigate the risk (e.g., "Prioritize overdue tasks," "Schedule relaxation/breaks," "Practice mindfulness," "Delegate tasks if possible", "Address consistent low focus").'), // Added focus example
 });
 export type EstimateBurnoutRiskOutput = z.infer<typeof EstimateBurnoutRiskOutputSchema>;
 
@@ -48,7 +54,9 @@ const PromptDataSourceSchema = z.object({
          totalLogs: z.number().int().min(0),
          stressedAnxiousTiredCount: z.number().int().min(0).describe("Count of logs with explicit moods like Stressed, Anxious, Tired."),
          positiveMoodCount: z.number().int().min(0).describe("Count of logs with explicit moods like Happy, Calm, Productive."),
-         negativeDiaryKeywordsCount: z.number().int().min(0).describe("Count of diary entries mentioning keywords like 'overwhelmed', 'exhausted', 'burnt out', 'struggling', 'frustrated'.") // New field
+         negativeDiaryKeywordsCount: z.number().int().min(0).describe("Count of diary entries mentioning keywords like 'overwhelmed', 'exhausted', 'burnt out', 'struggling', 'frustrated'."),
+         lowFocusLogCount: z.number().int().min(0).describe("Count of logs with low focus level (1 or 2)."), // New field
+         averageFocusLevel: z.number().min(1).max(5).optional().describe("Average focus level reported in logs (if available)."), // New field
      }),
      taskSummary: z.object({
          pendingInProgressCount: z.number().int().min(0).describe("Total count of tasks currently Pending or In Progress."),
@@ -56,8 +64,8 @@ const PromptDataSourceSchema = z.object({
      }),
      eventSummary: z.object({
          totalEvents: z.number().int().min(0).describe("Total count of calendar events in the period."),
-         avgEventDurationMinutes: z.number().min(0).optional().describe("Average duration of events in minutes (proxy for meeting load)."), // New field
-         backToBackEventCount: z.number().int().min(0).describe("Count of events starting immediately after another ends (proxy for lack of breaks)."), // New field
+         avgEventDurationMinutes: z.number().min(0).optional().describe("Average duration of events in minutes."),
+         backToBackEventCount: z.number().int().min(0).describe("Count of events starting immediately after another ends."),
      }),
      analysisPeriodDays: z.number().int().positive(),
 });
@@ -73,7 +81,9 @@ Data Summary:
 - Daily Logs: {{logSummary.totalLogs}} entries analyzed.
   - Negative Mood Logs (Stressed, Anxious, Tired): {{logSummary.stressedAnxiousTiredCount}}
   - Positive Mood Logs (Happy, Calm, Productive): {{logSummary.positiveMoodCount}}
-  - Diary Mentions (Overwhelmed, Exhausted, Struggling, etc.): {{logSummary.negativeDiaryKeywordsCount}}
+  - Diary Mentions (Overwhelmed, Exhausted, etc.): {{logSummary.negativeDiaryKeywordsCount}}
+  - Low Focus Logs (Level 1-2): {{logSummary.lowFocusLogCount}}
+  - Average Focus Level: {{#if logSummary.averageFocusLevel}}{{logSummary.averageFocusLevel}}/5{{else}}N/A{{/if}}
 - Tasks:
   - Pending / In Progress: {{taskSummary.pendingInProgressCount}}
   - Overdue: {{taskSummary.overdueCount}}
@@ -84,20 +94,20 @@ Data Summary:
 
 Analysis Tasks:
 1.  Estimate the **Risk Level** (Low, Moderate, High, Very High). Consider these factors:
-    - High risk indicators: Frequent negative moods, diary mentions of stress/overwhelm, high number of pending/overdue tasks, high total event count, many back-to-back events.
-    - Moderate risk: A mix of positive/negative indicators, moderate task load.
-    - Low risk: Predominantly positive moods, low task load, manageable event schedule.
+    - High risk indicators: Frequent negative moods, diary mentions of stress/overwhelm, high number of pending/overdue tasks, high total event count, many back-to-back events, *frequent low focus logs, or consistently low average focus*.
+    - Moderate risk: A mix of positive/negative indicators, moderate task load, mixed focus levels.
+    - Low risk: Predominantly positive moods, low task load, manageable event schedule, generally good focus levels.
 2.  Assign a **Risk Score** (0-100) corresponding to the level (e.g., Low: 0-25, Moderate: 26-50, High: 51-75, Very High: 76-100). Be sensitive to multiple high-risk indicators.
-3.  Write a brief **Assessment Summary** (2-3 sentences) explaining the reasoning for the assigned risk level, referencing specific data points (e.g., "Risk is High due to frequent negative mood logs and a high number of overdue tasks.").
-4.  List the key **Contributing Factors** observed in the summary data (e.g., "High number of overdue tasks", "Frequent logs of stress", "High meeting density", "Diary mentions of exhaustion").
-5.  Provide 2-3 actionable and empathetic **Recommendations** tailored to the contributing factors (e.g., "Focus on prioritizing or delegating overdue tasks," "Schedule non-negotiable breaks between meetings," "Practice a brief mindfulness exercise when feeling stressed," "Consider reviewing your workload").
+3.  Write a brief **Assessment Summary** (2-3 sentences) explaining the reasoning for the assigned risk level, referencing specific data points (e.g., "Risk is High due to frequent negative mood logs, a high number of overdue tasks, and several reports of low focus.").
+4.  List the key **Contributing Factors** observed in the summary data (e.g., "High number of overdue tasks", "Frequent logs of stress", "High meeting density", "Diary mentions of exhaustion", "Consistent low focus reported").
+5.  Provide 2-3 actionable and empathetic **Recommendations** tailored to the contributing factors (e.g., "Focus on prioritizing or delegating overdue tasks," "Schedule non-negotiable breaks between meetings," "Practice a brief mindfulness exercise when feeling stressed," "Consider reviewing workload or strategies to improve focus").
 
 Generate the output in the specified JSON format. Be cautious and provide constructive advice.`,
 });
 
 // --- Flow Definition ---
 const estimateBurnoutRiskFlow = ai.defineFlow<
-  typeof EstimateBurnoutRiskInputSchema, // Input takes raw data arrays
+  typeof EstimateBurnoutRiskInputSchema,
   typeof EstimateBurnoutRiskOutputSchema
 >({
   name: 'estimateBurnoutRiskFlow',
@@ -114,6 +124,8 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     // Log Summary
     const logsInPeriod = dailyLogs.filter(log => isWithinInterval(parseISO(log.date), { start, end }));
+    let totalFocusLevel = 0;
+    let focusLogCount = 0;
     const logSummary = logsInPeriod.reduce((acc, log) => {
         acc.totalLogs++;
         const mood = log.mood?.toLowerCase();
@@ -126,8 +138,19 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
         if (diary.includes('overwhelmed') || diary.includes('exhausted') || diary.includes('burnt out') || diary.includes('struggling') || diary.includes('frustrated') || diary.includes('too much')) {
              acc.negativeDiaryKeywordsCount++;
         }
+        if (log.focusLevel) {
+            if (log.focusLevel <= 2) {
+                acc.lowFocusLogCount++;
+            }
+            totalFocusLevel += log.focusLevel;
+            focusLogCount++;
+        }
         return acc;
-    }, { totalLogs: 0, stressedAnxiousTiredCount: 0, positiveMoodCount: 0, negativeDiaryKeywordsCount: 0 });
+    }, { totalLogs: 0, stressedAnxiousTiredCount: 0, positiveMoodCount: 0, negativeDiaryKeywordsCount: 0, lowFocusLogCount: 0 });
+
+    const averageFocusLevel = focusLogCount > 0 ? parseFloat((totalFocusLevel / focusLogCount).toFixed(1)) : undefined;
+    (logSummary as any).averageFocusLevel = averageFocusLevel; // Add calculated average focus
+
 
     // Task Summary
     const pendingInProgressCount = tasks.filter(t => t.status === 'Pending' || t.status === 'In Progress').length;
@@ -136,7 +159,7 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     // Event Summary
     const eventsInPeriod = calendarEvents
-        .map(e => ({ ...e, start: parseISO(e.start), end: parseISO(e.end) })) // Parse dates first
+        .map(e => ({ ...e, start: parseISO(e.start), end: parseISO(e.end) }))
         .filter(event => isWithinInterval(event.start, { start, end }));
 
     let totalEventDuration = 0;
@@ -155,7 +178,7 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     // --- Handle Insufficient Data ---
     const totalActivityPoints = logSummary.totalLogs + tasks.length + eventSummary.totalEvents;
-    if (totalActivityPoints < 5) { // Adjust threshold as needed
+    if (totalActivityPoints < 5) {
          return {
              riskLevel: 'Low',
              riskScore: 10,
@@ -167,7 +190,7 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     // --- AI Call ---
     const promptInputData: z.infer<typeof PromptDataSourceSchema> = {
-        logSummary,
+        logSummary: logSummary as any, // Cast because we added averageFocusLevel dynamically
         taskSummary,
         eventSummary,
         analysisPeriodDays,
@@ -175,18 +198,16 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     const { output } = await estimateBurnoutPrompt(promptInputData);
 
-     // Handle potential null output from AI
      if (!output) {
          console.error('AI analysis failed to return output for burnout risk.');
-         // Provide a generic fallback
          return {
-             riskLevel: 'Moderate', // Default fallback level
+             riskLevel: 'Moderate',
              riskScore: 50,
              assessmentSummary: "Could not generate AI assessment for burnout risk. Please monitor your well-being based on the data.",
              contributingFactors: ["AI analysis failed."],
              recommendations: ["Take regular breaks.", "Prioritize sleep.", "Reach out for support if needed."],
          };
-     }
+      }
 
     return output;
 });
