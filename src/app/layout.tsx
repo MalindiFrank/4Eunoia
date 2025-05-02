@@ -7,6 +7,7 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { DataModeProvider } from '@/context/data-mode-context'; // Import DataModeProvider
 import { DataModeSwitcher } from '@/components/data-mode-switcher'; // Import the switcher
+import { TooltipProvider } from '@/components/ui/tooltip'; // Import TooltipProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,20 +38,22 @@ export default function RootLayout({
           geistMono.variable
         )}
       >
-         <DataModeProvider> {/* Wrap with DataModeProvider */}
-           <SidebarProvider>
-             <div className="flex">
-               <AppSidebar />
-               <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-                 {/* Add the switcher component, maybe conditionally or always visible */}
-                 <DataModeSwitcher />
-                 <div className="mt-4"> {/* Add some space below the switcher */}
-                    {children}
-                 </div>
-               </main>
-             </div>
-           </SidebarProvider>
-         </DataModeProvider>
+         <TooltipProvider> {/* Wrap everything in TooltipProvider */}
+           <DataModeProvider> {/* Wrap with DataModeProvider */}
+             <SidebarProvider>
+               <div className="flex">
+                 <AppSidebar />
+                 <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                   {/* Add the switcher component, maybe conditionally or always visible */}
+                   <DataModeSwitcher />
+                   <div className="mt-4"> {/* Add some space below the switcher */}
+                      {children}
+                   </div>
+                 </main>
+               </div>
+             </SidebarProvider>
+           </DataModeProvider>
+         </TooltipProvider>
         <Toaster />
       </body>
     </html>

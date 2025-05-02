@@ -174,7 +174,7 @@ const NotesPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Notes</h1>
         <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
           <DialogTrigger asChild>
@@ -217,7 +217,14 @@ const NotesPage: FC = () => {
                     key={note.id}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors group"
                   >
-                     <div className="flex items-center gap-3 overflow-hidden flex-grow cursor-pointer" onClick={() => openNoteDialog(note)}>
+                     <div
+                        role="button" // Make it clear it's clickable
+                        tabIndex={0} // Make it focusable
+                        className="flex items-center gap-3 overflow-hidden flex-grow cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring rounded-sm" // Added focus styles
+                        onClick={() => openNoteDialog(note)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openNoteDialog(note); }} // Allow opening with keyboard
+                        aria-label={`Open note: ${note.title}`} // Accessibility
+                    >
                         <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                         <div className="flex-grow overflow-hidden">
                             <p className="text-sm font-medium truncate">
@@ -228,15 +235,15 @@ const NotesPage: FC = () => {
                             </p>
                         </div>
                      </div>
-                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openNoteDialog(note)}>
+                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"> {/* Show on focus-within too */}
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openNoteDialog(note)} aria-label={`Edit note "${note.title}"`}>
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit Note</span>
                       </Button>
 
                         <AlertDialog>
                              <AlertDialogTrigger asChild>
-                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete note "${note.title}"`}>
                                    <Trash2 className="h-4 w-4" />
                                    <span className="sr-only">Delete Note</span>
                                  </Button>

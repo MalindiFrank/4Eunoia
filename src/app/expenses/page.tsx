@@ -235,7 +235,7 @@ const ExpensesPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Expenses</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
@@ -304,13 +304,13 @@ const ExpensesPage: FC = () => {
             ) : expensesByCategory.length > 0 ? (
                <ChartContainer config={chartConfig} className="h-full w-full">
                  <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={expensesByCategory} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                     <XAxis dataKey="category" tickLine={false} axisLine={false} tickMargin={8} fontSize={10} interval={0} angle={-30} textAnchor="end" height={50} />
-                     <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={10} width={40}/>
+                   <BarChart data={expensesByCategory} layout="vertical" margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
+                     <XAxis type="number" hide />
+                     <YAxis dataKey="category" type="category" tickLine={false} axisLine={false} tickMargin={8} width={80} fontSize={10}/>
                       <RechartsTooltip
                          cursor={false}
-                         content={<ChartTooltipContent indicator="dot" />} />
-                     <Bar dataKey="amount" fill="var(--color-amount)" radius={4} >
+                         content={<ChartTooltipContent indicator="dot" nameKey="category" />} />
+                     <Bar dataKey="amount" fill="var(--color-amount)" radius={4} barSize={20}>
                          {expensesByCategory.map((entry) => (
                             <Cell key={`cell-${entry.category}`} fill={`var(--color-${entry.category}, hsl(var(--primary)))`} />
                          ))}
@@ -368,13 +368,13 @@ const ExpensesPage: FC = () => {
                        <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
                        <TableCell className="text-right">
                          <div className="flex items-center justify-end gap-1">
-                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(expense)}>
+                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(expense)} aria-label={`Edit expense "${expense.description}"`}>
                                  <Edit className="h-4 w-4" />
                                  <span className="sr-only">Edit</span>
                              </Button>
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete expense "${expense.description}"`}>
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Delete</span>
                                     </Button>

@@ -154,6 +154,7 @@ const EventForm: FC<{
                                 type="time"
                                 value={field.value ? format(field.value, 'HH:mm') : '09:00'}
                                 onChange={(e) => handleDateTimeChange('startDateTime', field.value, e.target.value)}
+                                aria-label="Start time"
                              />
                          </div>
                     </PopoverContent>
@@ -186,6 +187,7 @@ const EventForm: FC<{
                                 type="time"
                                 value={field.value ? format(field.value, 'HH:mm') : '10:00'}
                                 onChange={(e) => handleDateTimeChange('endDateTime', field.value, e.target.value)}
+                                aria-label="End time"
                              />
                          </div>
                     </PopoverContent>
@@ -313,19 +315,19 @@ const CalendarPage: FC = () => {
 
   const renderHeader = () => (
     <div className="flex items-center justify-between mb-4 px-2">
-      <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
+      <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8" aria-label="Previous month">
         <ChevronLeft className="h-4 w-4" />
       </Button>
       <div className="flex flex-col items-center">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-lg font-semibold" aria-live="polite">
             {format(currentMonth, 'MMMM yyyy')}
         </h2>
-         <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs h-6 px-2">
+         <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs h-6 px-2" aria-label="Go to today's date">
             Today
         </Button>
       </div>
 
-      <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8">
+      <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8" aria-label="Next month">
         <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
@@ -334,7 +336,7 @@ const CalendarPage: FC = () => {
   const renderDaysOfWeek = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return (
-      <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2 px-2">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2 px-2" aria-hidden="true">
         {days.map((day) => (
           <div key={day}>{day}</div>
         ))}
@@ -348,19 +350,22 @@ const CalendarPage: FC = () => {
         const dayEvents = events.filter((event) => isSameDay(event.start, day));
         const isCurrentMonth = isSameMonth(day, currentMonth);
         const isToday = isSameDay(day, new Date());
+        const dayLabel = format(day, 'd');
+        const fullDayLabel = format(day, 'PPP'); // For aria-label
 
         return (
           <div
             key={day.toString()}
             className={cn(
-              "relative border rounded-md min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 transition-colors", // Adjusted min-height
-              !isCurrentMonth && "bg-muted/30 text-muted-foreground/70", // Dimmed non-month days
+              "relative border rounded-md min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 focus-within:bg-accent/50 transition-colors", // Adjusted min-height and added focus-within style
+              !isCurrentMonth && "bg-muted/30 text-muted-foreground/70 pointer-events-none", // Dimmed non-month days and disable interaction
               isToday && "bg-accent border-primary"
             )}
-             onClick={() => openEventDialog(day)} // Open dialog on day click to add
+             onClick={() => isCurrentMonth && openEventDialog(day)} // Open dialog on day click to add only for current month
              role="button" // Add role for accessibility
-             tabIndex={0} // Make it focusable
-             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openEventDialog(day); }} // Trigger on key press
+             tabIndex={isCurrentMonth ? 0 : -1} // Make it focusable only if in current month
+             onKeyDown={(e) => { if (isCurrentMonth && (e.key === 'Enter' || e.key === ' ')) openEventDialog(day); }} // Trigger on key press
+             aria-label={`Date ${fullDayLabel}, ${dayEvents.length} event(s). Click to add event.`} // Improved label
           >
              <div className="flex justify-between items-center mb-1">
                  <span
@@ -368,11 +373,12 @@ const CalendarPage: FC = () => {
                      "text-xs font-medium",
                      isToday && "text-primary font-bold"
                  )}
+                 aria-hidden="true" // Hide visual number from screen reader, covered by parent aria-label
                  >
-                 {format(day, 'd')}
+                 {dayLabel}
                  </span>
-                 {/* Add button inside cell to trigger dialog - appears on hover */}
-                 <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }}>
+                 {/* Add button inside cell to trigger dialog - appears on hover/focus */}
+                 <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity z-10" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }} aria-label={`Add event on ${fullDayLabel}`}>
                      <Plus className="h-3 w-3" />
                       <span className="sr-only">Add event</span>
                  </Button>
@@ -387,23 +393,24 @@ const CalendarPage: FC = () => {
               {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( // Sort events within the day
                 <div
                   key={event.id || `${event.title}-${event.start.toISOString()}`} // Use ID if available
-                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-default hover:bg-primary/40" // Added group/event
+                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus:ring-1 focus:ring-primary" // Added focus styles
                    title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} // Tooltip for full info
                    onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} // Edit on click
                    tabIndex={0} // Make event focusable
                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') {e.stopPropagation(); openEventDialog(day, event);} }}
+                   aria-label={`Event: ${event.title} at ${format(event.start, 'p')}. Click to edit.`} // Accessibility
                 >
                    <span className="font-medium">{format(event.start, 'p')}</span> {event.title}
                     {/* Edit/Delete Buttons for events */}
                     {dataMode === 'user' && event.id && ( // Only show if user mode and event has ID
-                         <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 transition-opacity">
-                             <Button variant="ghost" size="icon" className="h-5 w-5 text-primary-foreground/70 hover:text-primary-foreground" onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }}>
+                         <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 group-focus-within/event:opacity-100 transition-opacity"> {/* Show on focus-within too */}
+                             <Button variant="ghost" size="icon" className="h-5 w-5 text-primary-foreground/70 hover:text-primary-foreground" onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} aria-label={`Edit event "${event.title}"`}>
                                  <Edit className="h-3 w-3" />
                                  <span className="sr-only">Edit</span>
                              </Button>
                              <AlertDialog>
                                  <AlertDialogTrigger asChild>
-                                     <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/70 hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                     <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive/70 hover:text-destructive" onClick={(e) => e.stopPropagation()} aria-label={`Delete event "${event.title}"`}>
                                          <Trash2 className="h-3 w-3" />
                                          <span className="sr-only">Delete</span>
                                      </Button>
@@ -418,46 +425,12 @@ const CalendarPage: FC = () => {
                 </div>
               ))}
                {!isLoading && dayEvents.length === 0 && !isCurrentMonth && (
-                   <div className="h-full flex items-center justify-center text-muted-foreground/50 text-[9px]"></div>
+                   <div className="h-full flex items-center justify-center text-muted-foreground/50 text-[9px]" aria-hidden="true"></div>
                )}
             </ScrollArea>
           </div>
         );
       })}
-    </div>
-  );
-
-  return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <h1 className="text-3xl font-bold mb-6">Calendar</h1>
-
-      <Card className="shadow-md">
-         <CardHeader>
-           <CardTitle>Monthly View</CardTitle>
-            {/* Optional: Add view switcher (Week, Day) here */}
-         </CardHeader>
-        <CardContent>
-          {renderHeader()}
-           <Separator className="mb-2" />
-          {renderDaysOfWeek()}
-          {renderCells()}
-        </CardContent>
-      </Card>
-
-       {/* Event Creation/Editing Dialog */}
-       <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
-         <DialogContent className="sm:max-w-[480px]"> {/* Slightly wider */}
-           <DialogHeader>
-             <DialogTitle>{editingEvent ? 'Edit Event' : `Add Event on ${selectedDate ? format(selectedDate, 'PPP') : ''}`}</DialogTitle>
-           </DialogHeader>
-           <EventForm
-             onClose={closeEventDialog}
-             initialData={editingEvent}
-             selectedDate={selectedDate ?? undefined} // Pass selectedDate if not editing
-             onSave={handleSaveEvent} // Pass save handler
-            />
-         </DialogContent>
-       </Dialog>
     </div>
   );
 };

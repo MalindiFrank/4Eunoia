@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { FC } from 'react';
@@ -180,7 +179,7 @@ const SettingsPage: FC = () => {
           <div className="flex items-center justify-between">
             <Label htmlFor="theme-select">Theme</Label>
             <Select value={preferences.theme} onValueChange={(value: UserPreferences['theme']) => handlePreferenceChange('theme', value)}>
-              <SelectTrigger id="theme-select" className="w-[180px]">
+              <SelectTrigger id="theme-select" className="w-[180px]" aria-label="Select application theme">
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent>
@@ -220,6 +219,7 @@ const SettingsPage: FC = () => {
               id="task-reminders"
               checked={notifications.taskReminders}
               onCheckedChange={(checked) => handleNotificationChange('taskReminders', checked)}
+              aria-label="Toggle task due date reminders"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -228,6 +228,7 @@ const SettingsPage: FC = () => {
               id="event-alerts"
               checked={notifications.eventAlerts}
               onCheckedChange={(checked) => handleNotificationChange('eventAlerts', checked)}
+              aria-label="Toggle calendar event alerts"
             />
           </div>
            <div className="flex items-center justify-between">
@@ -236,6 +237,7 @@ const SettingsPage: FC = () => {
                 id="habit-nudges"
                 checked={notifications.habitNudges}
                 onCheckedChange={(checked) => handleNotificationChange('habitNudges', checked)}
+                aria-label="Toggle habit nudges and reminders"
               />
           </div>
            <div className="flex items-center justify-between">
@@ -244,6 +246,7 @@ const SettingsPage: FC = () => {
                 id="insight-notifications"
                 checked={notifications.insightNotifications}
                 onCheckedChange={(checked) => handleNotificationChange('insightNotifications', checked)}
+                aria-label="Toggle new insight notifications"
               />
           </div>
            {/* Add more notification options: frequency, quiet hours, etc. */}
@@ -265,6 +268,7 @@ const SettingsPage: FC = () => {
                  id="google-calendar-sync"
                  checked={integrations.googleCalendarSync}
                  onCheckedChange={(checked) => handleIntegrationChange('googleCalendarSync', checked)}
+                 aria-label="Toggle Google Calendar sync"
                 />
            </div>
             {/* Add placeholders for other integrations like Slack, Outlook Calendar, etc. */}
@@ -273,7 +277,7 @@ const SettingsPage: FC = () => {
                      <Label htmlFor="slack-sync" className="font-medium">Slack Integration</Label>
                      <p className="text-xs text-muted-foreground">Get reminders and updates in Slack (coming soon).</p>
                  </div>
-                 <Switch id="slack-sync" disabled />
+                 <Switch id="slack-sync" disabled aria-label="Toggle Slack integration (disabled)" />
             </div>
          </CardContent>
        </Card>
@@ -291,6 +295,7 @@ const SettingsPage: FC = () => {
                 id="neurodivergent-enable"
                 checked={neurodivergent.enabled}
                 onCheckedChange={(checked) => handleNeurodivergentChange('enabled', checked)}
+                aria-label="Enable Neurodivergent Mode"
               />
            </div>
             {neurodivergent.enabled && (
@@ -303,6 +308,7 @@ const SettingsPage: FC = () => {
                              id="task-chunking"
                              checked={neurodivergent.taskChunking}
                              onCheckedChange={(checked) => handleNeurodivergentChange('taskChunking', checked)}
+                             aria-label="Enable task chunking suggestions"
                             />
                         </div>
                          <div className="flex items-center justify-between">
@@ -311,13 +317,14 @@ const SettingsPage: FC = () => {
                              id="low-stimulation"
                              checked={neurodivergent.lowStimulationUI}
                              onCheckedChange={(checked) => handleNeurodivergentChange('lowStimulationUI', checked)}
+                             aria-label="Use low stimulation UI"
                             />
                         </div>
                         {/* Add Focus Timer options */}
                         <div className="flex items-center justify-between">
                             <Label htmlFor="focus-timer">Focus Mode Timer Style</Label>
                             <Select value={neurodivergent.focusModeTimer} onValueChange={(value: NeurodivergentSettings['focusModeTimer']) => handleNeurodivergentChange('focusModeTimer', value)}>
-                              <SelectTrigger id="focus-timer" className="w-[180px]">
+                              <SelectTrigger id="focus-timer" className="w-[180px]" aria-label="Select focus mode timer style">
                                 <SelectValue placeholder="Select timer" />
                               </SelectTrigger>
                               <SelectContent>

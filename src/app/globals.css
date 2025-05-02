@@ -97,4 +97,8 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  /* Add global focus-visible styles for better accessibility */
+  *:focus-visible {
+      @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
 }

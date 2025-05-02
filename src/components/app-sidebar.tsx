@@ -28,6 +28,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  useSidebar, // Import useSidebar
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile'; // Import useIsMobile
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,34 +60,51 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { state } = useSidebar(); // Get sidebar state
+  const isMobile = useIsMobile();
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon">
+    <Sidebar variant="sidebar" collapsible={isMobile ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <div className="flex items-center justify-between">
-           <h1 className="text-lg font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-             4Eunoia
-           </h1>
-           <SidebarTrigger className="md:hidden" />
+           {/* Conditionally render title based on state if not mobile */}
+           {(!isMobile || state === 'expanded') && (
+             <h1 className="text-lg font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
+               4Eunoia
+             </h1>
+           )}
+           <SidebarTrigger aria-label="Toggle sidebar" />
         </div>
-
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.label}>
               <Link href={item.href} passHref legacyBehavior>
-                <SidebarMenuButton
-                  isActive={pathname === item.href}
-                  tooltip={item.label}
-                  asChild
-                  className="justify-start"
-                >
-                  <a>
-                    <item.icon className="h-4 w-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
-                  </a>
-                </SidebarMenuButton>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          isActive={pathname === item.href}
+                          asChild
+                          className="justify-start"
+                          aria-label={item.label} // Add aria-label for accessibility
+                        >
+                          <a>
+                            <item.icon className="h-4 w-4" />
+                            {/* Hide span visually when collapsed on desktop, but keep for screen readers */}
+                             <span className={cn("group-data-[collapsible=icon]:sr-only", state === 'collapsed' && !isMobile ? "sr-only" : "")}>{item.label}</span>
+                          </a>
+                        </SidebarMenuButton>
+                     </TooltipTrigger>
+                     {/* Only show tooltip when collapsed on desktop */}
+                    {(state === 'collapsed' && !isMobile) && (
+                         <TooltipContent side="right" align="center">
+                             {item.label}
+                         </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </Link>
             </SidebarMenuItem>
           ))}
@@ -94,4 +113,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-

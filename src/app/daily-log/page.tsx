@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useDataMode } from '@/context/data-mode-context';
-import { getDailyLogs, addUserLog, deleteUserLog, type LogEntry, type Mood } from '@/services/daily-log';
+import { getDailyLogs, addUserLog, deleteUserLog, type LogEntry, type Mood } from '@/services/daily-log'; // Removed updateUserLog temporarily
 import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from "@/components/ui/slider"; // Import Slider
 
@@ -119,7 +119,7 @@ const DailyLogPage: FC = () => {
            const success = deleteUserLog(logId);
            if (success) {
                setLogEntries(prev => prev.filter(l => l.id !== logId));
-               toast({ title: "Log Deleted", description: `Log entry from ${logToDelete ? format(logToDelete.date, 'PP') : ''} deleted.`, variant: "default" });
+               toast({ title: "Log Deleted", description: `Log entry from ${logToDelete ? format(logToDelete.date, 'PPP') : ''} deleted.`, variant: "default" });
            } else {
                 throw new Error("Failed to find log to delete.");
            }
@@ -131,7 +131,10 @@ const DailyLogPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <h1 className="text-3xl font-bold mb-6">Daily Log</h1>
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <h1 className="text-3xl font-bold">Daily Log</h1>
+             {/* Add button can be here or inside the card */}
+       </div>
 
       <Card className="mb-8 shadow-md">
         <CardHeader>
@@ -232,6 +235,7 @@ const DailyLogPage: FC = () => {
                                 min={1}
                                 step={1}
                                 className="w-full"
+                                aria-label="Focus level" // Accessibility
                             />
                         </FormControl>
                          <FormDescription>Rate your focus: 1 (Distracted) to 5 (Flow State).</FormDescription>
@@ -322,7 +326,7 @@ const DailyLogPage: FC = () => {
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete log entry from ${format(entry.date, 'PPP')}`}>
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Delete Log</span>
                                     </Button>

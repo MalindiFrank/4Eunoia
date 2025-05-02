@@ -296,7 +296,7 @@ const GoalsHabitsPage: FC = () => {
          <div className="flex items-center gap-2">
              <Label htmlFor="growth-pace" className="text-sm font-medium flex-shrink-0">Growth Pace:</Label>
              <Select value={growthPace} onValueChange={(value: GrowthPace) => setGrowthPace(value)}>
-               <SelectTrigger id="growth-pace" className="w-[150px] h-9">
+               <SelectTrigger id="growth-pace" className="w-[150px] h-9" aria-label="Select growth pace">
                  <SelectValue placeholder="Select pace" />
                </SelectTrigger>
                <SelectContent>
@@ -321,7 +321,7 @@ const GoalsHabitsPage: FC = () => {
         {/* Goals Tab */}
         <TabsContent value="goals" className="mt-6">
           <Card>
-            <CardHeader className="flex flex-row justify-between items-center">
+            <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <CardTitle>Manage Goals</CardTitle>
                     <CardDescription>Define and track your long-term objectives.</CardDescription>
@@ -371,10 +371,10 @@ const GoalsHabitsPage: FC = () => {
                                         <p className="text-xs mt-1">Status: <span className={`font-medium ${goal.status === 'Achieved' ? 'text-green-600 dark:text-green-400' : goal.status === 'In Progress' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{goal.status}</span></p>
                                         {goal.targetDate && <p className="text-xs text-muted-foreground">Target: {format(goal.targetDate, 'PP')}</p>}
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openGoalDialog(goal)}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0"> {/* Show on focus-within */}
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openGoalDialog(goal)} aria-label={`Edit goal "${goal.title}"`}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
+                                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete goal "${goal.title}"`}><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader><AlertDialogTitle>Delete Goal?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the goal "{goal.title}".</AlertDialogDescription></AlertDialogHeader>
                                                 <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteGoal(goal.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete</AlertDialogAction></AlertDialogFooter>
@@ -393,7 +393,7 @@ const GoalsHabitsPage: FC = () => {
         {/* Habits Tab */}
         <TabsContent value="habits" className="mt-6">
           <Card>
-             <CardHeader className="flex flex-row justify-between items-center">
+             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <CardTitle>Manage Habits</CardTitle>
                     <CardDescription>Build and track consistent routines.</CardDescription>
@@ -454,15 +454,15 @@ const GoalsHabitsPage: FC = () => {
                                                  className="h-7 w-7"
                                                  onClick={() => markHabitCompleteHandler(habit.id)}
                                                  disabled={isCompletedToday || dataMode === 'mock'}
-                                                 title={isCompletedToday ? "Completed Today" : "Mark Complete"}
+                                                 aria-label={isCompletedToday ? `Habit "${habit.title}" completed today` : `Mark habit "${habit.title}" as complete`}
                                              >
                                                 <Check className="h-4 w-4" />
                                                 <span className="sr-only">{isCompletedToday ? "Completed Today" : "Mark Complete"}</span>
                                             </Button>
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openHabitDialog(habit)}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
+                                            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"> {/* Show on focus-within */}
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openHabitDialog(habit)} aria-label={`Edit habit "${habit.title}"`}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                                                 <AlertDialog>
-                                                    <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
+                                                    <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete habit "${habit.title}"`}><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader><AlertDialogTitle>Delete Habit?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the habit "{habit.title}". Your streak will be lost.</AlertDialogDescription></AlertDialogHeader>
                                                         <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteHabit(habit.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete</AlertDialogAction></AlertDialogFooter>

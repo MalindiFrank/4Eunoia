@@ -13,7 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added Footer, Close
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -230,7 +230,7 @@ const TasksPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Tasks</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
@@ -277,15 +277,16 @@ const TasksPage: FC = () => {
                                             onCheckedChange={() => handleToggleTaskStatus(task.id)}
                                             className="mt-1 flex-shrink-0" // Align checkbox
                                             disabled={dataMode === 'mock'}
+                                            aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`} // Accessibility improvement
                                         />
                                         <div className="grid gap-0.5 flex-grow">
                                             <label
-                                                htmlFor={`task-${task.id}`}
+                                                htmlFor={`task-${task.id}`} // Ensures label clicks toggle checkbox
                                                 className={cn(
                                                     "text-sm font-medium leading-tight cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
                                                     task.status === 'Completed' && 'line-through text-muted-foreground'
                                                 )}
-                                                onClick={() => handleToggleTaskStatus(task.id)} // Allow toggling by clicking label
+                                                // Removed onClick here, htmlFor handles it
                                             >
                                                 {task.title}
                                             </label>
@@ -309,13 +310,13 @@ const TasksPage: FC = () => {
                                         </div>
                                     </div>
                                      <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(task)}>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(task)} aria-label={`Edit task "${task.title}"`}>
                                             <Edit className="h-4 w-4" />
                                             <span className="sr-only">Edit Task</span>
                                         </Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete task "${task.title}"`}>
                                                     <Trash2 className="h-4 w-4" />
                                                     <span className="sr-only">Delete Task</span>
                                                 </Button>

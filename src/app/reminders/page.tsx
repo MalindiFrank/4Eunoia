@@ -219,7 +219,7 @@ const RemindersPage: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Reminders</h1>
          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
@@ -276,13 +276,13 @@ const RemindersPage: FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"> {/* Show on hover */}
-                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(reminder)}>
+                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(reminder)} aria-label={`Edit reminder "${reminder.title}"`}>
                           <Edit className="h-4 w-4" />
                           <span className="sr-only">Edit Reminder</span>
                        </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete reminder "${reminder.title}"`}>
                                    <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Delete Reminder</span>
                                </Button>
