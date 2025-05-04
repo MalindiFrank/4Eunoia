@@ -67,7 +67,7 @@ const TimeBlockSchema = z.object({
     startTime: z.string().describe('Suggested start time (e.g., "9:00 AM", "Morning").'),
     endTime: z.string().optional().describe('Suggested end time (e.g., "11:00 AM", "Late Morning").'),
     activity: z.string().describe('The suggested activity, task, or event.'),
-    category: z.enum(['Work', 'Personal', 'Health', 'Learning', 'Break', 'Chore', 'Social', 'Goal', 'Habit', 'Event']).describe('Category of the activity.'),
+    category: z.enum(['Work', 'Personal', 'Health', 'Learning', 'Break', 'Chore', 'Social', 'Goal', 'Habit', 'Event', 'Other']).describe('Category of the activity.'),
     reasoning: z.string().optional().describe('Brief rationale for the suggestion (e.g., "Leverage morning energy", "Fit between meetings").'),
 });
 
@@ -105,7 +105,7 @@ User Context & Data:
 - Events for Target Date: {{#if eventsForDate}} {{jsonStringify eventsForDate}} {{else}} None {{/if}}
 - Active Goals: {{#if activeGoals}} {{jsonStringify activeGoals}} {{else}} None {{/if}}
 - Active Habits: {{#if activeHabits}} {{jsonStringify activeHabits}} {{else}} None {{/if}}
-- Preferences: {{#if userPreferences}} Preferred Work Times: {{userPreferences.preferredWorkTimes | default "Flexible"}}, Energy Pattern: {{userPreferences.energyLevelPattern | default "Not specified"}}, Growth Pace: {{userPreferences.growthPace | default "Moderate"}} {{else}} Not specified {{/if}}
+- Preferences: {{#if userPreferences}} Preferred Work Times: {{#if userPreferences.preferredWorkTimes}}{{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}} {{else}} Not specified {{/if}}
 
 Planning Task:
 1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits.
@@ -116,7 +116,7 @@ Planning Task:
     - **Suggest breaks:** Include short breaks, especially around long meetings or focus blocks.
     - **Consider mood/energy:** If recent logs show stress/tiredness, prioritize rest, self-care, or lower-intensity activities. If logs show positive mood/productivity, leverage that momentum.
     - **Use flexible timing:** Use general times like "Morning", "Afternoon", or specific times (e.g., "9:00 AM - 10:00 AM") where appropriate.
-    - **Categorize activities:** Use categories like Work, Personal, Health, Learning, Break, Chore, Social, Goal, Habit, Event.
+    - **Categorize activities:** Use categories like Work, Personal, Health, Learning, Break, Chore, Social, Goal, Habit, Event, Other.
     - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (optional but helpful).
 3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs.").
 4.  **Warnings (Optional):** List any potential **Warnings** like a very packed schedule, conflicting items, or suggestions based on potential low energy.
@@ -201,5 +201,3 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
-
-    
