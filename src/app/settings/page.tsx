@@ -30,6 +30,7 @@ interface NotificationSettings {
 
 interface IntegrationSettings {
   googleCalendarSync: boolean;
+  slackIntegration: boolean;
 }
 
 interface NeurodivergentSettings {
@@ -53,7 +54,7 @@ const SettingsPage: FC = () => {
     habitNudges: true,
     insightNotifications: true,
   });
-  const [integrations, setIntegrations] = useState<IntegrationSettings>({ googleCalendarSync: false });
+  const [integrations, setIntegrations] = useState<IntegrationSettings>({ googleCalendarSync: false, slackIntegration: false });
   const [neurodivergent, setNeurodivergent] = useState<NeurodivergentSettings>({
     enabled: false,
     focusModeTimer: 'pomodoro',
@@ -126,7 +127,6 @@ const SettingsPage: FC = () => {
   // Handlers for individual setting changes (using functional updates)
   const handlePreferenceChange = <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
       setPreferences(prev => ({ ...prev, [key]: value }));
-       // No need to call applyTheme here, the useEffect listening to preferences.theme will handle it.
   };
 
   const handleNotificationChange = <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => {
@@ -135,9 +135,11 @@ const SettingsPage: FC = () => {
 
    const handleIntegrationChange = <K extends keyof IntegrationSettings>(key: K, value: IntegrationSettings[K]) => {
         setIntegrations(prev => ({ ...prev, [key]: value }));
-        // Add specific logic for enabling/disabling integrations (e.g., auth flow)
-        if (key === 'googleCalendarSync' && value) {
-             toast({ title: "Integration Action Needed", description: "Connect your Google Calendar (feature not implemented).", variant: "default"});
+        if (key === 'googleCalendarSync') {
+             toast({ title: "Google Calendar Sync", description: value ? "Connect your Google Calendar (feature coming soon)." : "Google Calendar sync disabled.", variant: "default"});
+        }
+        if (key === 'slackIntegration') {
+             toast({ title: "Slack Integration", description: value ? "Connect your Slack (feature coming soon)." : "Slack integration disabled.", variant: "default"});
         }
    };
 
@@ -147,20 +149,23 @@ const SettingsPage: FC = () => {
 
    // Reset handler
    const handleResetApp = () => {
-        resetToMockMode(); // This handles clearing data and setting mode
-        // Optionally reset local settings state here if preferred,
-        // otherwise, rely on page reload triggered by resetToMockMode.
-        // setPreferences({ theme: 'system', defaultView: '/' });
-        // setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
-        // setIntegrations({ googleCalendarSync: false });
-        // setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
-        // localStorage.removeItem(SETTINGS_STORAGE_KEY); // Clear settings as well
-        // applyTheme('system'); // Reset theme visually before reload
+        // Clear all settings from state and local storage
+        setPreferences({ theme: 'system', defaultView: '/' });
+        setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
+        setIntegrations({ googleCalendarSync: false, slackIntegration: false });
+        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem(SETTINGS_STORAGE_KEY);
+        }
+        applyTheme('system'); // Reset theme visually
+
+        // Reset data mode (this also clears service-specific local storage and reloads)
+        resetToMockMode(); 
+        toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
    }
 
 
   if (isLoading) {
-     // Basic loading state, replace with skeletons if needed
       return <div className="container mx-auto p-4 md:p-6 lg:p-8"><p>Loading settings...</p></div>;
   }
 
@@ -189,21 +194,6 @@ const SettingsPage: FC = () => {
               </SelectContent>
             </Select>
           </div>
-           {/* Example: Default View (currently doesn't affect anything) */}
-           {/* <div className="flex items-center justify-between">
-               <Label htmlFor="default-view-select">Default Startup Page</Label>
-               <Select value={preferences.defaultView} onValueChange={(value) => handlePreferenceChange('defaultView', value)}>
-                 <SelectTrigger id="default-view-select" className="w-[180px]">
-                     <SelectValue placeholder="Select page" />
-                 </SelectTrigger>
-                 <SelectContent>
-                     <SelectItem value="/">Dashboard</SelectItem>
-                     <SelectItem value="/tasks">Tasks</SelectItem>
-                     <SelectItem value="/calendar">Calendar</SelectItem>
-                     {/* Add other pages */}
-                {/* </SelectContent>
-               </Select>
-           </div> */}
         </CardContent>
       </Card>
 
@@ -249,7 +239,6 @@ const SettingsPage: FC = () => {
                 aria-label="Toggle new insight notifications"
               />
           </div>
-           {/* Add more notification options: frequency, quiet hours, etc. */}
         </CardContent>
       </Card>
 
@@ -271,13 +260,17 @@ const SettingsPage: FC = () => {
                  aria-label="Toggle Google Calendar sync"
                 />
            </div>
-            {/* Add placeholders for other integrations like Slack, Outlook Calendar, etc. */}
-            <div className="flex items-center justify-between p-3 border rounded-lg opacity-50 cursor-not-allowed">
+            <div className="flex items-center justify-between p-3 border rounded-lg">
                  <div>
                      <Label htmlFor="slack-sync" className="font-medium">Slack Integration</Label>
-                     <p className="text-xs text-muted-foreground">Get reminders and updates in Slack (coming soon).</p>
+                     <p className="text-xs text-muted-foreground">Get reminders and updates in Slack.</p>
                  </div>
-                 <Switch id="slack-sync" disabled aria-label="Toggle Slack integration (disabled)" />
+                 <Switch 
+                    id="slack-sync" 
+                    checked={integrations.slackIntegration}
+                    onCheckedChange={(checked) => handleIntegrationChange('slackIntegration', checked)}
+                    aria-label="Toggle Slack integration"
+                 />
             </div>
          </CardContent>
        </Card>
@@ -320,7 +313,6 @@ const SettingsPage: FC = () => {
                              aria-label="Use low stimulation UI"
                             />
                         </div>
-                        {/* Add Focus Timer options */}
                         <div className="flex items-center justify-between">
                             <Label htmlFor="focus-timer">Focus Mode Timer Style</Label>
                             <Select value={neurodivergent.focusModeTimer} onValueChange={(value: NeurodivergentSettings['focusModeTimer']) => handleNeurodivergentChange('focusModeTimer', value)}>
@@ -330,11 +322,9 @@ const SettingsPage: FC = () => {
                               <SelectContent>
                                 <SelectItem value="pomodoro">Pomodoro (25/5)</SelectItem>
                                 <SelectItem value="custom">Custom (Set in Focus)</SelectItem>
-                                {/* Add other timer styles */}
                               </SelectContent>
                             </Select>
                         </div>
-                        {/* Add Soundscape options link */}
                     </div>
                 </>
             )}
@@ -342,11 +332,10 @@ const SettingsPage: FC = () => {
         </CardContent>
       </Card>
 
-      {/* Reset Section */}
       <Card className="border-destructive">
          <CardHeader>
              <CardTitle className="flex items-center gap-2 text-destructive"><Trash className="h-5 w-5" /> Reset Application</CardTitle>
-             <CardDescription className="text-destructive/90">This action will permanently delete all your saved data (tasks, logs, expenses, etc.) and reset the app to its initial state using mock data.</CardDescription>
+             <CardDescription className="text-destructive/90">This action will permanently delete all your saved data (tasks, logs, expenses, etc.) and reset the app to its initial state using mock data. Your settings will also be reset.</CardDescription>
          </CardHeader>
          <CardContent>
             <AlertDialog>
@@ -371,7 +360,6 @@ const SettingsPage: FC = () => {
          </CardContent>
       </Card>
 
-      {/* Save Button */}
       <div className="flex justify-end">
         <Button onClick={saveSettings}>Save All Settings</Button>
       </div>

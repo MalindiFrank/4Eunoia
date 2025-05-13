@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'; // Import hooks
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Activity, Calendar, CheckSquare, CreditCard, Lightbulb, ListChecks, PieChart, Settings, Smile, StickyNote, Target, TrendingUp, Zap, BrainCircuit, Loader2 } from 'lucide-react'; // Added BrainCircuit, Loader2
+import { Activity, Calendar, CheckSquare, CreditCard, Lightbulb, ListChecks, PieChart, Settings, Smile, StickyNote, Target, TrendingUp, Zap, BrainCircuit, Loader2, Mic } from 'lucide-react'; // Added BrainCircuit, Loader2, Mic
 import Link from 'next/link';
 
 import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Import AI Flow and services
-import { generateDailyPlan, GenerateDailyPlanInput, GenerateDailyPlanOutput } from '@/ai/flows/generate-daily-plan';
+import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanOutput } from '@/ai/flows/generate-daily-plan';
 import { getDailyLogs, type LogEntry } from '@/services/daily-log';
 import { getTasks, type Task } from '@/services/task';
 import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
@@ -35,14 +35,14 @@ export default function Home() {
                 // Fetch necessary data
                 const [logs, tasks, events, goals, habits] = await Promise.all([
                     getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
-                    getTasks(dataMode).then(t => t.filter(task => task.dueDate && task.dueDate >= startOfDay(today) && task.dueDate <= endOfDay(today) || task.status !== 'Completed')), // Tasks due today or pending/in progress
+                    getTasks(dataMode).then(t => t.filter(task => (task.dueDate && task.dueDate >= startOfDay(today) && task.dueDate <= endOfDay(today)) || task.status !== 'Completed')), // Tasks due today or pending/in progress
                     getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startOfDay(today) && ev.start <= endOfDay(today))), // Events today
                     getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
                     getHabits(dataMode), // Fetch all habits
                 ]);
 
                  // Helper to format data for flows
-                 const formatForFlow = <T extends Record<string, any>>(items: T[], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
+                 const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
                     return items.map(item => {
                         const newItem: Record<string, any> = { ...item };
                         dateKeys.forEach(key => {
@@ -211,12 +211,13 @@ export default function Home() {
                    description="See charts and graphs of your data trends over time."
                    href="/visualizations"
                  />
-                 {/* Add other key stats or quick actions here */}
-                 {/* Placeholder for Voice Companion Button */}
-                  <Card className="hover:shadow-xl transition-shadow duration-300 h-full bg-card opacity-50 cursor-not-allowed">
+                  <Card 
+                    className="hover:shadow-xl transition-shadow duration-300 h-full bg-card cursor-pointer"
+                    onClick={() => toast({ title: "Voice Companion", description: "This feature is coming soon!", duration: 3000 })}
+                  >
                      <CardHeader className="pb-3">
                          <CardTitle className="text-base font-semibold flex items-center gap-2">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mic text-primary"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                             <Mic className="h-5 w-5 text-primary"/>
                              Voice Companion
                          </CardTitle>
                      </CardHeader>
