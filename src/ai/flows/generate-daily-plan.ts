@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Generates a suggested daily plan based on mood, past activities, and upcoming schedule.
@@ -45,6 +44,12 @@ const InputHabitSchema = z.object({
 });
 
 // --- Flow Input/Output Schemas ---
+const UserPreferencesSchema = z.object({
+    preferredWorkTimes: z.enum(['Morning', 'Afternoon', 'Evening', 'Flexible']).optional(),
+    energyLevelPattern: z.string().optional().describe('Brief description of typical energy levels (e.g., "High energy mornings, dips mid-afternoon").'),
+    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional(),
+});
+
 const GenerateDailyPlanInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the past 1-3 days.'),
@@ -52,11 +57,7 @@ const GenerateDailyPlanInputSchema = z.object({
     eventsForDate: z.array(InputEventSchema).optional().describe('Calendar events scheduled for the target date.'),
     activeGoals: z.array(InputGoalSchema).optional().describe("User's 'In Progress' goals."),
     activeHabits: z.array(InputHabitSchema).optional().describe("User's active habits."),
-    userPreferences: z.object({
-        preferredWorkTimes: z.enum(['Morning', 'Afternoon', 'Evening', 'Flexible']).optional(),
-        energyLevelPattern: z.string().optional().describe('Brief description of typical energy levels (e.g., "High energy mornings, dips mid-afternoon").'),
-        growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional(),
-    }).optional(),
+    userPreferences: UserPreferencesSchema.optional(),
 });
 export type GenerateDailyPlanInput = z.infer<typeof GenerateDailyPlanInputSchema>;
 
@@ -86,7 +87,6 @@ export async function generateDailyPlan(
 }
 
 // --- Prompt Definition ---
-// Define a new schema for the prompt that expects JSON strings for complex data
 const PromptInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days.'),
@@ -94,7 +94,8 @@ const PromptInputSchema = z.object({
     eventsForDateJson: z.string().optional().describe('JSON string of calendar events scheduled for the target date.'),
     activeGoalsJson: z.string().optional().describe("JSON string of user's 'In Progress' goals."),
     activeHabitsJson: z.string().optional().describe("JSON string of user's active habits."),
-    userPreferences: GenerateDailyPlanInputSchema.shape.userPreferences.optional(),
+    // Add pre-formatted preference strings
+    preferencesDisplay: z.string().describe("A string summarizing user preferences, or 'Not specified.' if none.")
 });
 
 
@@ -106,25 +107,25 @@ const generatePlanPrompt = ai.definePrompt({
 
 User Context & Data:
 - Target Date: {{targetDate}}
-- Recent Logs (Mood, Activity, Focus): {{#if recentLogsJson}} {{{recentLogsJson}}} {{else}} None {{/if}}
-- Tasks for Target Date: {{#if tasksForDateJson}} {{{tasksForDateJson}}} {{else}} None {{/if}}
-- Events for Target Date: {{#if eventsForDateJson}} {{{eventsForDateJson}}} {{else}} None {{/if}}
-- Active Goals: {{#if activeGoalsJson}} {{{activeGoalsJson}}} {{else}} None {{/if}}
-- Active Habits: {{#if activeHabitsJson}} {{{activeHabitsJson}}} {{else}} None {{/if}}
-- Preferences: {{#if userPreferences}} Preferred Work Times: {{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}}.{{else}} Not specified.{{/if}}
+- Recent Logs (Mood, Activity, Focus): {{#if recentLogsJson}}{{{recentLogsJson}}}{{else}}None{{/if}}
+- Tasks for Target Date: {{#if tasksForDateJson}}{{{tasksForDateJson}}}{{else}}None{{/if}}
+- Events for Target Date: {{#if eventsForDateJson}}{{{eventsForDateJson}}}{{else}}None{{/if}}
+- Active Goals: {{#if activeGoalsJson}}{{{activeGoalsJson}}}{{else}}None{{/if}}
+- Active Habits: {{#if activeHabitsJson}}{{{activeHabitsJson}}}{{else}}None{{/if}}
+- Preferences: {{preferencesDisplay}}
 
 Planning Task:
-1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits.
+1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits and stated preferences.
 2.  **Structure:** Create a **Suggested Plan** consisting of realistic time blocks or activities for the day.
     - **Integrate fixed events:** Include scheduled calendar events first.
-    - **Allocate task time:** Suggest specific blocks for important or due tasks. Consider recent mood/focus – if low energy/focus recently, suggest starting with easier tasks or breaking down larger ones. If high energy, suggest tackling challenging tasks during preferred work times or typical peak energy periods (if known).
-    - **Incorporate goals/habits:** Suggest time for a small step towards an active goal (based on growth pace) or remind them of daily/relevant habits.
+    - **Allocate task time:** Suggest specific blocks for important or due tasks. Consider recent mood/focus – if low energy/focus recently, suggest starting with easier tasks or breaking down larger ones. If high energy, suggest tackling challenging tasks during preferred work times or typical peak energy periods (if known from preferences).
+    - **Incorporate goals/habits:** Suggest time for a small step towards an active goal (based on growth pace preference) or remind them of daily/relevant habits.
     - **Suggest breaks:** Include short breaks, especially around long meetings or focus blocks.
     - **Consider mood/energy:** If recent logs show stress/tiredness, prioritize rest, self-care, or lower-intensity activities. If logs show positive mood/productivity, leverage that momentum.
     - **Use flexible timing:** Use general times like "Morning", "Afternoon", or specific times (e.g., "9:00 AM - 10:00 AM") where appropriate.
     - **Categorize activities:** Use categories like Work, Personal, Health, Learning, Break, Chore, Social, Goal, Habit, Event, Other.
     - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (optional but helpful).
-3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs.").
+3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs and preferred afternoon work time.").
 4.  **Warnings (Optional):** List any potential **Warnings** like a very packed schedule, conflicting items, or suggestions based on potential low energy.
 
 Generate the output in the specified JSON format. Be realistic, empathetic, and flexible. The plan is a suggestion, not a rigid schedule.`,
@@ -138,7 +139,7 @@ const generateDailyPlanFlow = ai.defineFlow<
 >({
   name: 'generateDailyPlanFlow',
   inputSchema: GenerateDailyPlanInputSchema,
-  outputSchema: GenerateDailyPlanOutputSchema,
+  outputSchema: GenerateDailyPlanOutputSchema
 }, async (input) => {
 
     if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length) {
@@ -166,18 +167,32 @@ const generateDailyPlanFlow = ai.defineFlow<
                          if (isValid(parsedDate)) {
                              newItem[key] = formatISO(parsedDate);
                          } else {
-                             newItem[key] = null;
+                             newItem[key] = null; // Explicitly nullify invalid date strings
                          }
                      } catch {
-                         newItem[key] = null;
+                         newItem[key] = null; // Explicitly nullify on parse error
                      }
-                 } else {
-                    newItem[key] = null;
+                 } else if (dateValue === undefined || dateValue === null) {
+                    newItem[key] = null; // Ensure undefined becomes null for consistency if needed by schema/prompt
                  }
             });
             return newItem;
         });
     };
+
+    // Pre-calculate preferences display string
+    let preferencesDisplay = "Not specified.";
+    if (input.userPreferences) {
+        const { preferredWorkTimes, energyLevelPattern, growthPace } = input.userPreferences;
+        const parts: string[] = [];
+        if (preferredWorkTimes) parts.push(`Preferred Work Times: ${preferredWorkTimes}`);
+        if (energyLevelPattern) parts.push(`Energy Pattern: ${energyLevelPattern}`);
+        if (growthPace) parts.push(`Growth Pace: ${growthPace}`);
+        if (parts.length > 0) {
+            preferencesDisplay = parts.join(', ') + ".";
+        }
+    }
+
 
     // Prepare data for the *new* PromptInputSchema
     const promptInputForAI: z.infer<typeof PromptInputSchema> = {
@@ -185,9 +200,9 @@ const generateDailyPlanFlow = ai.defineFlow<
         recentLogsJson: input.recentLogs ? JSON.stringify(formatForPrompt(input.recentLogs, ['date'])) : undefined,
         tasksForDateJson: input.tasksForDate ? JSON.stringify(formatForPrompt(input.tasksForDate, ['dueDate'])) : undefined,
         eventsForDateJson: input.eventsForDate ? JSON.stringify(formatForPrompt(input.eventsForDate, ['start', 'end'])) : undefined,
-        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined, // Goals don't typically have dates formatted here this way
+        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined,
         activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPrompt(input.activeHabits, ['lastCompleted'])) : undefined,
-        userPreferences: input.userPreferences,
+        preferencesDisplay: preferencesDisplay,
     };
 
 
@@ -204,5 +219,3 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
-
-    
