@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, parseISO, isValid } from 'date-fns'; // Added parseISO, isValid
+import { formatISO, parseISO, isValid } from 'date-fns';
 
 // Define Zod schemas for input data types (expecting ISO strings)
 const InputLogSchema = z.object({
@@ -18,13 +18,13 @@ const InputLogSchema = z.object({
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
+    focusLevel: z.number().min(1).max(5).optional().nullable(),
 });
 const InputTaskSchema = z.object({
     id: z.string(),
     title: z.string(),
     status: z.enum(['Pending', 'In Progress', 'Completed']),
-    dueDate: z.string().datetime().optional().nullable(), // Allow null
+    dueDate: z.string().datetime().optional().nullable(),
 });
 const InputEventSchema = z.object({
     title: z.string(),
@@ -35,7 +35,7 @@ const InputHabitSchema = z.object({
     id: z.string(),
     title: z.string(),
     frequency: z.string(),
-    lastCompleted: z.string().datetime().optional().nullable(), // Allow null
+    lastCompleted: z.string().datetime().optional().nullable(),
 });
 const InputGoalSchema = z.object({
     id: z.string(),
@@ -47,13 +47,11 @@ const InputGoalSchema = z.object({
 // --- Input/Output Schemas ---
 const GenerateDailySuggestionsInputSchema = z.object({
     currentDateTime: z.string().datetime().describe('The current date and time in ISO 8601 format.'),
-    // Pass recent/relevant data summaries
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the last 1-2 days, including mood and focus levels.'),
     upcomingTasks: z.array(InputTaskSchema).optional().describe('Pending or In Progress tasks due soon (next 1-2 days).'),
     todaysEvents: z.array(InputEventSchema).optional().describe("Today's calendar events."),
     activeHabits: z.array(InputHabitSchema).optional().describe("User's active habits."),
     activeGoals: z.array(InputGoalSchema).optional().describe("User's 'In Progress' goals."),
-    // Optional context
     userLocation: z.string().optional().describe('User\'s current general location (e.g., "City, Country") for weather/context.'),
     weatherCondition: z.string().optional().describe('Brief description of current weather (e.g., "Rainy", "Sunny", "Cold").'),
     growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's preferred personal growth pace setting."),
@@ -63,7 +61,7 @@ export type GenerateDailySuggestionsInput = z.infer<typeof GenerateDailySuggesti
 const SuggestionSchema = z.object({
     suggestion: z.string().describe("The specific suggestion text."),
     category: z.enum(['Routine', 'Focus', 'Break', 'Self-care', 'Goal', 'Habit', 'Other']).describe("The category of the suggestion."),
-    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline')."), // Updated reasoning examples
+    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline')."),
 });
 
 const GenerateDailySuggestionsOutputSchema = z.object({
@@ -76,7 +74,6 @@ export type GenerateDailySuggestionsOutput = z.infer<typeof GenerateDailySuggest
 export async function generateDailySuggestions(
   input: GenerateDailySuggestionsInput
 ): Promise<GenerateDailySuggestionsOutput> {
-     // Validate currentDateTime
      if (!input.currentDateTime || !isValid(parseISO(input.currentDateTime))) {
          throw new Error("Invalid or missing currentDateTime provided for suggestions.");
      }
@@ -84,7 +81,19 @@ export async function generateDailySuggestions(
 }
 
 // --- Prompt Definition ---
-const PromptInputSchema = GenerateDailySuggestionsInputSchema;
+// Modify prompt input schema to expect JSON strings
+const PromptInputSchema = z.object({
+    currentDateTime: z.string().datetime(),
+    recentLogsJson: z.string().optional().describe('JSON string of recent daily logs.'),
+    upcomingTasksJson: z.string().optional().describe('JSON string of upcoming tasks.'),
+    todaysEventsJson: z.string().optional().describe('JSON string of today\'s calendar events.'),
+    activeHabitsJson: z.string().optional().describe('JSON string of active habits.'),
+    activeGoalsJson: z.string().optional().describe('JSON string of active goals.'),
+    userLocation: z.string().optional(),
+    weatherCondition: z.string().optional(),
+    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional(),
+});
+
 
 const generateSuggestionsPrompt = ai.definePrompt({
   name: 'generateDailySuggestionsPrompt',
@@ -98,12 +107,12 @@ Current Context:
 - Weather: {{weatherCondition | default "Not provided"}}
 - Growth Pace Setting: {{growthPace | default "Moderate"}}
 
-Recent Data Summary:
-- Recent Logs (Mood/Activity/Focus): {{#if recentLogs}} {{jsonStringify recentLogs}} {{else}} None {{/if}}
-- Upcoming Tasks (Due Soon): {{#if upcomingTasks}} {{jsonStringify upcomingTasks}} {{else}} None {{/if}}
-- Today's Events: {{#if todaysEvents}} {{jsonStringify todaysEvents}} {{else}} None {{/if}}
-- Active Habits: {{#if activeHabits}} {{jsonStringify activeHabits}} {{else}} None {{/if}}
-- Active Goals: {{#if activeGoals}} {{jsonStringify activeGoals}} {{else}} None {{/if}}
+Recent Data Summary (JSON Strings):
+- Recent Logs (Mood/Activity/Focus): {{#if recentLogsJson}} {{{recentLogsJson}}} {{else}} None {{/if}}
+- Upcoming Tasks (Due Soon): {{#if upcomingTasksJson}} {{{upcomingTasksJson}}} {{else}} None {{/if}}
+- Today's Events: {{#if todaysEventsJson}} {{{todaysEventsJson}}} {{else}} None {{/if}}
+- Active Habits: {{#if activeHabitsJson}} {{{activeHabitsJson}}} {{else}} None {{/if}}
+- Active Goals: {{#if activeGoalsJson}} {{{activeGoalsJson}}} {{else}} None {{/if}}
 
 Generate 2-4 suggestions based on the *combination* of these factors. Consider:
 - **Time of Day:** Morning suggestions might focus on routines or planning, afternoon on focus/breaks, evening on winding down or self-care.
@@ -149,7 +158,6 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         };
     }
 
-     // Prepare data for the prompt - ensure dates are valid ISO strings
       const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
         return items.map(item => {
             const newItem: Record<string, any> = { ...item };
@@ -176,18 +184,20 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         });
     };
 
-     const promptInput: GenerateDailySuggestionsInput = {
-        ...input,
-        recentLogs: formatForPrompt(input.recentLogs, ['date']),
-        upcomingTasks: formatForPrompt(input.upcomingTasks, ['dueDate']),
-        todaysEvents: formatForPrompt(input.todaysEvents, ['start', 'end']),
-        activeHabits: formatForPrompt(input.activeHabits, ['lastCompleted']),
-        // Goals don't have dates in this context
-        activeGoals: input.activeGoals,
+     const promptInputForAI: z.infer<typeof PromptInputSchema> = {
+        currentDateTime: input.currentDateTime,
+        recentLogsJson: input.recentLogs ? JSON.stringify(formatForPrompt(input.recentLogs, ['date'])) : undefined,
+        upcomingTasksJson: input.upcomingTasks ? JSON.stringify(formatForPrompt(input.upcomingTasks, ['dueDate'])) : undefined,
+        todaysEventsJson: input.todaysEvents ? JSON.stringify(formatForPrompt(input.todaysEvents, ['start', 'end'])) : undefined,
+        activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPrompt(input.activeHabits, ['lastCompleted'])) : undefined,
+        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined, // Assuming goals don't have dates to format here
+        userLocation: input.userLocation,
+        weatherCondition: input.weatherCondition,
+        growthPace: input.growthPace,
     };
 
 
-    const { output } = await generateSuggestionsPrompt(promptInput);
+    const { output } = await generateSuggestionsPrompt(promptInputForAI);
 
      if (!output) {
          console.error('AI analysis failed to return output for daily suggestions.');

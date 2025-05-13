@@ -9,7 +9,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, startOfDay, endOfDay, parseISO, isValid } from 'date-fns'; // Added parseISO, isValid
+import { formatISO, startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
 
 // --- Input Data Schemas ---
 const InputLogSchema = z.object({
@@ -17,14 +17,14 @@ const InputLogSchema = z.object({
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional().nullable(), // Allow null
+    focusLevel: z.number().min(1).max(5).optional().nullable(),
     diaryEntry: z.string().optional(),
 });
 const InputTaskSchema = z.object({
     id: z.string(),
     title: z.string(),
     status: z.enum(['Pending', 'In Progress', 'Completed']),
-    dueDate: z.string().datetime().optional().nullable(), // Allow null
+    dueDate: z.string().datetime().optional().nullable(),
 });
 const InputEventSchema = z.object({
     title: z.string(),
@@ -40,21 +40,17 @@ const InputHabitSchema = z.object({
     id: z.string(),
     title: z.string(),
     frequency: z.string(),
-    lastCompleted: z.string().datetime().optional().nullable(), // Allow null
+    lastCompleted: z.string().datetime().optional().nullable(),
 });
 
 // --- Flow Input/Output Schemas ---
 const GenerateDailyPlanInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
-    // Data from previous days for context
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the past 1-3 days.'),
-    // Data for the target date
     tasksForDate: z.array(InputTaskSchema).optional().describe('Tasks due on or relevant to the target date.'),
     eventsForDate: z.array(InputEventSchema).optional().describe('Calendar events scheduled for the target date.'),
-    // User's active goals and habits
     activeGoals: z.array(InputGoalSchema).optional().describe("User's 'In Progress' goals."),
     activeHabits: z.array(InputHabitSchema).optional().describe("User's active habits."),
-    // Optional context
     userPreferences: z.object({
         preferredWorkTimes: z.enum(['Morning', 'Afternoon', 'Evening', 'Flexible']).optional(),
         energyLevelPattern: z.string().optional().describe('Brief description of typical energy levels (e.g., "High energy mornings, dips mid-afternoon").'),
@@ -82,7 +78,6 @@ export type GenerateDailyPlanOutput = z.infer<typeof GenerateDailyPlanOutputSche
 export async function generateDailyPlan(
   input: GenerateDailyPlanInput
 ): Promise<GenerateDailyPlanOutput> {
-     // Validate target date
      if (!input.targetDate || !isValid(parseISO(input.targetDate))) {
          throw new Error("Invalid or missing target date provided for daily plan generation.");
      }
@@ -90,7 +85,17 @@ export async function generateDailyPlan(
 }
 
 // --- Prompt Definition ---
-const PromptInputSchema = GenerateDailyPlanInputSchema; // Reuse for prompt input
+// Define a new schema for the prompt that expects JSON strings for complex data
+const PromptInputSchema = z.object({
+    targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
+    recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days.'),
+    tasksForDateJson: z.string().optional().describe('JSON string of tasks due on or relevant to the target date.'),
+    eventsForDateJson: z.string().optional().describe('JSON string of calendar events scheduled for the target date.'),
+    activeGoalsJson: z.string().optional().describe("JSON string of user's 'In Progress' goals."),
+    activeHabitsJson: z.string().optional().describe("JSON string of user's active habits."),
+    userPreferences: GenerateDailyPlanInputSchema.shape.userPreferences.optional(),
+});
+
 
 const generatePlanPrompt = ai.definePrompt({
   name: 'generateDailyPlanPrompt',
@@ -100,12 +105,12 @@ const generatePlanPrompt = ai.definePrompt({
 
 User Context & Data:
 - Target Date: {{targetDate}}
-- Recent Logs (Mood, Activity, Focus): {{#if recentLogs}} {{jsonStringify recentLogs}} {{else}} None {{/if}}
-- Tasks for Target Date: {{#if tasksForDate}} {{jsonStringify tasksForDate}} {{else}} None {{/if}}
-- Events for Target Date: {{#if eventsForDate}} {{jsonStringify eventsForDate}} {{else}} None {{/if}}
-- Active Goals: {{#if activeGoals}} {{jsonStringify activeGoals}} {{else}} None {{/if}}
-- Active Habits: {{#if activeHabits}} {{jsonStringify activeHabits}} {{else}} None {{/if}}
-- Preferences: {{#if userPreferences}} Preferred Work Times: {{#if userPreferences.preferredWorkTimes}}{{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}} {{else}} Not specified {{/if}}
+- Recent Logs (Mood, Activity, Focus): {{#if recentLogsJson}} {{{recentLogsJson}}} {{else}} None {{/if}}
+- Tasks for Target Date: {{#if tasksForDateJson}} {{{tasksForDateJson}}} {{else}} None {{/if}}
+- Events for Target Date: {{#if eventsForDateJson}} {{{eventsForDateJson}}} {{else}} None {{/if}}
+- Active Goals: {{#if activeGoalsJson}} {{{activeGoalsJson}}} {{else}} None {{/if}}
+- Active Habits: {{#if activeHabitsJson}} {{{activeHabitsJson}}} {{else}} None {{/if}}
+- Preferences: {{#if userPreferences}} Preferred Work Times: {{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}} {{else}} Not specified {{/if}}
 
 Planning Task:
 1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits.
@@ -135,11 +140,10 @@ const generateDailyPlanFlow = ai.defineFlow<
   outputSchema: GenerateDailyPlanOutputSchema,
 }, async (input) => {
 
-    // Basic check: If no tasks or events for the day, and no recent logs, return a simple plan
     if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length) {
         return {
             suggestedPlan: [
-                { startTime: "Morning", activity: "Review priorities & habits", category: "Habit", reasoning: "Start the day with intention." }, // Changed category
+                { startTime: "Morning", activity: "Review priorities & habits", category: "Habit", reasoning: "Start the day with intention." },
                 { startTime: "Afternoon", activity: "Work on a goal or important task", category: "Goal", reasoning: "Allocate time for progress." },
                 { startTime: "Evening", activity: "Relax and wind down", category: "Personal", reasoning: "Prepare for rest." },
             ],
@@ -148,7 +152,6 @@ const generateDailyPlanFlow = ai.defineFlow<
         };
     }
 
-     // Prepare data for the prompt - ensure dates are valid ISO strings
      const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
         return items.map(item => {
             const newItem: Record<string, any> = { ...item };
@@ -160,40 +163,39 @@ const generateDailyPlanFlow = ai.defineFlow<
                      try {
                          const parsedDate = parseISO(dateValue);
                          if (isValid(parsedDate)) {
-                             newItem[key] = formatISO(parsedDate); // Convert potentially string dates from storage
+                             newItem[key] = formatISO(parsedDate);
                          } else {
-                             newItem[key] = null; // Or handle invalid string dates
+                             newItem[key] = null;
                          }
                      } catch {
                          newItem[key] = null;
                      }
                  } else {
-                    newItem[key] = null; // Handle null/undefined/non-date values
+                    newItem[key] = null;
                  }
             });
             return newItem;
         });
     };
 
-    const promptInput: GenerateDailyPlanInput = {
-        ...input,
-        recentLogs: formatForPrompt(input.recentLogs, ['date']),
-        tasksForDate: formatForPrompt(input.tasksForDate, ['dueDate']),
-        eventsForDate: formatForPrompt(input.eventsForDate, ['start', 'end']),
-        activeHabits: formatForPrompt(input.activeHabits, ['lastCompleted']),
-        // Goals don't typically have dates directly passed to this prompt in this structure
-        activeGoals: input.activeGoals, // Pass goals as is
+    // Prepare data for the *new* PromptInputSchema
+    const promptInputForAI: z.infer<typeof PromptInputSchema> = {
+        targetDate: input.targetDate,
+        recentLogsJson: input.recentLogs ? JSON.stringify(formatForPrompt(input.recentLogs, ['date'])) : undefined,
+        tasksForDateJson: input.tasksForDate ? JSON.stringify(formatForPrompt(input.tasksForDate, ['dueDate'])) : undefined,
+        eventsForDateJson: input.eventsForDate ? JSON.stringify(formatForPrompt(input.eventsForDate, ['start', 'end'])) : undefined,
+        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined, // Goals don't typically have dates formatted here this way
+        activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPrompt(input.activeHabits, ['lastCompleted'])) : undefined,
+        userPreferences: input.userPreferences,
     };
 
 
-    // Pass the validated and potentially formatted input to the prompt
-    const { output } = await generatePlanPrompt(promptInput);
+    const { output } = await generatePlanPrompt(promptInputForAI);
 
-     // Handle potential null output from AI
      if (!output) {
          console.error('AI analysis failed to return output for daily plan.');
          return {
-             suggestedPlan: [{ startTime: "Full Day", activity: "Plan could not be generated.", category: "Other" }], // Changed category
+             suggestedPlan: [{ startTime: "Full Day", activity: "Plan could not be generated.", category: "Other" }],
              planRationale: "Error: AI failed to generate a plan.",
              warnings: ["Plan generation failed."],
          };
@@ -201,3 +203,5 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
+
+    

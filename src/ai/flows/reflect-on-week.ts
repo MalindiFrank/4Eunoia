@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { formatISO, parseISO, isValid } from 'date-fns'; // Added isValid
+import { formatISO, parseISO, isValid } from 'date-fns';
 
 // --- Input Data Schemas (Similar to other flows) ---
 const InputLogSchema = z.object({
@@ -33,7 +33,7 @@ const InputGoalSchema = z.object({
     title: z.string(),
     status: z.string(),
     updatedAt: z.string().datetime(),
-    targetDate: z.string().datetime().optional().nullable(), // Added targetDate
+    targetDate: z.string().datetime().optional().nullable(),
 });
 const InputHabitSchema = z.object({
     id: z.string(),
@@ -42,18 +42,15 @@ const InputHabitSchema = z.object({
     streak: z.number(),
     lastCompleted: z.string().datetime().optional().nullable()
 });
-// Add others as needed (Events, Expenses)
 
 // --- Input/Output Schemas for the Flow ---
 const ReflectOnWeekInputSchema = z.object({
     startDate: z.string().datetime().describe("The start date (ISO 8601 format) of the week being reflected upon."),
     endDate: z.string().datetime().describe("The end date (ISO 8601 format) of the week being reflected upon."),
-    // Past week's data summaries
     logs: z.array(InputLogSchema).optional().describe('Daily logs from the past week.'),
     tasks: z.array(InputTaskSchema).optional().describe('Tasks completed or worked on during the week.'),
     goals: z.array(InputGoalSchema).optional().describe('Goals updated during the week.'),
     habits: z.array(InputHabitSchema).optional().describe('Habit progress during the week.'),
-    // Conversation History (Optional)
     previousReflection: z.object({
         questionsAsked: z.array(z.string()),
         userResponses: z.array(z.string()),
@@ -65,9 +62,7 @@ export type ReflectOnWeekInput = z.infer<typeof ReflectOnWeekInputSchema>;
 
 const ReflectOnWeekOutputSchema = z.object({
     coachPrompt: z.string().describe("The AI coach's next question or prompt to guide the reflection."),
-    // Optional summary or observation based on the conversation so far
     observation: z.string().optional().describe("An insightful observation from the AI based on the data and conversation."),
-    // Flag to indicate if the reflection seems complete
     isComplete: z.boolean().default(false).describe("Indicates if the AI believes the reflection session is nearing completion."),
 });
 export type ReflectOnWeekOutput = z.infer<typeof ReflectOnWeekOutputSchema>;
@@ -76,18 +71,28 @@ export type ReflectOnWeekOutput = z.infer<typeof ReflectOnWeekOutputSchema>;
 export async function reflectOnWeek(
   input: ReflectOnWeekInput
 ): Promise<ReflectOnWeekOutput> {
-     // Validate input dates
-    if (!input.startDate || !isValid(parseISO(input.startDate))) {
-        throw new Error("Invalid or missing start date provided for reflection.");
-    }
-    if (!input.endDate || !isValid(parseISO(input.endDate))) {
-        throw new Error("Invalid or missing end date provided for reflection.");
-    }
+     if (!input.startDate || !isValid(parseISO(input.startDate))) {
+         throw new Error("Invalid or missing start date provided for reflection.");
+     }
+     if (!input.endDate || !isValid(parseISO(input.endDate))) {
+         throw new Error("Invalid or missing end date provided for reflection.");
+     }
     return reflectOnWeekFlow(input);
 }
 
 // --- Prompt Definition ---
-const PromptInputSchema = ReflectOnWeekInputSchema; // Reuse for prompt
+// Modify prompt input schema to expect JSON strings
+const PromptInputSchema = z.object({
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+    logsJson: z.string().optional().describe('JSON string of daily logs from the past week.'),
+    tasksJson: z.string().optional().describe('JSON string of tasks from the week.'),
+    goalsJson: z.string().optional().describe('JSON string of goals from the week.'),
+    habitsJson: z.string().optional().describe('JSON string of habits from the week.'),
+    previousReflection: ReflectOnWeekInputSchema.shape.previousReflection.optional(),
+    userResponse: z.string().optional(),
+});
+
 
 const reflectOnWeekPrompt = ai.definePrompt({
   name: 'reflectOnWeekPrompt',
@@ -95,11 +100,11 @@ const reflectOnWeekPrompt = ai.definePrompt({
   output: { schema: ReflectOnWeekOutputSchema },
   prompt: `You are an AI Reflection Coach within the 4Eunoia app. Your role is to guide the user through a supportive and insightful weekly reflection based on their logged data from {{startDate}} to {{endDate}}. Be empathetic, curious, and focus on helping the user identify patterns, celebrate wins, learn from challenges, and set intentions.
 
-Past Week's Data Summary:
-- Logs: {{#if logs}} {{jsonStringify logs}} {{else}} None {{/if}}
-- Tasks: {{#if tasks}} {{jsonStringify tasks}} {{else}} None {{/if}}
-- Goals: {{#if goals}} {{jsonStringify goals}} {{else}} None {{/if}}
-- Habits: {{#if habits}} {{jsonStringify habits}} {{else}} None {{/if}}
+Past Week's Data Summary (JSON Strings):
+- Logs: {{#if logsJson}} {{{logsJson}}} {{else}} None {{/if}}
+- Tasks: {{#if tasksJson}} {{{tasksJson}}} {{else}} None {{/if}}
+- Goals: {{#if goalsJson}} {{{goalsJson}}} {{else}} None {{/if}}
+- Habits: {{#if habitsJson}} {{{habitsJson}}} {{else}} None {{/if}}
 
 Reflection Conversation History (if any):
 {{#if previousReflection}}
@@ -116,13 +121,13 @@ This is the start of the reflection.
 
 Your Task:
 1.  **Analyze:** Review the provided data and conversation history (if any).
-2.  **Respond:** Generate the *next* prompt or question (`coachPrompt`) to continue the reflection.
+2.  **Respond:** Generate the *next* prompt or question ('coachPrompt') to continue the reflection.
     - If starting: Ask an open-ended question referencing the data (e.g., "Looking back at your week, what stands out as a significant win or accomplishment based on your logs and completed tasks?", "I noticed you logged feeling '[mood]' several times this week. Can you tell me more about that?").
     - If continuing: Ask a follow-up question based on the user's last response and the data. Connect their response to patterns (e.g., "You mentioned feeling stressed about [task]. I see it's still 'In Progress'. What's the biggest obstacle there?", "It's great you made progress on [habit]! How did maintaining that streak feel?").
     - Keep questions open-ended and non-judgmental.
     - Aim for 3-5 turns in a typical reflection.
-3.  **Observe (Optional):** If appropriate, provide a brief, encouraging `observation` summarizing a key insight from the conversation so far (e.g., "It sounds like balancing [Area A] and [Area B] was a key theme this week.").
-4.  **Complete?:** Set `isComplete` to true if the conversation feels naturally concluding (e.g., user summarizes, you've covered key areas). Usually after 3-5 good exchanges.
+3.  **Observe (Optional):** If appropriate, provide a brief, encouraging 'observation' summarizing a key insight from the conversation so far (e.g., "It sounds like balancing [Area A] and [Area B] was a key theme this week.").
+4.  **Complete?:** Set 'isComplete' to true if the conversation feels naturally concluding (e.g., user summarizes, you've covered key areas). Usually after 3-5 good exchanges.
 
 Generate the output in the specified JSON format. Maintain a supportive and coaching tone.`,
 });
@@ -137,7 +142,6 @@ const reflectOnWeekFlow = ai.defineFlow<
   outputSchema: ReflectOnWeekOutputSchema,
 }, async (input) => {
 
-     // Prepare data for the prompt - ensure dates are valid ISO strings
       const formatForPrompt = <T extends { [key: string]: any }>(items: T[] = [], dateKeys: (keyof T)[]) => {
         return items.map(item => {
             const newItem: Record<string, any> = { ...item };
@@ -164,21 +168,22 @@ const reflectOnWeekFlow = ai.defineFlow<
         });
     };
 
-     const promptInput: ReflectOnWeekInput = {
-         ...input,
-         logs: formatForPrompt(input.logs, ['date']),
-         tasks: formatForPrompt(input.tasks, ['createdAt', 'dueDate']),
-         goals: formatForPrompt(input.goals, ['updatedAt', 'targetDate']),
-         habits: formatForPrompt(input.habits, ['lastCompleted']),
+     const promptInputForAI: z.infer<typeof PromptInputSchema> = {
+         startDate: input.startDate,
+         endDate: input.endDate,
+         logsJson: input.logs ? JSON.stringify(formatForPrompt(input.logs, ['date'])) : undefined,
+         tasksJson: input.tasks ? JSON.stringify(formatForPrompt(input.tasks, ['createdAt', 'dueDate'])) : undefined,
+         goalsJson: input.goals ? JSON.stringify(formatForPrompt(input.goals, ['updatedAt', 'targetDate'])) : undefined,
+         habitsJson: input.habits ? JSON.stringify(formatForPrompt(input.habits, ['lastCompleted'])) : undefined,
+         previousReflection: input.previousReflection,
+         userResponse: input.userResponse,
      };
 
 
-    const { output } = await reflectOnWeekPrompt(promptInput);
+    const { output } = await reflectOnWeekPrompt(promptInputForAI);
 
-     // Handle potential null output from AI
      if (!output) {
          console.error('AI coach failed to return output for weekly reflection.');
-         // Provide a fallback prompt
          return {
              coachPrompt: "Let's reflect on your past week. What was one highlight or accomplishment?",
              isComplete: false,
