@@ -2,30 +2,30 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns'; // Removed addDays, subDays, addHours
-import { ChevronLeft, ChevronRight, Plus, Edit, Trash2 } from 'lucide-react'; // Added Edit, Trash2
-import { zodResolver } from '@hookform/resolvers/zod'; // Added zodResolver
-import { useForm } from 'react-hook-form'; // Added useForm
-import { z } from 'zod'; // Added z
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
+import { ChevronLeft, ChevronRight, Plus, Edit, Trash2 } from 'lucide-react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added DialogFooter, DialogClose
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'; // Added Form components
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Calendar as CalendarIcon } from 'lucide-react'; // Renamed import
-import { Calendar as ShadCalendar } from '@/components/ui/calendar'; // Renamed import
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'; // Added Popover
-import { Textarea } from '@/components/ui/textarea'; // Added Textarea
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as ShadCalendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import type { CalendarEvent } from '@/services/calendar'; // Import CalendarEvent type
-import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent } from '@/services/calendar'; // Import service functions
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+import type { CalendarEvent } from '@/services/calendar';
+import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent } from '@/services/calendar';
+import { useDataMode } from '@/context/data-mode-context';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 // Event Form Schema
@@ -431,6 +431,42 @@ const CalendarPage: FC = () => {
           </div>
         );
       })}
+    </div>
+  );
+
+  return (
+    <div className="container mx-auto p-4 md:p-6 lg:p-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <h1 className="text-3xl font-bold">Calendar</h1>
+        <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+          <DialogTrigger asChild>
+             <Button onClick={() => openEventDialog(new Date())}> {/* Open dialog with today's date */}
+               <Plus className="mr-2 h-4 w-4" /> Add Event
+             </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[480px]"> {/* Slightly wider for date/time pickers */}
+             <DialogHeader>
+               <DialogTitle>{editingEvent ? 'Edit Event' : 'Add New Event'}</DialogTitle>
+             </DialogHeader>
+             <EventForm
+                onClose={closeEventDialog}
+                initialData={editingEvent}
+                selectedDate={selectedDate || undefined} // Pass selectedDate
+                onSave={handleSaveEvent}
+              />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card className="shadow-lg">
+        <CardHeader className="pt-4 pb-2 px-4">
+             {renderHeader()}
+             {renderDaysOfWeek()}
+        </CardHeader>
+        <CardContent className="p-2">
+          {renderCells()}
+        </CardContent>
+      </Card>
     </div>
   );
 };
