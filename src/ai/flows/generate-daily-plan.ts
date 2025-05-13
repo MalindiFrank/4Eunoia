@@ -45,9 +45,9 @@ const InputHabitSchema = z.object({
 
 // --- Flow Input/Output Schemas ---
 const UserPreferencesSchema = z.object({
-    preferredWorkTimes: z.enum(['Morning', 'Afternoon', 'Evening', 'Flexible']).optional(),
+    preferredWorkTimes: z.enum(['Morning', 'Afternoon', 'Evening', 'Flexible']).optional().describe("User's preferred time for focused work."),
     energyLevelPattern: z.string().optional().describe('Brief description of typical energy levels (e.g., "High energy mornings, dips mid-afternoon").'),
-    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional(),
+    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's desired pace for personal growth activities (e.g., tackling goals)."),
 });
 
 const GenerateDailyPlanInputSchema = z.object({
@@ -89,13 +89,12 @@ export async function generateDailyPlan(
 // --- Prompt Definition ---
 const PromptInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
-    recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days.'),
-    tasksForDateJson: z.string().optional().describe('JSON string of tasks due on or relevant to the target date.'),
-    eventsForDateJson: z.string().optional().describe('JSON string of calendar events scheduled for the target date.'),
-    activeGoalsJson: z.string().optional().describe("JSON string of user's 'In Progress' goals."),
-    activeHabitsJson: z.string().optional().describe("JSON string of user's active habits."),
-    // Add pre-formatted preference strings
-    preferencesDisplay: z.string().describe("A string summarizing user preferences, or 'Not specified.' if none.")
+    recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days (mood, activity, focusLevel).'),
+    tasksForDateJson: z.string().optional().describe('JSON string of tasks due on or relevant to the target date (title, status, dueDate).'),
+    eventsForDateJson: z.string().optional().describe('JSON string of calendar events scheduled for the target date (title, start, end).'),
+    activeGoalsJson: z.string().optional().describe("JSON string of user's 'In Progress' goals (title, status)."),
+    activeHabitsJson: z.string().optional().describe("JSON string of user's active habits (title, frequency)."),
+    preferencesDisplay: z.string().describe("A string summarizing user preferences (preferredWorkTimes, energyLevelPattern, growthPace), or 'Not specified.' if none.")
 });
 
 
@@ -103,7 +102,7 @@ const generatePlanPrompt = ai.definePrompt({
   name: 'generateDailyPlanPrompt',
   input: { schema: PromptInputSchema },
   output: { schema: GenerateDailyPlanOutputSchema },
-  prompt: `You are an AI assistant creating a realistic and emotionally-informed daily plan for a user of the 4Eunoia app. The goal is to suggest a balanced schedule for {{targetDate}} that considers their recent mood/energy, upcoming commitments, tasks, goals, and habits.
+  prompt: `You are an AI assistant creating a realistic and emotionally-informed daily plan for a user of the 4Eunoia app. The goal is to suggest a balanced schedule for {{targetDate}} that considers their recent mood/energy, upcoming commitments, tasks, goals, habits, and stated preferences.
 
 User Context & Data:
 - Target Date: {{targetDate}}
@@ -115,20 +114,20 @@ User Context & Data:
 - Preferences: {{preferencesDisplay}}
 
 Planning Task:
-1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits and stated preferences.
+1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals, habits, and stated preferences, especially 'preferredWorkTimes', 'energyLevelPattern', and 'growthPace'.
 2.  **Structure:** Create a **Suggested Plan** consisting of realistic time blocks or activities for the day.
     - **Integrate fixed events:** Include scheduled calendar events first.
-    - **Allocate task time:** Suggest specific blocks for important or due tasks. Consider recent mood/focus – if low energy/focus recently, suggest starting with easier tasks or breaking down larger ones. If high energy, suggest tackling challenging tasks during preferred work times or typical peak energy periods (if known from preferences).
-    - **Incorporate goals/habits:** Suggest time for a small step towards an active goal (based on growth pace preference) or remind them of daily/relevant habits.
-    - **Suggest breaks:** Include short breaks, especially around long meetings or focus blocks.
+    - **Allocate task time:** Suggest specific blocks for important or due tasks. Consider recent mood/focus – if low energy/focus recently, suggest starting with easier tasks or breaking down larger ones. If high energy, suggest tackling challenging tasks during 'preferredWorkTimes' or typical peak 'energyLevelPattern' periods (if known).
+    - **Incorporate goals/habits:** Suggest time for a small step towards an active goal (based on 'growthPace' preference - e.g., aggressive pace means more/longer goal blocks). Remind them of daily/relevant habits.
+    - **Suggest breaks:** Include short breaks (5-15 mins) after focus blocks or long meetings.
     - **Consider mood/energy:** If recent logs show stress/tiredness, prioritize rest, self-care, or lower-intensity activities. If logs show positive mood/productivity, leverage that momentum.
-    - **Use flexible timing:** Use general times like "Morning", "Afternoon", or specific times (e.g., "9:00 AM - 10:00 AM") where appropriate.
+    - **Use flexible timing:** Use general times like "Morning (9-12)", "Afternoon (1-5)", "Evening (7-9)" or specific times (e.g., "9:00 AM - 10:00 AM") where appropriate.
     - **Categorize activities:** Use categories like Work, Personal, Health, Learning, Break, Chore, Social, Goal, Habit, Event, Other.
-    - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (optional but helpful).
-3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs and preferred afternoon work time.").
-4.  **Warnings (Optional):** List any potential **Warnings** like a very packed schedule, conflicting items, or suggestions based on potential low energy.
+    - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (e.g., "Leverage morning high energy for [Goal Task]", "Fit [Task] between meetings", "Short break after [Event]").
+3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs and preferred afternoon work time. Goal work is scheduled based on Moderate growth pace.").
+4.  **Warnings (Optional):** List any potential **Warnings** like a very packed schedule, conflicting items, or suggestions based on potential low energy (e.g., "Afternoon looks busy; ensure you take your breaks.").
 
-Generate the output in the specified JSON format. Be realistic, empathetic, and flexible. The plan is a suggestion, not a rigid schedule.`,
+Generate the output in the specified JSON format. Be realistic, empathetic, and flexible. The plan is a suggestion, not a rigid schedule. Ensure all time blocks have a category.`,
 });
 
 
@@ -142,7 +141,7 @@ const generateDailyPlanFlow = ai.defineFlow<
   outputSchema: GenerateDailyPlanOutputSchema
 }, async (input) => {
 
-    if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length) {
+    if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length && !input.activeGoals?.length && !input.activeHabits?.length) {
         return {
             suggestedPlan: [
                 { startTime: "Morning", activity: "Review priorities & habits", category: "Habit", reasoning: "Start the day with intention." },
@@ -167,20 +166,19 @@ const generateDailyPlanFlow = ai.defineFlow<
                          if (isValid(parsedDate)) {
                              newItem[key] = formatISO(parsedDate);
                          } else {
-                             newItem[key] = null; // Explicitly nullify invalid date strings
+                             newItem[key] = null; 
                          }
                      } catch {
-                         newItem[key] = null; // Explicitly nullify on parse error
+                         newItem[key] = null; 
                      }
                  } else if (dateValue === undefined || dateValue === null) {
-                    newItem[key] = null; // Ensure undefined becomes null for consistency if needed by schema/prompt
+                    newItem[key] = null; 
                  }
             });
             return newItem;
         });
     };
 
-    // Pre-calculate preferences display string
     let preferencesDisplay = "Not specified.";
     if (input.userPreferences) {
         const { preferredWorkTimes, energyLevelPattern, growthPace } = input.userPreferences;
@@ -193,8 +191,6 @@ const generateDailyPlanFlow = ai.defineFlow<
         }
     }
 
-
-    // Prepare data for the *new* PromptInputSchema
     const promptInputForAI: z.infer<typeof PromptInputSchema> = {
         targetDate: input.targetDate,
         recentLogsJson: input.recentLogs ? JSON.stringify(formatForPrompt(input.recentLogs, ['date'])) : undefined,

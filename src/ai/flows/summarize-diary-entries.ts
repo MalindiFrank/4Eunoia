@@ -11,41 +11,36 @@
 
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
-import { formatISO, parseISO, isValid } from 'date-fns'; // Added isValid
-import type { LogEntry } from '@/services/daily-log'; // Use service type
+import { formatISO, parseISO, isValid } from 'date-fns'; 
+import type { LogEntry } from '@/services/daily-log'; 
 
-// Define structure for individual diary entries passed to the flow
 const InputDiaryEntrySchema = z.object({
   id: z.string(),
-  date: z.string().datetime(), // Expect ISO string
+  date: z.string().datetime(), 
   text: z.string(),
 });
 
 const SummarizeDiaryEntriesInputSchema = z.object({
   frequency: z.enum(['weekly', 'monthly']).describe('The frequency of summarization (weekly or monthly).'),
-  // Add diary entries as input
   diaryEntries: z.array(InputDiaryEntrySchema).describe('An array of diary entry objects to summarize.'),
-  // Dates are now part of the context, determined by component based on frequency
    startDate: z.string().datetime().describe('The start date (ISO 8601 format) of the period being summarized.'),
    endDate: z.string().datetime().describe('The end date (ISO 8601 format) of the period being summarized.'),
 });
 export type SummarizeDiaryEntriesInput = z.infer<typeof SummarizeDiaryEntriesInputSchema>;
 
 
-// Zod schema for diary entries passed *to the prompt*. Keep string date.
 const DiaryEntryPromptSchema = z.object({
-      id: z.string(), // Include ID
+      id: z.string(), 
       date: z.string().datetime().describe('The date of the diary entry (ISO 8601 format).'),
       text: z.string().describe('The text content of the diary entry.'),
 });
 
 const SummarizeDiaryEntriesOutputSchema = z.object({
-  summary: z.string().describe('A summary of the diary entries, focusing on the overall emotional tone, key themes, and actionable insights.'),
+  summary: z.string().describe('A summary of the diary entries, focusing on the overall emotional tone, key themes, actionable insights, and potentially an overarching story or feeling for the period.'),
   keyEvents: z.array(z.string()).describe('A list of 2-4 significant events or activities mentioned.'),
   emotions: z.array(z.string()).describe('A list of 2-4 dominant or recurring emotions expressed (e.g., happy, stressed, excited).'),
   reflections: z.array(z.string()).describe('A list of 1-3 key personal reflections, questions, or insights identified for self-growth.'),
    entryCount: z.number().describe('The number of diary entries summarized.'),
-   // Use string dates in the final Zod output schema to match JSON validation
    dateRange: z.object({
        start: z.string().datetime().describe('Start date (ISO 8601 format) of the summarized period.'),
        end: z.string().datetime().describe('End date (ISO 8601 format) of the summarized period.'),
@@ -55,8 +50,7 @@ export type SummarizeDiaryEntriesOutput = z.infer<typeof SummarizeDiaryEntriesOu
 
 
 export async function summarizeDiaryEntries(input: SummarizeDiaryEntriesInput): Promise<SummarizeDiaryEntriesOutput> {
-   // Validate input dates
-    if (!input.startDate || !isValid(parseISO(input.startDate))) {
+   if (!input.startDate || !isValid(parseISO(input.startDate))) {
         throw new Error("Invalid or missing start date provided for diary summary.");
     }
     if (!input.endDate || !isValid(parseISO(input.endDate))) {
@@ -65,7 +59,6 @@ export async function summarizeDiaryEntries(input: SummarizeDiaryEntriesInput): 
   return summarizeDiaryEntriesFlow(input);
 }
 
-// Define the prompt input schema using string dates (as received in flow input)
 const PromptInputSchema = z.object({
       diaryEntries: z.array(DiaryEntryPromptSchema).describe('An array of diary entries to summarize, sorted chronologically.'),
       frequency: z.enum(['weekly', 'monthly']).describe('The frequency of summarization (weekly or monthly).'),
@@ -79,9 +72,8 @@ const prompt = ai.definePrompt({
     schema: PromptInputSchema,
   },
   output: {
-     // Omitting entryCount and dateRange from AI output schema, as we calculate them outside
      schema: z.object({
-       summary: z.string().describe('Provide a concise (3-5 sentences) **Summary** of the diary entries. Focus on the overall emotional tone of the period ({{frequency}}), identify 1-2 recurring themes or key areas of focus (e.g., work stress, relationship reflections, progress on a goal), and mention any potential actionable insights or questions raised by the user.'),
+       summary: z.string().describe('Provide a concise (3-5 sentences) **Summary** of the diary entries. Synthesize the information: What is the overarching story or feeling of this period? Focus on the overall emotional tone ({{frequency}}), identify 1-2 recurring themes or key areas of focus (e.g., work stress, relationship reflections, progress on a goal), and mention any potential actionable insights or questions raised by the user.'),
        keyEvents: z.array(z.string()).describe('List 2-4 significant **Key Events** or activities mentioned (e.g., "Completed project," "Had argument," "Started new hobby").'),
        emotions: z.array(z.string()).describe('List 2-4 dominant or recurring **Emotions** expressed (e.g., "Gratitude," "Frustration," "Excitement," "Anxiety").'),
        reflections: z.array(z.string()).describe('Identify 1-3 key personal **Reflections**, insights, or questions posed in the entries that suggest areas for self-growth (e.g., "Questioning career path," "Realizing the need for better boundaries," "Acknowledging a pattern of procrastination").'),
@@ -89,7 +81,7 @@ const prompt = ai.definePrompt({
   },
    prompt: `You are an AI assistant skilled in analyzing personal diary entries to provide insightful summaries for self-reflection and personal development.
 
-  Analyze the following diary entries from {{startDate}} to {{endDate}} (summarized {{frequency}}). Focus on extracting the emotional tone, key themes, and points for self-reflection.
+  Analyze the following diary entries from {{startDate}} to {{endDate}} (summarized {{frequency}}). Focus on extracting the emotional tone, key themes, and points for self-reflection. Synthesize the information to tell a brief story of the period.
 
   Diary Entries (Chronological):
   {{#if diaryEntries}}
@@ -107,7 +99,7 @@ const prompt = ai.definePrompt({
 });
 
 const summarizeDiaryEntriesFlow = ai.defineFlow<
-  typeof SummarizeDiaryEntriesInputSchema, // Includes diaryEntries, frequency, startDate, endDate
+  typeof SummarizeDiaryEntriesInputSchema, 
   typeof SummarizeDiaryEntriesOutputSchema
 >({
   name: 'summarizeDiaryEntriesFlow',
@@ -116,7 +108,6 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
 }, async (input) => {
     const { diaryEntries = [], frequency, startDate, endDate } = input;
 
-    // Filter out entries with invalid dates before processing
     const validDiaryEntries = diaryEntries.filter(entry => {
         try {
             return isValid(parseISO(entry.date));
@@ -125,7 +116,6 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
         }
     });
 
-    // Handle no entries case before calling the prompt
     if (validDiaryEntries.length === 0) {
         return {
             summary: `No valid diary entries found for this ${frequency} period (${formatISO(parseISO(startDate), { representation: 'date'})} to ${formatISO(parseISO(endDate), { representation: 'date'})}).`,
@@ -133,18 +123,16 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
             emotions: [],
             reflections: [],
             entryCount: 0,
-            dateRange: { start: startDate, end: endDate }, // Use dates passed from component
+            dateRange: { start: startDate, end: endDate }, 
         };
     }
 
-    // Prepare data for the prompt (dates are already ISO strings)
     const promptInputData: z.infer<typeof PromptInputSchema> = {
-        diaryEntries: validDiaryEntries.map(entry => ({ // Ensure structure matches prompt schema
-            id: entry.id, // Pass ID
+        diaryEntries: validDiaryEntries.map(entry => ({ 
+            id: entry.id, 
             date: entry.date,
             text: entry.text,
         })).sort((a, b) => {
-            // Safely parse dates for sorting
              try {
                  const dateA = parseISO(a.date).getTime();
                  const dateB = parseISO(b.date).getTime();
@@ -153,7 +141,7 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
                  }
              } catch { /* Ignore parsing errors during sort */ }
              return 0;
-        }), // Sort chronologically
+        }), 
         frequency: frequency,
         startDate: startDate,
         endDate: endDate,
@@ -161,7 +149,6 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
 
     const {output} = await prompt(promptInputData);
 
-    // Add fallback if AI output is missing
      if (!output) {
          console.error('AI analysis failed to return output for diary summary.');
          return {
@@ -174,14 +161,13 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
          };
      }
 
-    // Combine AI output with calculated data
     return {
         summary: output.summary,
         keyEvents: output.keyEvents,
         emotions: output.emotions,
         reflections: output.reflections,
         entryCount: validDiaryEntries.length,
-        dateRange: { start: startDate, end: endDate }, // Use dates passed from component
+        dateRange: { start: startDate, end: endDate }, 
     };
 });
 

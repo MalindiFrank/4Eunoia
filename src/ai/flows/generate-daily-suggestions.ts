@@ -54,14 +54,18 @@ const GenerateDailySuggestionsInputSchema = z.object({
     activeGoals: z.array(InputGoalSchema).optional().describe("User's 'In Progress' goals."),
     userLocation: z.string().optional().describe('User\'s current general location (e.g., "City, Country") for weather/context.'),
     weatherCondition: z.string().optional().describe('Brief description of current weather (e.g., "Rainy", "Sunny", "Cold").'),
-    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's preferred personal growth pace setting."),
+    // Added growthPace from user preferences
+    userPreferences: z.object({
+        growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's preferred personal growth pace setting."),
+        // Potentially add preferredWorkTimes, energyLevelPattern if useful for suggestions too
+    }).optional(),
 });
 export type GenerateDailySuggestionsInput = z.infer<typeof GenerateDailySuggestionsInputSchema>;
 
 const SuggestionSchema = z.object({
     suggestion: z.string().describe("The specific suggestion text."),
     category: z.enum(['Routine', 'Focus', 'Break', 'Self-care', 'Goal', 'Habit', 'Other']).describe("The category of the suggestion."),
-    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline')."),
+    reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline', 'Matches your Moderate growth pace for goals')."),
 });
 
 const GenerateDailySuggestionsOutputSchema = z.object({
@@ -81,7 +85,6 @@ export async function generateDailySuggestions(
 }
 
 // --- Prompt Definition ---
-// Modify prompt input schema to expect JSON strings
 const PromptInputSchema = z.object({
     currentDateTime: z.string().datetime(),
     recentLogsJson: z.string().optional().describe('JSON string of recent daily logs.'),
@@ -91,7 +94,8 @@ const PromptInputSchema = z.object({
     activeGoalsJson: z.string().optional().describe('JSON string of active goals.'),
     userLocation: z.string().optional(),
     weatherCondition: z.string().optional(),
-    growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional(),
+    // Use a single string for preferences in the prompt
+    preferencesDisplay: z.string().describe("A string summarizing user preferences, or 'Not specified.' if none.")
 });
 
 
@@ -105,7 +109,7 @@ Current Context:
 - Time: {{currentDateTime}}
 - Location: {{userLocation | default "Not provided"}}
 - Weather: {{weatherCondition | default "Not provided"}}
-- Growth Pace Setting: {{growthPace | default "Moderate"}}
+- Preferences: {{preferencesDisplay}}
 
 Recent Data Summary (JSON Strings):
 - Recent Logs (Mood/Activity/Focus): {{#if recentLogsJson}} {{{recentLogsJson}}} {{else}} None {{/if}}
@@ -115,22 +119,23 @@ Recent Data Summary (JSON Strings):
 - Active Goals: {{#if activeGoalsJson}} {{{activeGoalsJson}}} {{else}} None {{/if}}
 
 Generate 2-4 suggestions based on the *combination* of these factors. Consider:
-- **Time of Day:** Morning suggestions might focus on routines or planning, afternoon on focus/breaks, evening on winding down or self-care.
+- **Time of Day:** Morning suggestions might focus on routines or planning; afternoon on focus/breaks; evening on winding down or self-care.
 - **Mood & Focus:** If logs indicate stress/low energy/low focus, suggest breaks, self-care, easier tasks, or focus-enhancing activities. If productive/high focus, suggest tackling a challenging task or goal.
 - **Schedule:** If the calendar is busy, suggest short breaks or quick wins. If open, suggest focus blocks or goal work.
 - **Tasks:** If deadlines are near, suggest focusing on those tasks.
 - **Habits:** Remind or suggest incorporating habits (e.g., "Time for your daily meditation?").
-- **Goals:** Suggest a small step towards an active goal, especially if the schedule allows and growth pace is moderate/aggressive.
+- **Goals:** Suggest a small step towards an active goal, especially if the schedule allows. The intensity/frequency of goal suggestions should align with the user's 'growthPace' preference (e.g., an 'Aggressive' pace might get more goal-oriented suggestions).
 - **Weather/Location (Optional):** If rainy, suggest indoor activities. If sunny, suggest a walk.
 
 Suggestion Categories: Routine, Focus, Break, Self-care, Goal, Habit, Other. Include brief reasoning where helpful.
 
-Optionally, provide a brief **Daily Focus** theme.
+Optionally, provide a brief **Daily Focus** theme for the day.
 
 Example Suggestion Structure:
 { suggestion: "Schedule a 15-min walk outside.", category: "Break", reasoning: "Sunny weather and calendar looks open." }
 { suggestion: "Tackle the 'Report Draft' task.", category: "Focus", reasoning: "Upcoming deadline and logged 'Productive' mood earlier." }
 { suggestion: "Try a 5-minute breathing exercise.", category: "Self-care", reasoning: "Logged 'Anxious' mood and low focus recently." }
+{ suggestion: "Work on '[Goal Title]' for 30 minutes.", category: "Goal", reasoning: "Aligns with your 'Moderate' growth pace and you have an open slot." }
 
 Generate the output in the specified JSON format. Be positive, supportive, and actionable.`,
 });
@@ -147,7 +152,7 @@ const generateDailySuggestionsFlow = ai.defineFlow<
 
     const hasData = input.recentLogs?.length || input.upcomingTasks?.length || input.todaysEvents?.length || input.activeHabits?.length || input.activeGoals?.length;
 
-    if (!hasData) {
+    if (!hasData && !input.weatherCondition && !input.userPreferences?.growthPace) { // Check if any contextual data exists
         return {
             suggestions: [
                 { suggestion: "Plan your top 3 priorities for today.", category: "Routine", reasoning: "Setting intentions helps focus." },
@@ -184,16 +189,28 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         });
     };
 
+    let preferencesDisplay = "Not specified.";
+    if (input.userPreferences) {
+        const { growthPace } = input.userPreferences; // Add other preferences here if needed
+        const parts: string[] = [];
+        if (growthPace) parts.push(`Growth Pace: ${growthPace}`);
+        // if (preferredWorkTimes) parts.push(`Preferred Work Times: ${preferredWorkTimes}`);
+        // if (energyLevelPattern) parts.push(`Energy Pattern: ${energyLevelPattern}`);
+        if (parts.length > 0) {
+            preferencesDisplay = parts.join(', ') + ".";
+        }
+    }
+
      const promptInputForAI: z.infer<typeof PromptInputSchema> = {
         currentDateTime: input.currentDateTime,
         recentLogsJson: input.recentLogs ? JSON.stringify(formatForPrompt(input.recentLogs, ['date'])) : undefined,
         upcomingTasksJson: input.upcomingTasks ? JSON.stringify(formatForPrompt(input.upcomingTasks, ['dueDate'])) : undefined,
         todaysEventsJson: input.todaysEvents ? JSON.stringify(formatForPrompt(input.todaysEvents, ['start', 'end'])) : undefined,
         activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPrompt(input.activeHabits, ['lastCompleted'])) : undefined,
-        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined, // Assuming goals don't have dates to format here
+        activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPrompt(input.activeGoals, [])) : undefined, 
         userLocation: input.userLocation,
         weatherCondition: input.weatherCondition,
-        growthPace: input.growthPace,
+        preferencesDisplay: preferencesDisplay, // Pass the generated string
     };
 
 

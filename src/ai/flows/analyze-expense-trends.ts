@@ -11,15 +11,14 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { differenceInDays, parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; // Added isValid
-import type { Expense } from '@/services/expense'; // Use type from service
+import { differenceInDays, parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; 
+import type { Expense } from '@/services/expense'; 
 
-// Schema for expenses passed into the flow (matches service type structure)
 const InputExpenseSchema = z.object({
     id: z.string(),
     description: z.string(),
     amount: z.number(),
-    date: z.string().datetime(), // Expect ISO string for validation
+    date: z.string().datetime(), 
     category: z.string(),
 });
 
@@ -27,7 +26,6 @@ const InputExpenseSchema = z.object({
 const AnalyzeExpenseTrendsInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing expense trends.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing expense trends.'),
-  // Add expenses as input
   expenses: z.array(InputExpenseSchema).describe('An array of expense objects relevant to the user.'),
 });
 export type AnalyzeExpenseTrendsInput = z.infer<
@@ -45,8 +43,7 @@ const AnalyzeExpenseTrendsOutputSchema = z.object({
   averageDailySpending: z.number().describe('The average amount spent per day within the specified date range.'),
   topSpendingCategories: z.array(TopSpendingCategorySchema).describe('A list of the top 3-5 spending categories, sorted by amount descending.'),
   spendingSummary: z.string().describe('A brief textual summary (2-3 sentences) of the spending patterns observed during the period, including potential insights or areas for review.'),
-  // Added field for potential savings suggestions
-  savingsSuggestions: z.array(z.string()).optional().describe('List of 1-2 actionable suggestions for potential savings based on spending patterns.'),
+  savingsSuggestions: z.array(z.string()).optional().describe('List of 1-2 actionable and specific suggestions for potential savings based on spending patterns. E.g., "Your \'Subscription\' category is X% of spending; review individual subscriptions like Y and Z for cancellation" rather than "Spend less on subscriptions".'),
 });
 export type AnalyzeExpenseTrendsOutput = z.infer<
   typeof AnalyzeExpenseTrendsOutputSchema
@@ -55,7 +52,6 @@ export type AnalyzeExpenseTrendsOutput = z.infer<
 export async function analyzeExpenseTrends(
   input: AnalyzeExpenseTrendsInput
 ): Promise<AnalyzeExpenseTrendsOutput> {
-    // Validate input dates
     if (!input.startDate || !isValid(parseISO(input.startDate))) {
         throw new Error("Invalid or missing start date provided for expense analysis.");
     }
@@ -65,16 +61,13 @@ export async function analyzeExpenseTrends(
     return analyzeExpenseTrendsFlow(input);
 }
 
-// Define prompt input schema matching the data we will pass
 const PromptInputSchema = z.object({
     startDate: z.string().datetime().describe('Start date in ISO 8601 format.'),
     endDate: z.string().datetime().describe('End date in ISO 8601 format.'),
-    // Provide calculated data directly to the prompt for summary generation
     totalSpending: z.number(),
     averageDailySpending: z.number(),
     topSpendingCategoriesJson: z.string().describe("JSON string of the top spending categories: [{category, amount, percentage}]"),
     numberOfDays: z.number(),
-    // Include raw expense list (summarized) for deeper insights
     expenseListSummaryJson: z.string().describe("JSON string summarizing key expenses for context (e.g., [{description, amount, category}]). Limit to ~10-15 largest or most frequent."),
 });
 
@@ -84,10 +77,9 @@ const analyzeExpenseTrendsPrompt = ai.definePrompt({
     schema: PromptInputSchema,
   },
   output: {
-     // AI generates summary and suggestions
     schema: z.object({
         spendingSummary: z.string().describe('A brief textual summary (2-3 sentences) of the spending patterns observed during the period, incorporating calculated figures and potentially highlighting unusual items or high-spending areas.'),
-        savingsSuggestions: z.array(z.string()).optional().describe('Provide 1-2 concrete, actionable savings suggestions based on the top categories or specific large expenses noted in the summary list (e.g., "Review subscription costs," "Consider packing lunch more often"). Omit if no clear opportunities.'),
+        savingsSuggestions: z.array(z.string()).optional().describe('Provide 1-2 concrete, actionable, and specific savings suggestions based on the top categories or specific large expenses noted in the summary list. Example: "Your \'Entertainment\' subscriptions account for [amount/percentage]; review services like [Service A] and [Service B] to see if they are still needed." Or "Consider comparing prices for \'Groceries\' at [Store X] versus your current store, as this is your top category." Omit if no clear opportunities.'),
     }),
   },
    prompt: `Analyze the user's spending patterns for the period {{startDate}} to {{endDate}} ({{numberOfDays}} days).
@@ -102,8 +94,8 @@ Expense List Summary (for context on specific items, JSON):
 
 
 Based on the calculated figures and the expense list summary:
-1.  Provide a **Spending Summary** (2-3 sentences). Go beyond just stating the numbers. Mention the top category, comment on the daily average (is it high/low?), and point out any potentially noteworthy items or trends from the list (e.g., "Spending is dominated by [Top Category]. Several large purchases in [Another Category] also contributed significantly.").
-2.  Generate 1-2 actionable **Savings Suggestions** if obvious opportunities exist based on the top categories or specific large/recurring expenses. Examples: "Review your 'Entertainment' subscriptions for potential cuts," "Consider comparing prices for 'Groceries' at different stores." If no clear suggestions, omit this field or provide an empty array.
+1.  Provide a **Spending Summary** (2-3 sentences). Go beyond just stating the numbers. Mention the top category, comment on the daily average (is it high/low for this user, if context allows?), and point out any potentially noteworthy items or trends from the list (e.g., "Spending is dominated by [Top Category]. Several large purchases in [Another Category] also contributed significantly.").
+2.  Generate 1-2 actionable and specific **Savings Suggestions** if obvious opportunities exist. Examples: "Your 'Entertainment' subscriptions amount to X; review [Specific Subscription] and [Another Specific Subscription] for potential cuts," or "Since 'Groceries' is your top category at Y amount, consider exploring budget-friendly recipes for a few meals a week." If no clear, specific suggestions, omit this field or provide an empty array.
 
 Generate the output in the specified JSON format.
 `,
@@ -120,11 +112,9 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
     outputSchema: AnalyzeExpenseTrendsOutputSchema,
   },
   async (input) => {
-    // Parse input date strings into Date objects safely
     const startDate = parseISO(input.startDate);
     const endDate = parseISO(input.endDate);
 
-    // Use expenses passed in the input, parsing dates safely
     const allExpenses: Expense[] = input.expenses
         .map(e => {
             try {
@@ -133,16 +123,14 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
                     return { ...e, date };
                 }
             } catch { /* Ignore invalid dates */ }
-            return null; // Return null for invalid entries
+            return null; 
         })
-        .filter((e): e is Expense => e !== null); // Filter out null entries
+        .filter((e): e is Expense => e !== null); 
 
-    // Filter expenses within the date range
     const filteredExpenses = allExpenses.filter(expense => {
        return isValid(expense.date) && isWithinInterval(expense.date, { start: startDate, end: endDate });
      });
 
-     // --- Calculations ---
      const numberOfDays = differenceInDays(endDate, startDate) + 1;
      const validNumberOfDays = numberOfDays > 0 ? numberOfDays : 1;
 
@@ -156,14 +144,13 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
 
      const topSpendingCategories = Object.entries(spendingByCategory)
         .sort(([, a], [, b]) => b - a)
-        .slice(0, 5) // Get top 5
+        .slice(0, 5) 
         .map(([category, amount]) => ({
             category,
             amount: parseFloat(amount.toFixed(2)),
             percentage: totalSpending > 0 ? parseFloat(((amount / totalSpending) * 100).toFixed(1)) : 0,
         }));
 
-     // Handle case with no expenses found
      if (filteredExpenses.length === 0) {
          return {
              totalSpending: 0,
@@ -174,15 +161,13 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
          };
      }
 
-     // Prepare summarized list for prompt context (e.g., top 10 expenses by amount)
      const expenseListSummary = filteredExpenses
         .sort((a, b) => b.amount - a.amount)
-        .slice(0, 10) // Limit context size
+        .slice(0, 10) 
         .map(e => ({ description: e.description, amount: e.amount, category: e.category }));
 
-    // --- Call AI ---
     const promptInputData: z.infer<typeof PromptInputSchema> = {
-      startDate: input.startDate, // Pass original ISO strings
+      startDate: input.startDate, 
       endDate: input.endDate,
       totalSpending: parseFloat(totalSpending.toFixed(2)),
       averageDailySpending: averageDailySpending,
@@ -191,18 +176,17 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
       expenseListSummaryJson: JSON.stringify(expenseListSummary),
     };
 
-     let summary = "Summary could not be generated."; // Default summary
-     let suggestions: string[] | undefined = []; // Default suggestions
+     let summary = "Summary could not be generated."; 
+     let suggestions: string[] | undefined = []; 
 
      try {
         const { output } = await analyzeExpenseTrendsPrompt(promptInputData);
          if (output) {
             summary = output.spendingSummary || `Total spending: $${totalSpending.toFixed(2)}. Avg daily: $${averageDailySpending.toFixed(2)}. Top category: ${topSpendingCategories[0]?.category || 'N/A'}.`;
-            suggestions = output.savingsSuggestions; // Use AI suggestions if provided
+            suggestions = output.savingsSuggestions; 
         } else {
              console.warn("AnalyzeExpenseTrendsPrompt did not return output.");
              summary = `Total spending: $${totalSpending.toFixed(2)}. Avg daily: $${averageDailySpending.toFixed(2)}. Top category: ${topSpendingCategories[0]?.category || 'N/A'}.`;
-             // Basic fallback suggestion
              if (topSpendingCategories.length > 0) {
                  suggestions = [`Review spending in the '${topSpendingCategories[0].category}' category.`];
              }
@@ -212,8 +196,6 @@ const analyzeExpenseTrendsFlow = ai.defineFlow<
          summary = `Error generating summary. ($${totalSpending.toFixed(2)} total, $${averageDailySpending.toFixed(2)} avg daily).`;
      }
 
-
-    // --- Construct Final Output ---
     return {
       totalSpending: parseFloat(totalSpending.toFixed(2)),
       averageDailySpending: averageDailySpending,

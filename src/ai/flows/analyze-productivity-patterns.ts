@@ -14,7 +14,7 @@ import type { LogEntry } from '@/services/daily-log'; // Uses focusLevel
 import type { Task } from '@/services/task';
 import type { CalendarEvent } from '@/services/calendar';
 import type { Note } from '@/services/note';
-import { formatISO, isValid, parseISO } from 'date-fns'; // Added isValid, parseISO
+import { formatISO, isValid, parseISO } from 'date-fns'; 
 
 // Define expected input structure for Zod validation (ISO dates)
 const EventSchema = z.object({
@@ -45,14 +45,13 @@ const LogEntrySchema = z.object({
   notes: z.string().optional(),
   diaryEntry: z.string().optional(),
   mood: z.string().optional(),
-  focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
+  focusLevel: z.number().min(1).max(5).optional().nullable(), 
 });
 
 
 const AnalyzeProductivityPatternsInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing productivity patterns.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing productivity patterns.'),
-  // Pass all relevant data directly into the flow
   calendarEvents: z.array(EventSchema).optional().describe('Calendar events within the specified date range.'),
   tasks: z.array(TaskSchema).optional().describe('Tasks relevant to the period (due or created).'),
   notes: z.array(NoteSchema).optional().describe('Notes created within the range.'),
@@ -69,17 +68,17 @@ export type AnalyzeProductivityPatternsInput = z.infer<
 const AnalyzeProductivityPatternsOutputSchema = z.object({
   peakPerformanceTimes: z
     .string()
-    .describe('Identifies the times of day or days of the week when the user seems most productive or focused based on logs (activity, mood, focusLevel), task completion, and calendar events.'),
+    .describe('Identifies the times of day or days of the week when the user seems most productive or focused based on logs (activity, mood, focusLevel), task completion, and calendar events. Should correlate this with types of activities logged if possible.'),
   commonDistractionsOrObstacles: z
     .string()
-    .describe('Identifies potential recurring distractions, obstacles (mentioned in diary), challenges (low focusLevel logs), or indicated by overdue tasks or low activity periods.'),
+    .describe('Identifies potential recurring distractions, obstacles (mentioned in diary), challenges (low focusLevel logs), or indicated by overdue tasks or low activity periods. If diary entries are sparse, rely more on patterns of low focusLevel logs, overdue tasks, or high context switching.'),
   attentionQualityAssessment: z
      .string()
      .optional()
      .describe("Brief assessment of attention quality based on focusLevel logs (e.g., 'Focus seems generally high during logged work periods', 'Attention appears to dip frequently'). Omit if insufficient focus data."),
   suggestedStrategies: z
     .string()
-    .describe('Provides 2-3 personalized, actionable strategies and recommendations for improving productivity, time management, or focus based on the analysis (e.g., time blocking, task batching, managing specific distractions, improving attention quality).'),
+    .describe('Provides 2-3 personalized, actionable and concrete strategies and recommendations for improving productivity, time management, or focus based on the analysis (e.g., "Block 1 hour for [Task Type] during your peak morning focus" instead of just "Manage your time better").'),
   overallAssessment: z
     .string()
     .describe('A brief (1-2 sentence) overall assessment of the user’s productivity patterns during the period, highlighting strengths (e.g., high focus) and areas for potential improvement (e.g., managing distractions).'),
@@ -88,11 +87,9 @@ export type AnalyzeProductivityPatternsOutput = z.infer<
   typeof AnalyzeProductivityPatternsOutputSchema
 >;
 
-// Exported function now just calls the flow
 export async function analyzeProductivityPatterns(
   input: AnalyzeProductivityPatternsInput
 ): Promise<AnalyzeProductivityPatternsOutput> {
-    // Validate input dates before passing to the flow
     if (!input.startDate || !isValid(parseISO(input.startDate))) {
         throw new Error("Invalid or missing start date provided.");
     }
@@ -102,14 +99,13 @@ export async function analyzeProductivityPatterns(
     return analyzeProductivityPatternsFlow(input);
 }
 
-// Define prompt input schema using simplified string versions of the data
 const PromptInputSchema = z.object({
       startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing productivity patterns.'),
       endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing productivity patterns.'),
       calendarEventsJson: z.string().describe('JSON string summary of calendar events (e.g., [{title, start, durationMinutes}]).'),
       tasksJson: z.string().describe('JSON string summary of tasks (e.g., [{title, status, due, created}]).'),
       notesJson: z.string().describe('JSON string summary of notes created (e.g., [{title, createdAt}]).'),
-      dailyLogsJson: z.string().describe('JSON string summary of daily logs (e.g., [{date, activity, mood, focusLevel, hasDiary}]). Pay attention to focusLevel (1=Low, 5=High).'), // Added focusLevel
+      dailyLogsJson: z.string().describe('JSON string summary of daily logs (e.g., [{date, activity, mood, focusLevel, hasDiary}]). Pay attention to focusLevel (1=Low, 5=High).'), 
       additionalContext: z.string().optional().describe('Any additional context from the user.'),
 });
 
@@ -132,16 +128,16 @@ Daily Logs: {{{dailyLogsJson}}}
 User Context: {{{additionalContext}}}
 
 Analysis Tasks:
-1.  **Peak Performance Times:** Based on logged activities, mood, reported focus levels (1=Low, 5=High), task completion times (if available), and calendar entries marked as 'focus' or 'work', identify specific times of day or days of the week when the user appears most productive or focused. Look for patterns like consistent morning activity, high focus logs, or productive weekend logs.
-2.  **Common Distractions/Obstacles:** Analyze diary entries for mentions of procrastination, feeling overwhelmed, specific distractions. Also, look for patterns of low focusLevel logs, overdue tasks, many short calendar events indicating context switching, or periods with few logged activities despite pending tasks.
-3.  **Attention Quality Assessment (Optional):** Based on the `focusLevel` provided in daily logs, provide a brief assessment if enough data exists. Examples: "Focus seems generally high during logged work periods," "Attention appears to dip frequently, especially during [activity type] logs," "Focus data is sparse, difficult to assess." Omit if no `focusLevel` data is available.
-4.  **Suggested Strategies:** Provide 2-3 actionable, personalized strategies based on the findings. Examples:
-    - If peak time is mornings: "Schedule your most important tasks in the morning."
-    - If distractions/low focus mentioned: "Try using a focus app or time blocking to minimize interruptions during low-focus periods."
-    - If tasks are often overdue: "Break down large tasks into smaller steps."
-    - If diary mentions stress: "Consider scheduling short breaks or mindfulness exercises."
-    - If context switching seems high: "Try batching similar tasks together (e.g., answering emails at specific times)."
-5.  **Overall Assessment:** Provide a concise (1-2 sentences) summary of the user's productivity during this period. Highlight observed strengths (e.g., "consistent logging," "high focus during X") and areas for potential improvement (e.g., "managing afternoon focus dips," "addressing overdue tasks").
+1.  **Peak Performance Times:** Based on logged activities, mood, reported focus levels (1=Low, 5=High), task completion times (if available), and calendar entries marked as 'focus' or 'work', identify specific times of day or days of the week when the user appears most productive or focused. Look for patterns like consistent morning activity, high focus logs, or productive weekend logs. Correlate this with types of activities logged if possible.
+2.  **Common Distractions/Obstacles:** Analyze diary entries for mentions of procrastination, feeling overwhelmed, specific distractions. Also, look for patterns of low focusLevel logs, overdue tasks, many short calendar events indicating context switching, or periods with few logged activities despite pending tasks. If diary entries are sparse, rely more on patterns of low focusLevel logs, overdue tasks, or high context switching.
+3.  **Attention Quality Assessment (Optional):** Based on the \`focusLevel\` provided in daily logs (1=Low, 5=High), provide a brief assessment if enough data exists. Examples: "Focus seems generally high during logged work periods," "Attention appears to dip frequently, especially during [activity type] logs," "Focus data is sparse, difficult to assess." Omit if no \`focusLevel\` data is available or it's consistently null.
+4.  **Suggested Strategies:** Provide 2-3 actionable, personalized, and concrete strategies based on the findings. Examples:
+    - If peak time is mornings: "Schedule your most important tasks like [Specific Task Type from logs/tasks] in the morning to leverage your peak focus."
+    - If distractions/low focus mentioned: "Try using a focus app or time blocking for 60-minute intervals to minimize interruptions during periods you've logged low focus, like afternoons."
+    - If tasks are often overdue: "Break down large tasks (e.g., '[Example Overdue Task Title]') into 2-3 smaller, manageable steps."
+    - If diary mentions stress: "Consider scheduling two 10-minute mindfulness breaks, perhaps mid-morning and late afternoon, as noted in your logs."
+    - If context switching seems high: "Try batching similar tasks together, such as responding to all emails at 11:00 AM and 4:00 PM, rather than intermittently."
+5.  **Overall Assessment:** Provide a concise (1-2 sentences) summary of the user's productivity during this period. Highlight observed strengths (e.g., "consistent logging," "high focus during X activity types") and areas for potential improvement (e.g., "managing afternoon focus dips," "addressing tasks like '[Overdue Task]'").
 
 Generate the output in the specified JSON format. Be insightful and connect observations across different data sources where possible. For example, link diary entries about feeling overwhelmed to task statuses or low focus logs.
 `,
@@ -149,7 +145,7 @@ Generate the output in the specified JSON format. Be insightful and connect obse
 
 
 const analyzeProductivityPatternsFlow = ai.defineFlow<
-  typeof AnalyzeProductivityPatternsInputSchema, // Flow input includes full data
+  typeof AnalyzeProductivityPatternsInputSchema, 
   typeof AnalyzeProductivityPatternsOutputSchema
 >(
   {
@@ -168,7 +164,6 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          additionalContext,
      } = input;
 
-     // Helper function to safely format dates
      const safeFormatDate = (dateString: string | undefined | null, formatStr: string = 'yyyy-MM-dd'): string | null => {
          if (!dateString) return null;
          try {
@@ -179,7 +174,6 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          }
      };
 
-     // Helper function to calculate duration safely
      const calculateDuration = (startStr: string | undefined | null, endStr: string | undefined | null): number | null => {
          if (!startStr || !endStr) return null;
          try {
@@ -192,8 +186,6 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          return null;
      };
 
-
-    // Create simplified JSON strings for the prompt
      const calendarEventsString = JSON.stringify(calendarEvents.map(e => ({
          title: e.title,
          start: safeFormatDate(e.start),
@@ -209,12 +201,11 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          title: n.title,
          createdAt: safeFormatDate(n.createdAt)
      })));
-    // Include focusLevel and indication of diary entry presence in the log summary
      const dailyLogsString = JSON.stringify(dailyLogs.map(l => ({
          date: safeFormatDate(l.date),
          activity: l.activity,
          mood: l.mood,
-         focusLevel: l.focusLevel, // Pass focusLevel directly
+         focusLevel: l.focusLevel, 
          hasDiary: !!l.diaryEntry
      })));
 
@@ -226,12 +217,12 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
          commonDistractionsOrObstacles: "Insufficient data to identify common distractions or obstacles.",
          suggestedStrategies: "Unable to suggest strategies due to lack of data. Start logging activities, tasks, and reflections!",
          overallAssessment: "No data available for the selected period to assess productivity.",
+         attentionQualityAssessment: "No focus level data available to assess attention quality.",
        };
      }
 
-    // Prepare input for the prompt
     const promptInputData: z.infer<typeof PromptInputSchema> = {
-       startDate: startDate, // These are validated before flow entry
+       startDate: startDate, 
        endDate: endDate,
        calendarEventsJson: calendarEventsString,
        tasksJson: tasksString,
@@ -244,13 +235,12 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
 
     if (!output) {
         console.error('AI analysis failed to return output for productivity patterns.');
-        // Provide a more informative fallback
         return {
             peakPerformanceTimes: "Analysis could not determine peak performance times.",
             commonDistractionsOrObstacles: "Analysis could not identify common distractions or obstacles.",
             suggestedStrategies: "Could not generate suggested strategies. Try logging more data.",
             overallAssessment: "Productivity analysis failed to generate an assessment.",
-             attentionQualityAssessment: undefined, // Ensure all fields exist even in error
+            attentionQualityAssessment: "Attention quality assessment failed or data was insufficient.",
         };
     }
 

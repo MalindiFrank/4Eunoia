@@ -47,16 +47,15 @@ const EventForm: FC<{
     onClose: () => void;
     initialData?: CalendarEvent | null;
     selectedDate?: Date;
-    onSave: (event: CalendarEvent) => void; // Callback after save
+    onSave: (event: CalendarEvent) => void; 
 }> = ({ onClose, initialData, selectedDate, onSave }) => {
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Get data mode
+  const { dataMode } = useDataMode(); 
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
         title: initialData?.title || '',
-        // Combine selected date with default time or existing event time
         startDateTime: initialData?.start || (selectedDate ? new Date(selectedDate.setHours(9, 0, 0, 0)) : new Date(new Date().setHours(9, 0, 0, 0))),
         endDateTime: initialData?.end || (selectedDate ? new Date(selectedDate.setHours(10, 0, 0, 0)) : new Date(new Date().setHours(10, 0, 0, 0))),
         description: initialData?.description || '',
@@ -80,7 +79,6 @@ const EventForm: FC<{
     try {
       let savedEvent: CalendarEvent | undefined;
       if (initialData?.id) {
-        // Update existing event
         savedEvent = updateUserEvent({ ...eventData, id: initialData.id });
         if (savedEvent) {
             toast({ title: "Event Updated", description: `Event "${data.title}" updated.` });
@@ -88,12 +86,11 @@ const EventForm: FC<{
              throw new Error("Failed to find event to update.");
         }
       } else {
-        // Add new event
         savedEvent = addUserEvent(eventData);
          toast({ title: "Event Added", description: `Event "${data.title}" added.` });
       }
       if (savedEvent) {
-          onSave(savedEvent); // Trigger callback to update parent state
+          onSave(savedEvent); 
       }
     } catch (error) {
         console.error("Error saving event:", error);
@@ -109,7 +106,7 @@ const EventForm: FC<{
         const newDateTime = new Date(date);
         if (!isNaN(hours) && !isNaN(minutes)) {
             newDateTime.setHours(hours, minutes, 0, 0);
-            form.setValue(field, newDateTime, { shouldValidate: true }); // Update form value and trigger validation
+            form.setValue(field, newDateTime, { shouldValidate: true }); 
         }
    };
 
@@ -121,9 +118,9 @@ const EventForm: FC<{
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Event Title</FormLabel>
+              <FormLabel htmlFor="event-title">Event Title</FormLabel>
               <FormControl>
-                <Input placeholder="Enter event title" {...field} />
+                <Input id="event-title" placeholder="Enter event title" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -131,17 +128,16 @@ const EventForm: FC<{
         />
 
          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             {/* Start Date/Time */}
             <FormField
                 control={form.control}
                 name="startDateTime"
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
-                    <FormLabel>Start Date & Time</FormLabel>
+                    <FormLabel htmlFor="start-date-time-trigger">Start Date & Time</FormLabel>
                     <Popover>
                     <PopoverTrigger asChild>
                         <FormControl>
-                        <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                        <Button id="start-date-time-trigger" variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')} aria-label="Select start date and time">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {field.value ? format(field.value, 'PPP p') : <span>Pick start date & time</span>}
                         </Button>
@@ -164,17 +160,16 @@ const EventForm: FC<{
                 )}
             />
 
-            {/* End Date/Time */}
             <FormField
                 control={form.control}
                 name="endDateTime"
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
-                    <FormLabel>End Date & Time</FormLabel>
+                    <FormLabel htmlFor="end-date-time-trigger">End Date & Time</FormLabel>
                     <Popover>
                     <PopoverTrigger asChild>
                         <FormControl>
-                        <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')}>
+                        <Button id="end-date-time-trigger" variant={'outline'} className={cn('w-full justify-start text-left font-normal', !field.value && 'text-muted-foreground')} aria-label="Select end date and time">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {field.value ? format(field.value, 'PPP p') : <span>Pick end date & time</span>}
                         </Button>
@@ -203,9 +198,9 @@ const EventForm: FC<{
             name="description"
             render={({ field }) => (
             <FormItem>
-                <FormLabel>Description (Optional)</FormLabel>
+                <FormLabel htmlFor="event-description">Description (Optional)</FormLabel>
                 <FormControl>
-                <Textarea placeholder="Add event details" {...field} />
+                <Textarea id="event-description" placeholder="Add event details" {...field} />
                 </FormControl>
                 <FormMessage />
             </FormItem>
@@ -227,23 +222,21 @@ const CalendarPage: FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null); // State for editing
+   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null); 
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use the data mode context
+  const { dataMode } = useDataMode(); 
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
   const startDate = startOfWeek(monthStart);
   const endDate = endOfWeek(monthEnd);
 
-  // Fetch events when dataMode or currentMonth changes
   useEffect(() => {
     const loadEvents = async () => {
       try {
         setIsLoading(true);
-        const fetchedEvents = await getCalendarEvents(dataMode); // Pass dataMode
-        // Filter events for the current view (optional, depends on API/storage logic)
+        const fetchedEvents = await getCalendarEvents(dataMode); 
         const filteredEvents = fetchedEvents.filter(event =>
             (event.start >= startDate && event.start <= endDate) ||
             (event.end >= startDate && event.end <= endDate) ||
@@ -257,13 +250,13 @@ const CalendarPage: FC = () => {
           description: "Could not load calendar events.",
           variant: "destructive",
         });
-        setEvents([]); // Clear events on error
+        setEvents([]); 
       } finally {
         setIsLoading(false);
       }
     };
     loadEvents();
-  }, [dataMode, currentMonth, toast, startDate, endDate]); // Add dataMode dependency
+  }, [dataMode, currentMonth, toast, startDate, endDate]); 
 
   const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
 
@@ -283,16 +276,12 @@ const CalendarPage: FC = () => {
      setEditingEvent(null);
    };
 
-   // Refresh events after saving
    const handleSaveEvent = (savedEvent: CalendarEvent) => {
-       // Simple refresh: re-fetch all events for the current view
-       const updatedEvents = events.filter(e => e.id !== savedEvent.id); // Remove old if exists
+       const updatedEvents = events.filter(e => e.id !== savedEvent.id); 
        setEvents([...updatedEvents, savedEvent].sort((a, b) => a.start.getTime() - b.start.getTime()));
-       // More robust: call getCalendarEvents again, but this works for local updates
        closeEventDialog();
    };
 
-    // Handle event deletion
     const handleDeleteEvent = (eventId: string) => {
          if (dataMode === 'mock') {
             toast({ title: "Read-only Mode", description: "Cannot delete events in mock data mode.", variant: "destructive"});
@@ -351,21 +340,21 @@ const CalendarPage: FC = () => {
         const isCurrentMonth = isSameMonth(day, currentMonth);
         const isToday = isSameDay(day, new Date());
         const dayLabel = format(day, 'd');
-        const fullDayLabel = format(day, 'PPP'); // For aria-label
+        const fullDayLabel = format(day, 'PPP'); 
 
         return (
           <div
             key={day.toString()}
             className={cn(
-              "relative border rounded-md min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 focus-within:bg-accent/50 transition-colors", // Adjusted min-height and added focus-within style
-              !isCurrentMonth && "bg-muted/30 text-muted-foreground/70 pointer-events-none", // Dimmed non-month days and disable interaction
+              "relative border rounded-md min-h-[100px] sm:min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 focus-within:bg-accent/50 transition-colors", 
+              !isCurrentMonth && "bg-muted/30 text-muted-foreground/70 pointer-events-none", 
               isToday && "bg-accent border-primary"
             )}
-             onClick={() => isCurrentMonth && openEventDialog(day)} // Open dialog on day click to add only for current month
-             role="button" // Add role for accessibility
-             tabIndex={isCurrentMonth ? 0 : -1} // Make it focusable only if in current month
-             onKeyDown={(e) => { if (isCurrentMonth && (e.key === 'Enter' || e.key === ' ')) openEventDialog(day); }} // Trigger on key press
-             aria-label={`Date ${fullDayLabel}, ${dayEvents.length} event(s). Click to add event.`} // Improved label
+             onClick={() => isCurrentMonth && openEventDialog(day)} 
+             role="button" 
+             tabIndex={isCurrentMonth ? 0 : -1} 
+             onKeyDown={(e) => { if (isCurrentMonth && (e.key === 'Enter' || e.key === ' ')) openEventDialog(day); }} 
+             aria-label={`Date ${fullDayLabel}, ${dayEvents.length} event(s). Click to add event.`} 
           >
              <div className="flex justify-between items-center mb-1">
                  <span
@@ -373,37 +362,35 @@ const CalendarPage: FC = () => {
                      "text-xs font-medium",
                      isToday && "text-primary font-bold"
                  )}
-                 aria-hidden="true" // Hide visual number from screen reader, covered by parent aria-label
+                 aria-hidden="true" 
                  >
                  {dayLabel}
                  </span>
-                 {/* Add button inside cell to trigger dialog - appears on hover/focus */}
                  <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity z-10" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }} aria-label={`Add event on ${fullDayLabel}`}>
                      <Plus className="h-3 w-3" />
                       <span className="sr-only">Add event</span>
                  </Button>
             </div>
-             <ScrollArea className="flex-grow text-[10px] leading-tight space-y-0.5 pr-1"> {/* Added ScrollArea */}
+             <ScrollArea className="flex-grow text-[9px] sm:text-[10px] leading-tight space-y-0.5 pr-1"> 
                {isLoading && isCurrentMonth && (
                    <>
                     <Skeleton className="h-4 w-3/4 rounded-sm mb-1" />
                     <Skeleton className="h-4 w-1/2 rounded-sm mb-1" />
                    </>
                )}
-              {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( // Sort events within the day
+              {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( 
                 <div
-                  key={event.id || `${event.title}-${event.start.toISOString()}`} // Use ID if available
-                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus:ring-1 focus:ring-primary" // Added focus styles
-                   title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} // Tooltip for full info
-                   onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} // Edit on click
-                   tabIndex={0} // Make event focusable
+                  key={event.id || `${event.title}-${event.start.toISOString()}`} 
+                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus:ring-1 focus:ring-primary" 
+                   title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} 
+                   onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} 
+                   tabIndex={0} 
                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') {e.stopPropagation(); openEventDialog(day, event);} }}
-                   aria-label={`Event: ${event.title} at ${format(event.start, 'p')}. Click to edit.`} // Accessibility
+                   aria-label={`Event: ${event.title} at ${format(event.start, 'p')}. Click to edit.`} 
                 >
                    <span className="font-medium">{format(event.start, 'p')}</span> {event.title}
-                    {/* Edit/Delete Buttons for events */}
-                    {dataMode === 'user' && event.id && ( // Only show if user mode and event has ID
-                         <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 group-focus-within/event:opacity-100 transition-opacity"> {/* Show on focus-within too */}
+                    {dataMode === 'user' && event.id && ( 
+                         <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 group-focus-within/event:opacity-100 transition-opacity"> 
                              <Button variant="ghost" size="icon" className="h-5 w-5 text-primary-foreground/70 hover:text-primary-foreground" onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} aria-label={`Edit event "${event.title}"`}>
                                  <Edit className="h-3 w-3" />
                                  <span className="sr-only">Edit</span>
@@ -440,18 +427,18 @@ const CalendarPage: FC = () => {
         <h1 className="text-3xl font-bold">Calendar</h1>
         <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
           <DialogTrigger asChild>
-             <Button onClick={() => openEventDialog(new Date())}> {/* Open dialog with today's date */}
+             <Button onClick={() => openEventDialog(new Date())} aria-label="Add new event"> 
                <Plus className="mr-2 h-4 w-4" /> Add Event
              </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[480px]"> {/* Slightly wider for date/time pickers */}
+          <DialogContent className="sm:max-w-[480px]"> 
              <DialogHeader>
                <DialogTitle>{editingEvent ? 'Edit Event' : 'Add New Event'}</DialogTitle>
              </DialogHeader>
              <EventForm
                 onClose={closeEventDialog}
                 initialData={editingEvent}
-                selectedDate={selectedDate || undefined} // Pass selectedDate
+                selectedDate={selectedDate || undefined} 
                 onSave={handleSaveEvent}
               />
           </DialogContent>

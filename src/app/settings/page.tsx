@@ -14,12 +14,16 @@ import { useToast } from '@/hooks/use-toast';
 import { useDataMode } from '@/context/data-mode-context';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Placeholder types for settings
 interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
-  defaultView: string; // e.g., '/', '/tasks'
+  defaultView: string; 
+  growthPace: GrowthPace;
 }
+type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
+
 
 interface NotificationSettings {
   taskReminders: boolean;
@@ -40,14 +44,13 @@ interface NeurodivergentSettings {
   lowStimulationUI: boolean;
 }
 
-const SETTINGS_STORAGE_KEY = '4eunoia-app-settings'; // Updated key
+const SETTINGS_STORAGE_KEY = '4eunoia-app-settings'; 
 
 const SettingsPage: FC = () => {
   const { toast } = useToast();
   const { resetToMockMode } = useDataMode();
 
-  // Initialize state with default values
-  const [preferences, setPreferences] = useState<UserPreferences>({ theme: 'system', defaultView: '/' });
+  const [preferences, setPreferences] = useState<UserPreferences>({ theme: 'system', defaultView: '/', growthPace: 'Moderate' });
   const [notifications, setNotifications] = useState<NotificationSettings>({
     taskReminders: true,
     eventAlerts: true,
@@ -63,7 +66,6 @@ const SettingsPage: FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Function to apply the theme based on preferences
   const applyTheme = (theme: UserPreferences['theme']) => {
      if (typeof window === 'undefined') return;
      const root = window.document.documentElement;
@@ -77,15 +79,14 @@ const SettingsPage: FC = () => {
      root.classList.add(theme);
    };
 
-  // Load settings from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      let loadedPreferences = preferences; // Use defaults initially
+      let loadedPreferences = preferences; 
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          loadedPreferences = { ...preferences, ...(parsedSettings.preferences || {}) }; // Load saved preferences
+          loadedPreferences = { ...preferences, ...(parsedSettings.preferences || {}) }; 
           setPreferences(loadedPreferences);
           setNotifications(prev => ({ ...prev, ...(parsedSettings.notifications || {}) }));
           setIntegrations(prev => ({ ...prev, ...(parsedSettings.integrations || {}) }));
@@ -95,17 +96,15 @@ const SettingsPage: FC = () => {
           toast({ title: "Error", description: "Could not load saved settings.", variant: "destructive" });
         }
       }
-      applyTheme(loadedPreferences.theme); // Apply loaded or default theme
+      applyTheme(loadedPreferences.theme); 
       setIsLoading(false);
     }
-  }, [toast]); // Only run once on mount
+  }, [toast]); 
 
-   // Effect to apply theme when preferences change
    useEffect(() => {
      applyTheme(preferences.theme);
    }, [preferences.theme]);
 
-  // Function to save all settings to localStorage
   const saveSettings = () => {
      if (typeof window === 'undefined') return;
      const allSettings = {
@@ -116,7 +115,7 @@ const SettingsPage: FC = () => {
      };
     try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(allSettings));
-        applyTheme(preferences.theme); // Re-apply theme immediately after save
+        applyTheme(preferences.theme); 
         toast({ title: "Settings Saved", description: "Your preferences have been updated." });
     } catch (e) {
         console.error("Error saving settings to localStorage:", e);
@@ -124,7 +123,6 @@ const SettingsPage: FC = () => {
     }
   };
 
-  // Handlers for individual setting changes (using functional updates)
   const handlePreferenceChange = <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
       setPreferences(prev => ({ ...prev, [key]: value }));
   };
@@ -147,26 +145,37 @@ const SettingsPage: FC = () => {
         setNeurodivergent(prev => ({ ...prev, [key]: value }));
    };
 
-   // Reset handler
    const handleResetApp = () => {
-        // Clear all settings from state and local storage
-        setPreferences({ theme: 'system', defaultView: '/' });
+        setPreferences({ theme: 'system', defaultView: '/', growthPace: 'Moderate' });
         setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
         setIntegrations({ googleCalendarSync: false, slackIntegration: false });
         setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
         if (typeof window !== 'undefined') {
             localStorage.removeItem(SETTINGS_STORAGE_KEY);
         }
-        applyTheme('system'); // Reset theme visually
+        applyTheme('system'); 
 
-        // Reset data mode (this also clears service-specific local storage and reloads)
         resetToMockMode(); 
         toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
    }
 
 
   if (isLoading) {
-      return <div className="container mx-auto p-4 md:p-6 lg:p-8"><p>Loading settings...</p></div>;
+      return (
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+             <Skeleton className="h-10 w-1/2 mb-8" />
+             {[...Array(4)].map((_, i) => (
+                 <Card key={i}>
+                     <CardHeader><Skeleton className="h-6 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                     <CardContent className="space-y-4">
+                         <Skeleton className="h-8 w-full" />
+                         <Skeleton className="h-8 w-full" />
+                     </CardContent>
+                 </Card>
+             ))}
+             <Skeleton className="h-10 w-32 ml-auto" />
+        </div>
+      );
   }
 
   return (
@@ -194,6 +203,19 @@ const SettingsPage: FC = () => {
               </SelectContent>
             </Select>
           </div>
+           <div className="flex items-center justify-between">
+              <Label htmlFor="growth-pace-select">Personal Growth Pace</Label>
+              <Select value={preferences.growthPace} onValueChange={(value: GrowthPace) => handlePreferenceChange('growthPace', value)}>
+                  <SelectTrigger id="growth-pace-select" className="w-[180px]" aria-label="Select personal growth pace">
+                      <SelectValue placeholder="Select pace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="Slow">Slow</SelectItem>
+                      <SelectItem value="Moderate">Moderate</SelectItem>
+                      <SelectItem value="Aggressive">Aggressive</SelectItem>
+                  </SelectContent>
+              </Select>
+           </div>
         </CardContent>
       </Card>
 
@@ -258,6 +280,7 @@ const SettingsPage: FC = () => {
                  checked={integrations.googleCalendarSync}
                  onCheckedChange={(checked) => handleIntegrationChange('googleCalendarSync', checked)}
                  aria-label="Toggle Google Calendar sync"
+                 disabled // Feature coming soon
                 />
            </div>
             <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -270,6 +293,7 @@ const SettingsPage: FC = () => {
                     checked={integrations.slackIntegration}
                     onCheckedChange={(checked) => handleIntegrationChange('slackIntegration', checked)}
                     aria-label="Toggle Slack integration"
+                    disabled // Feature coming soon
                  />
             </div>
          </CardContent>
@@ -340,7 +364,7 @@ const SettingsPage: FC = () => {
          <CardContent>
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive"><Trash className="mr-2 h-4 w-4" /> Clear All My Data & Reset</Button>
+                    <Button variant="destructive" aria-label="Clear all data and reset application"><Trash className="mr-2 h-4 w-4" /> Clear All My Data & Reset</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -361,10 +385,11 @@ const SettingsPage: FC = () => {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={saveSettings}>Save All Settings</Button>
+        <Button onClick={saveSettings} aria-label="Save all settings">Save All Settings</Button>
       </div>
     </div>
   );
 };
 
 export default SettingsPage;
+

@@ -5,14 +5,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; // Removed subDays, startOfMonth
-import { Calendar as CalendarIcon, Edit, Plus, Trash2, DollarSign } from 'lucide-react'; // Removed TrendingUp, TrendingDown
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from 'recharts'; // Added Cell
+import { format, parseISO } from 'date-fns'; 
+import { Calendar as CalendarIcon, Edit, Plus, Trash2, DollarSign } from 'lucide-react'; 
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from 'recharts'; 
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added DialogFooter, DialogClose
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,14 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-// import { Separator } from '@/components/ui/separator'; // Removed Separator
 import { useToast } from '@/hooks/use-toast';
-import type { Expense } from '@/services/expense'; // Import Expense type
-import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense } from '@/services/expense'; // Import service functions
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+import type { Expense } from '@/services/expense'; 
+import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense } from '@/services/expense'; 
+import { useDataMode } from '@/context/data-mode-context'; 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
 
 // Expense Schema
 const expenseSchema = z.object({
@@ -41,10 +40,8 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-// Sample categories
 const expenseCategories = ['Food', 'Transport', 'Entertainment', 'Utilities', 'Housing', 'Shopping', 'Health', 'Other'];
 
-// Expense Form Component (Could be extracted)
 const ExpenseForm: FC<{
     onClose: () => void;
     initialData?: Expense | null;
@@ -104,10 +101,10 @@ const ExpenseForm: FC<{
      return (
          <Form {...form}>
              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem> <FormLabel>Description</FormLabel> <FormControl> <Input placeholder="e.g., Groceries, Lunch" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
-                 <FormField control={form.control} name="amount" render={({ field }) => ( <FormItem> <FormLabel>Amount</FormLabel> <FormControl> <Input type="number" step="0.01" placeholder="0.00" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
-                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Date</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={'outline'} className={cn( 'w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground' )}> {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date('1900-01-01')} initialFocus /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
-                 <FormField control={form.control} name="category" render={({ field }) => ( <FormItem> <FormLabel>Category</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Select a category" /> </SelectTrigger> </FormControl> <SelectContent> {expenseCategories.map(category => ( <SelectItem key={category} value={category}>{category}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
+                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem> <FormLabel htmlFor="expense-description">Description</FormLabel> <FormControl> <Input id="expense-description" placeholder="e.g., Groceries, Lunch" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                 <FormField control={form.control} name="amount" render={({ field }) => ( <FormItem> <FormLabel htmlFor="expense-amount">Amount</FormLabel> <FormControl> <Input id="expense-amount" type="number" step="0.01" placeholder="0.00" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                 <FormField control={form.control} name="date" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel htmlFor="expense-date-trigger">Date</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button id="expense-date-trigger" variant={'outline'} className={cn( 'w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground' )} aria-label="Select expense date"> {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date('1900-01-01')} initialFocus /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                 <FormField control={form.control} name="category" render={({ field }) => ( <FormItem> <FormLabel htmlFor="expense-category-trigger">Category</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger id="expense-category-trigger" aria-label="Select expense category"> <SelectValue placeholder="Select a category" /> </SelectTrigger> </FormControl> <SelectContent> {expenseCategories.map(category => ( <SelectItem key={category} value={category}>{category}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
                  <DialogFooter>
                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                      <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Expense' : 'Add Expense'}</Button>
@@ -120,14 +117,13 @@ const ExpenseForm: FC<{
 
 const ExpensesPage: FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Use loading state
+  const [isLoading, setIsLoading] = useState(true); 
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use the data mode context
+  const { dataMode } = useDataMode(); 
 
 
-  // Load expenses based on dataMode
   useEffect(() => {
     const loadExpenses = async () => {
       setIsLoading(true);
@@ -137,7 +133,7 @@ const ExpensesPage: FC = () => {
       } catch (error) {
         console.error("Failed to load expenses:", error);
         toast({ title: "Error", description: "Could not load expenses.", variant: "destructive" });
-         setExpenses([]); // Clear on error
+         setExpenses([]); 
       } finally {
         setIsLoading(false);
       }
@@ -189,7 +185,6 @@ const ExpensesPage: FC = () => {
      };
 
 
-   // Calculate totals and prepare chart data
    const { totalExpenses, expensesByCategory } = useMemo(() => {
      const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
      const byCategory = expenses.reduce((acc, expense) => {
@@ -204,29 +199,25 @@ const ExpensesPage: FC = () => {
      return { totalExpenses: total, expensesByCategory: chartData };
    }, [expenses]);
 
-    // Base chart config
     const baseChartConfig: ChartConfig = useMemo(() => ({
         amount: { label: "Amount ($)", color: "hsl(var(--primary))" },
-        // Add predefined colors for known categories
         Food: { label: "Food", color: "hsl(var(--chart-1))" },
         Transport: { label: "Transport", color: "hsl(var(--chart-2))" },
         Entertainment: { label: "Entertainment", color: "hsl(var(--chart-3))" },
         Utilities: { label: "Utilities", color: "hsl(var(--chart-4))" },
         Housing: { label: "Housing", color: "hsl(var(--chart-5))" },
-        Shopping: { label: "Shopping", color: "hsl(var(--chart-1))" }, // Reuse
-        Health: { label: "Health", color: "hsl(var(--chart-2))" },     // Reuse
-        Other: { label: "Other", color: "hsl(var(--chart-3))" },        // Reuse
-    }), []); // Empty dependency array as base config doesn't change
+        Shopping: { label: "Shopping", color: "hsl(var(--chart-1))" }, 
+        Health: { label: "Health", color: "hsl(var(--chart-2))" },     
+        Other: { label: "Other", color: "hsl(var(--chart-3))" },        
+    }), []); 
 
-   // Dynamic chart config based on data
    const chartConfig = useMemo(() => {
         const config: ChartConfig = { ...baseChartConfig };
         expensesByCategory.forEach((item, index) => {
             if (!config[item.category]) {
-                // Assign a color if not predefined
                 config[item.category] = {
                     label: item.category,
-                    color: `hsl(var(--chart-${(index % 5) + 1}))` // Cycle through 5 chart colors
+                    color: `hsl(var(--chart-${(index % 5) + 1}))` 
                 };
             }
         });
@@ -239,7 +230,7 @@ const ExpensesPage: FC = () => {
         <h1 className="text-3xl font-bold">Expenses</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
-             <Button onClick={() => openDialog()}>
+             <Button onClick={() => openDialog()} aria-label="Add new expense">
                <Plus className="mr-2 h-4 w-4" /> Add Expense
              </Button>
            </DialogTrigger>
@@ -256,11 +247,10 @@ const ExpensesPage: FC = () => {
          </Dialog>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
          <Card>
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                 <CardTitle className="text-sm font-medium">Total Expenses</CardTitle> {/* Simple title */}
+                 <CardTitle className="text-sm font-medium">Total Expenses</CardTitle> 
                  <DollarSign className="h-4 w-4 text-muted-foreground" />
              </CardHeader>
              <CardContent>
@@ -268,7 +258,6 @@ const ExpensesPage: FC = () => {
                  <p className="text-xs text-muted-foreground">Across all recorded entries</p>
              </CardContent>
          </Card>
-          {/* Placeholder for other potential summary cards */}
          <Card className="opacity-50 cursor-not-allowed">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Monthly Average</CardTitle>
@@ -292,7 +281,6 @@ const ExpensesPage: FC = () => {
       </div>
 
 
-       {/* Expense Chart */}
        <Card className="mb-8 shadow-md">
          <CardHeader>
            <CardTitle>Expenses by Category</CardTitle>
@@ -312,7 +300,7 @@ const ExpensesPage: FC = () => {
                          content={<ChartTooltipContent indicator="dot" nameKey="category" />} />
                      <Bar dataKey="amount" fill="var(--color-amount)" radius={4} barSize={20}>
                          {expensesByCategory.map((entry) => (
-                            <Cell key={`cell-${entry.category}`} fill={`var(--color-${entry.category}, hsl(var(--primary)))`} />
+                            <Cell key={`cell-${entry.category}`} fill={`var(--color-${entry.category.replace(/\s+/g, '-')}, hsl(var(--primary)))`} />
                          ))}
                      </Bar>
                    </BarChart>
@@ -331,8 +319,8 @@ const ExpensesPage: FC = () => {
           <CardDescription>Review your past transactions.</CardDescription>
         </CardHeader>
         <CardContent>
-           <ScrollArea className="h-[400px] w-full">
-             <Table>
+           <ScrollArea className="h-[400px] w-full overflow-x-auto"> {/* Added overflow-x-auto */}
+             <Table className="min-w-full"> {/* Added min-w-full */}
                <TableHeader>
                  <TableRow>
                    <TableHead className="w-[100px]">Date</TableHead>
@@ -344,7 +332,7 @@ const ExpensesPage: FC = () => {
                </TableHeader>
                <TableBody>
                  {isLoading ? (
-                    [...Array(5)].map((_, i) => ( // Render skeleton rows
+                    [...Array(5)].map((_, i) => ( 
                         <TableRow key={`skel-${i}`}>
                             <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-40" /></TableCell>
@@ -399,3 +387,4 @@ const ExpensesPage: FC = () => {
 };
 
 export default ExpensesPage;
+

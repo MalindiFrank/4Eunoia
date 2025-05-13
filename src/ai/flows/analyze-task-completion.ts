@@ -10,21 +10,18 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import { parseISO, isWithinInterval, formatISO, format, isValid as isValidDate, startOfDay, endOfDay } from 'date-fns'; // Added isValidDate, startOfDay, endOfDay
+import { parseISO, isWithinInterval, formatISO, format, isValid as isValidDate, startOfDay, endOfDay } from 'date-fns'; 
 
-import type { Task } from '@/services/task'; // Use type from service
+import type { Task } from '@/services/task'; 
 
-// Helper for safe date formatting
 const safeFormatISO = (date: Date | null | undefined): string | null => {
     return date && isValidDate(date) ? formatISO(date) : null;
 };
 
-// Zod schema for tasks included *in the output*. Use string().datetime() for dueDate.
 const TaskSchemaForOutput = z.object({
     id: z.string(),
     title: z.string(),
     description: z.string().optional().nullable(),
-    // Ensure dueDate is optional and accepts string ISO format or null for the output
     dueDate: z.string().datetime().optional().nullable().describe("The task's due date (ISO 8601 format), if available."),
     status: z.enum(['Pending', 'In Progress', 'Completed']).describe("The task's current status."),
     createdAt: z.string().datetime().optional().nullable().describe("The task's creation date (ISO 8601 format), if available."),
@@ -34,16 +31,14 @@ const TaskSchemaForOutput = z.object({
 const AnalyzeTaskCompletionInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing task completion.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing task completion.'),
-  // Add tasks as input to the flow
-  tasks: z.array(z.object({ // Define the expected structure of tasks passed in
+  tasks: z.array(z.object({ 
       id: z.string(),
       title: z.string(),
       description: z.string().optional().nullable(),
-      // Expect dates as ISO strings or null/undefined
       dueDate: z.string().datetime().optional().nullable(),
       status: z.enum(['Pending', 'In Progress', 'Completed']),
       createdAt: z.string().datetime().optional().nullable(),
-    }).passthrough() // Allow other fields from the Task type if needed
+    }).passthrough() 
     ).describe('An array of task objects relevant to the user.'),
 });
 export type AnalyzeTaskCompletionInput = z.infer<
@@ -56,17 +51,15 @@ const AnalyzeTaskCompletionOutputSchema = z.object({
   completedTasks: z.number().describe('The number of tasks marked as completed among those considered.'),
   completionRate: z.number().describe('The percentage of considered tasks that were completed (completedTasks / totalTasksConsidered * 100). Calculated as 0 if no tasks were considered.'),
   overdueTasks: z.array(TaskSchemaForOutput).describe('A list of tasks that were due within the date range but are not marked as "Completed" as of today.'),
-  completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, mentioning the rate and any overdue tasks.'),
+  completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, mentioning the rate and any overdue tasks. If rate is low, suggest a general tip. If high, offer encouragement.'),
 });
 export type AnalyzeTaskCompletionOutput = z.infer<
   typeof AnalyzeTaskCompletionOutputSchema
 >;
 
-// The exported function remains the same, calling the flow
 export async function analyzeTaskCompletion(
   input: AnalyzeTaskCompletionInput
 ): Promise<AnalyzeTaskCompletionOutput> {
-     // Validate input dates
     if (!input.startDate || !isValidDate(parseISO(input.startDate))) {
         throw new Error("Invalid or missing start date provided for task analysis.");
     }
@@ -76,17 +69,14 @@ export async function analyzeTaskCompletion(
     return analyzeTaskCompletionFlow(input);
 }
 
-// Define prompt input schema matching the data we will pass *to the prompt*
 const PromptInputSchema = z.object({
       startDate: z.string().datetime().describe('Start date in ISO 8601 format.'),
       endDate: z.string().datetime().describe('End date in ISO 8601 format.'),
       todayDate: z.string().datetime().describe('The current date (ISO 8601 format), for determining overdue status accurately.'),
-       // Pass calculated metrics to the prompt
        totalTasksConsidered: z.number(),
        completedTasks: z.number(),
        completionRate: z.number(),
        overdueTasksCount: z.number(),
-       // Pass only titles/due dates of overdue tasks to save tokens
        overdueTasksJson: z.string().describe('A JSON string representing titles and human-readable due dates of overdue tasks (e.g., [{title, dueDate: "Apr 25th"}]).'),
     });
 
@@ -96,9 +86,8 @@ const analyzeTaskCompletionPrompt = ai.definePrompt({
     schema: PromptInputSchema,
   },
   output: {
-    // AI only needs to return the summary. Calculations and filtering are done outside.
     schema: z.object({
-      completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period, considering the calculated numbers and overdue tasks. Mention the rate and highlight if there are overdue tasks.'),
+      completionSummary: z.string().describe('A brief textual summary (1-2 sentences) of the task completion performance during the period. State the completion rate. If there are overdue tasks, mention the count. If the rate is low (e.g., < 50%), suggest a general tip like "Consider breaking down larger tasks." If the rate is high (e.g., > 80%), offer encouragement like "Great job staying on top of your tasks!"'),
     })
   },
   prompt: `Analyze the user's task completion performance based on the provided data for the period from {{startDate}} to {{endDate}}. Today's date is {{todayDate}}.
@@ -112,13 +101,18 @@ Calculated Data (provided for context):
 Overdue Task List (Summary JSON):
 {{{overdueTasksJson}}}
 
-Based *only* on the calculated figures and the list of overdue tasks, provide a concise **Completion Summary** (1-2 sentences). State the completion rate and mention the number of overdue tasks if any. Example: "Achieved a completion rate of {{completionRate}}% for tasks due in this period. However, {{overdueTasksCount}} task(s) remain overdue, including '[Example Title]'."
+Based *only* on the calculated figures and the list of overdue tasks, provide a concise **Completion Summary** (1-2 sentences).
+- State the completion rate.
+- Mention the number of overdue tasks if any (e.g., "...with {{overdueTasksCount}} task(s) overdue.").
+- If the completion rate is below 50%, add a general tip: "Consider breaking down larger tasks or reviewing priorities."
+- If the completion rate is above 80% and overdue tasks are few (0-1), add encouragement: "Great job staying on top of your tasks!" or "Excellent work completing most of your tasks!"
+Example: "Achieved a completion rate of {{completionRate}}% for tasks due in this period. However, {{overdueTasksCount}} task(s) remain overdue, including '[Example Title]'. Consider breaking down larger tasks."
 `,
 });
 
 
 const analyzeTaskCompletionFlow = ai.defineFlow<
-  typeof AnalyzeTaskCompletionInputSchema, // Input includes tasks array now
+  typeof AnalyzeTaskCompletionInputSchema, 
   typeof AnalyzeTaskCompletionOutputSchema
 >(
   {
@@ -127,12 +121,10 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
     outputSchema: AnalyzeTaskCompletionOutputSchema,
   },
   async (input) => {
-    // --- Data Parsing and Filtering ---
     const startDateObj = parseISO(input.startDate);
     const endDateObj = parseISO(input.endDate);
-    const today = startOfDay(new Date()); // Use start of today for consistent overdue comparison
+    const today = startOfDay(new Date()); 
 
-    // Use the tasks passed directly in the input, parsing dates safely
     const allTasks: Task[] = input.tasks
         .map(t => {
             try {
@@ -143,56 +135,45 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
                     title: t.title,
                     description: t.description,
                     status: t.status,
-                    // Only assign date if it's valid
                     dueDate: dueDate && isValidDate(dueDate) ? dueDate : undefined,
                     createdAt: createdAt && isValidDate(createdAt) ? createdAt : undefined,
                 };
             } catch {
-                return null; // Handle potential errors during date parsing
+                return null; 
             }
         })
-        .filter((t): t is Task => t !== null); // Filter out nulls
+        .filter((t): t is Task => t !== null); 
 
 
-    // Filter tasks considered for the period (must have a valid due date within the range)
     const tasksConsidered = allTasks.filter(task =>
-        task.dueDate && // Must have a due date
-        isWithinInterval(task.dueDate, { start: startOfDay(startDateObj), end: endOfDay(endDateObj) }) // Due date within range (inclusive)
+        task.dueDate && 
+        isWithinInterval(task.dueDate, { start: startOfDay(startDateObj), end: endOfDay(endDateObj) }) 
     );
 
-    // --- Calculations ---
     const totalConsidered = tasksConsidered.length;
     const completedInPeriod = tasksConsidered.filter(t => t.status === 'Completed').length;
     const completionRate = totalConsidered > 0 ? Math.round((completedInPeriod / totalConsidered) * 100) : 0;
 
-    // Identify overdue tasks among those considered
     const overdueTasksRaw = tasksConsidered.filter(t =>
-        t.status !== 'Completed' && t.dueDate && t.dueDate < today // Due date is valid (implicit from tasksConsidered filter), in the past, and not completed
+        t.status !== 'Completed' && t.dueDate && t.dueDate < today 
     );
 
-    // Format overdue tasks for the final output (using ISO strings for dates or null)
      const overdueTasksForOutput: z.infer<typeof TaskSchemaForOutput>[] = overdueTasksRaw.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description,
-        // Safely format dates as ISO string, pass null if undefined/invalid
-        dueDate: safeFormatISO(t.dueDate), // Use helper here
+        dueDate: safeFormatISO(t.dueDate), 
         status: t.status,
-        createdAt: safeFormatISO(t.createdAt), // Use helper here
+        createdAt: safeFormatISO(t.createdAt), 
      }));
 
-
-     // Format overdue tasks for prompt context (using human-readable dates)
      const overdueTasksJsonForPrompt = JSON.stringify(
          overdueTasksRaw.map(t => ({
              title: t.title,
-             // Use helper and format if valid
              dueDate: t.dueDate && isValidDate(t.dueDate) ? format(t.dueDate, 'PP') : 'No due date'
          }))
      );
 
-
-    // Handle case with no relevant tasks before calling AI
      if (totalConsidered === 0) {
          return {
             totalTasksConsidered: 0,
@@ -203,12 +184,10 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
         };
      }
 
-
-    // --- AI Call ---
     const promptInputData: z.infer<typeof PromptInputSchema> = {
       startDate: input.startDate,
       endDate: input.endDate,
-      todayDate: formatISO(today), // Use the same 'today' reference
+      todayDate: formatISO(today), 
       totalTasksConsidered: totalConsidered,
       completedTasks: completedInPeriod,
       completionRate: completionRate,
@@ -216,14 +195,13 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
       overdueTasksJson: overdueTasksJsonForPrompt,
     };
 
-    let summary = "Summary could not be generated."; // Default summary
+    let summary = "Summary could not be generated."; 
      try {
         const { output } = await analyzeTaskCompletionPrompt(promptInputData);
         if (output?.completionSummary) {
             summary = output.completionSummary;
         } else {
              console.warn("AnalyzeTaskCompletionPrompt did not return a summary.");
-             // Fallback summary based on calculated data
              summary = `Completion rate: ${completionRate}%. ${overdueTasksRaw.length} task(s) overdue.`;
         }
      } catch (error) {
@@ -231,14 +209,13 @@ const analyzeTaskCompletionFlow = ai.defineFlow<
          summary = `Error generating summary. (${completionRate}% completion rate, ${overdueTasksRaw.length} overdue).`;
      }
 
-
-    // --- Construct Final Output ---
     return {
         totalTasksConsidered: totalConsidered,
         completedTasks: completedInPeriod,
         completionRate: completionRate,
-        overdueTasks: overdueTasksForOutput, // Use the array with potentially null ISO strings
+        overdueTasks: overdueTasksForOutput, 
         completionSummary: summary,
     };
   }
 );
+

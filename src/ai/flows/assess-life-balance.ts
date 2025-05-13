@@ -10,25 +10,23 @@
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
-import type { LogEntry } from '@/services/daily-log'; // Now includes focusLevel
+import type { LogEntry } from '@/services/daily-log'; 
 import type { Task } from '@/services/task';
 import type { CalendarEvent } from '@/services/calendar';
 import type { Expense } from '@/services/expense';
 import type { Habit } from '@/services/habit';
 import type { Goal } from '@/services/goal';
-import { parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; // Added isValid
+import { parseISO, isWithinInterval, formatISO, isValid } from 'date-fns'; 
 
-// --- Constants ---
 const LIFE_AREAS = ['Work/Career', 'Personal Growth', 'Health/Wellness', 'Social/Relationships', 'Finance', 'Hobbies/Leisure', 'Responsibilities/Chores'] as const;
 type LifeArea = typeof LIFE_AREAS[number];
 
-// Define Zod schemas for input data types (expecting ISO strings)
 const InputLogSchema = z.object({
     id: z.string(),
     date: z.string().datetime(),
     activity: z.string(),
     mood: z.string().optional(),
-    focusLevel: z.number().min(1).max(5).optional().nullable(), // Added focusLevel, allow null
+    focusLevel: z.number().min(1).max(5).optional().nullable(), 
 });
 const InputTaskSchema = z.object({
     id: z.string(),
@@ -60,7 +58,7 @@ const InputGoalSchema = z.object({
     title: z.string(),
     status: z.string(),
     updatedAt: z.string().datetime(),
-    targetDate: z.string().datetime().optional().nullable(), // Added targetDate
+    targetDate: z.string().datetime().optional().nullable(), 
 });
 
 
@@ -87,26 +85,22 @@ const AssessLifeBalanceOutputSchema = z.object({
   areaScores: z.array(AreaScoreSchema).describe('Scores and counts for each life area based on analyzed activity.'),
   balanceSummary: z.string().describe('A brief (2-3 sentence) summary assessing the overall life balance and highlighting dominant or neglected areas. May comment on quality if focus levels suggest it.'),
   neglectedAreas: z.array(z.enum(LIFE_AREAS)).describe('List of life areas that appear significantly neglected based on the analysis (e.g., score below a threshold like 10%).'),
-  suggestions: z.array(z.string()).optional().describe("1-2 actionable suggestions for improving balance, focusing on neglected areas."),
+  suggestions: z.array(z.string()).optional().describe("1-2 actionable and practical suggestions for improving balance, focusing on neglected areas. E.g., 'Try scheduling one 'Social/Relationships' activity this weekend' or 'Dedicate 30 minutes to 'Personal Growth' on Tuesday'."),
 });
 export type AssessLifeBalanceOutput = z.infer<typeof AssessLifeBalanceOutputSchema>;
 
-// --- Categorization Logic ---
-// More nuanced categorization hints
 function categorizeActivity(activity: string | undefined, categoryHint?: string, focusLevel?: number | null): LifeArea | 'Uncategorized' {
     if (!activity) return 'Uncategorized';
     const lowerActivity = activity.toLowerCase();
     const lowerHint = categoryHint?.toLowerCase();
 
-    // Prioritize Expense Categories for Finance/Responsibilities
     if (lowerHint === 'housing' || lowerHint === 'utilities' || lowerHint === 'finance' || lowerActivity.includes('bill') || lowerActivity.includes('budget') || lowerActivity.includes('tax') || lowerActivity.includes('invest')) return 'Finance';
-    if (lowerHint === 'transport') return 'Responsibilities/Chores'; // Assume transport is chore unless work-related
-    if (lowerHint === 'food') return 'Responsibilities/Chores'; // Basic need/chore
+    if (lowerHint === 'transport') return 'Responsibilities/Chores'; 
+    if (lowerHint === 'food') return 'Responsibilities/Chores'; 
     if (lowerHint === 'health' || lowerActivity.includes('doctor') || lowerActivity.includes('pharmacy') || lowerActivity.includes('therapy')) return 'Health/Wellness';
-    if (lowerHint === 'shopping' && !lowerActivity.includes('grocery')) return 'Hobbies/Leisure'; // Shopping as leisure unless specified
+    if (lowerHint === 'shopping' && !lowerActivity.includes('grocery')) return 'Hobbies/Leisure'; 
     if (lowerHint === 'entertainment' || lowerActivity.includes('movie') || lowerActivity.includes('game') || lowerActivity.includes('concert')) return 'Hobbies/Leisure';
 
-    // Activity-based categorization
     if (lowerActivity.includes('work') || lowerActivity.includes('client') || lowerActivity.includes('meeting') || lowerActivity.includes('project') || lowerActivity.includes('report') || lowerActivity.includes('career') || lowerActivity.includes('job') || lowerActivity.includes('office') || lowerActivity.includes('email')) return 'Work/Career';
     if (lowerActivity.includes('gym') || lowerActivity.includes('workout') || lowerActivity.includes('run') || lowerActivity.includes('yoga') || lowerActivity.includes('exercise') || lowerActivity.includes('meditate') || lowerActivity.includes('walk') || lowerActivity.includes('sleep')) return 'Health/Wellness';
     if (lowerActivity.includes('learn') || lowerActivity.includes('course') || lowerActivity.includes('read') || lowerActivity.includes('study') || lowerActivity.includes('skill') || lowerActivity.includes('develop') || lowerActivity.includes('research') || lowerActivity.includes('podcast')) return 'Personal Growth';
@@ -114,9 +108,7 @@ function categorizeActivity(activity: string | undefined, categoryHint?: string,
     if (lowerActivity.includes('hobby') || lowerActivity.includes('leisure') || lowerActivity.includes('relax') || lowerActivity.includes('music') || lowerActivity.includes('art') || lowerActivity.includes('watch tv')) return 'Hobbies/Leisure';
     if (lowerActivity.includes('chore') || lowerActivity.includes('clean') || lowerActivity.includes('errand') || lowerActivity.includes('grocery') || lowerActivity.includes('cook') || lowerActivity.includes('fix') || lowerActivity.includes('household') || lowerActivity.includes('laundry') || lowerActivity.includes('dishes')) return 'Responsibilities/Chores';
 
-    // Consider focus level for ambiguity (e.g., 'Reading' could be Growth or Leisure)
     if (lowerActivity.includes('read')) {
-         // Default to Leisure if focus not high, Personal Growth otherwise
          return (focusLevel && focusLevel >= 4) ? 'Personal Growth' : 'Hobbies/Leisure';
     }
 
@@ -124,11 +116,9 @@ function categorizeActivity(activity: string | undefined, categoryHint?: string,
 }
 
 
-// --- Exported Function ---
 export async function assessLifeBalance(
   input: AssessLifeBalanceInput
 ): Promise<AssessLifeBalanceOutput> {
-     // Validate input dates
     if (!input.startDate || !isValid(parseISO(input.startDate))) {
         throw new Error("Invalid or missing start date provided for life balance assessment.");
     }
@@ -138,7 +128,6 @@ export async function assessLifeBalance(
     return assessLifeBalanceFlow(input);
 }
 
-// --- Prompt Definition ---
 const PromptInputSchema = z.object({
       areaCountsJson: z.string().describe(`JSON string representing the counts of logged activities categorized into life areas: ${JSON.stringify(LIFE_AREAS)}. Example: {"Work/Career": 15, "Health/Wellness": 5, ...}`),
       analysisPeriodDays: z.number().int().positive().describe('The number of days included in the analysis period (e.g., 30).'),
@@ -153,7 +142,7 @@ const assessLifeBalancePrompt = ai.definePrompt({
     schema: z.object({
         balanceSummary: z.string().describe('Write a brief **Balance Summary** (2-3 sentences) based on the provided scores/counts. Highlight the 1-2 most dominant areas and point out potentially neglected ones. Comment on the overall distribution. May comment on quality if focus levels suggest it (e.g., "Work/Career dominates activity, and focus levels reported during these activities were generally high.").'),
         neglectedAreas: z.array(z.enum(LIFE_AREAS)).describe('Identify 1-3 **Neglected Areas** that have significantly lower scores (e.g., below 10%) compared to the dominant areas, or zero counts.'),
-        suggestions: z.array(z.string()).optional().describe('Provide 1-2 actionable **Suggestions** for improving balance, tailored to the neglected areas (e.g., "Schedule a recurring \'Personal Growth\' activity," "Block out time for \'Hobbies/Leisure\' this weekend"). Omit if balance seems good or data is insufficient.'),
+        suggestions: z.array(z.string()).optional().describe('Provide 1-2 actionable and practical **Suggestions** for improving balance, tailored to the neglected areas (e.g., "Try scheduling one \'Social/Relationships\' activity like calling a friend this weekend," or "Dedicate 30 minutes to \'Personal Growth\' on Tuesday by reading a chapter of a book"). Omit if balance seems good or data is insufficient.'),
     })
   },
   prompt: `You are an AI assistant helping users understand their life balance based on logged activities over the past {{analysisPeriodDays}} days.
@@ -174,12 +163,11 @@ Average Focus Levels by Area (JSON, 1=Low, 5=High):
 Analysis Tasks:
 1.  Based on the provided counts and scores, write a brief **Balance Summary** (2-3 sentences). Comment on which areas seem to receive the most focus (highest scores/counts) and which might be receiving less attention. {{#if focusLevelSummaryJson}}If focus data is present, briefly incorporate it (e.g., mention if a dominant area also had high focus).{{/if}}
 2.  Identify 1-3 **Neglected Areas** based on low scores (e.g., below 10%) or zero counts.
-3.  Provide 1-2 actionable **Suggestions** for improving balance, focusing on the neglected areas. If balance appears relatively even or data is sparse, omit this field or provide an empty array.
+3.  Provide 1-2 actionable and practical **Suggestions** for improving balance, focusing on the neglected areas. For example, if 'Social/Relationships' is neglected, suggest "Reach out to a friend to schedule a coffee chat this week." If 'Hobbies/Leisure' is low, suggest "Block out 1 hour on Saturday for [Specific Hobby Interest if known, otherwise 'a relaxing activity']." If balance appears relatively even or data is sparse, omit this field or provide an empty array.
 
 Generate the output in the specified JSON format. Focus solely on the distribution pattern shown by the counts and scores, incorporating focus insights if available.`,
 });
 
-// --- Flow Definition ---
 const assessLifeBalanceFlow = ai.defineFlow<
   typeof AssessLifeBalanceInputSchema,
   typeof AssessLifeBalanceOutputSchema
@@ -193,7 +181,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
     const end = parseISO(endDate);
     const analysisPeriodDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    // Helper to safely parse dates and check interval
     const isDateInRange = (dateString: string | null | undefined): boolean => {
         if (!dateString) return false;
         try {
@@ -204,13 +191,11 @@ const assessLifeBalanceFlow = ai.defineFlow<
         }
     };
 
-    // --- Activity Categorization & Focus Tracking ---
     const areaCounts: Record<LifeArea | 'Uncategorized', number> =
         Object.fromEntries([...LIFE_AREAS, 'Uncategorized'].map(area => [area, 0])) as any;
     const areaFocusTotals: Record<LifeArea, number> = Object.fromEntries(LIFE_AREAS.map(area => [area, 0])) as any;
     const areaFocusCounts: Record<LifeArea, number> = Object.fromEntries(LIFE_AREAS.map(area => [area, 0])) as any;
 
-    // Categorize logs
     dailyLogs
         .filter(log => isDateInRange(log.date))
         .forEach(log => {
@@ -222,7 +207,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
             }
         });
 
-    // Categorize tasks
     tasks
         .filter(task => isDateInRange(task.createdAt) || isDateInRange(task.dueDate))
         .forEach(task => {
@@ -230,7 +214,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
             areaCounts[area]++;
         });
 
-     // Categorize events
      calendarEvents
          .filter(event => isDateInRange(event.start))
          .forEach(event => {
@@ -238,7 +221,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
              areaCounts[area]++;
          });
 
-     // Categorize expenses
      expenses
          .filter(exp => isDateInRange(exp.date))
          .forEach(exp => {
@@ -246,7 +228,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
              areaCounts[area]++;
          });
 
-     // Categorize habits
      habits
          .filter(habit => isDateInRange(habit.updatedAt) || isDateInRange(habit.lastCompleted))
          .forEach(habit => {
@@ -254,7 +235,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
              areaCounts[area]++;
          });
 
-      // Categorize goals
       goals
           .filter(goal => isDateInRange(goal.updatedAt) || isDateInRange(goal.targetDate))
           .forEach(goal => {
@@ -262,8 +242,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
               areaCounts[area]++;
           });
 
-
-    // --- Calculate Scores ---
     const totalCategorizedActivities = LIFE_AREAS.reduce((sum, area) => sum + (areaCounts[area] || 0), 0);
 
     const areaScores: z.infer<typeof AreaScoreSchema>[] = LIFE_AREAS.map(area => {
@@ -272,15 +250,12 @@ const assessLifeBalanceFlow = ai.defineFlow<
         return { area, score, rawCount: count };
     });
 
-     // Calculate Average Focus per Area
      const focusLevelSummary = LIFE_AREAS.map(area => {
          const total = areaFocusTotals[area];
          const count = areaFocusCounts[area];
          return count > 0 ? { area, avgFocus: parseFloat((total / count).toFixed(1)) } : null;
      }).filter(item => item !== null) as { area: LifeArea; avgFocus: number }[];
 
-
-     // Handle case with no categorized data
      if (totalCategorizedActivities === 0) {
          return {
              areaScores: LIFE_AREAS.map(area => ({ area, score: 0, rawCount: 0 })),
@@ -290,8 +265,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
          };
      }
 
-
-    // --- AI Call ---
     const promptInputData: z.infer<typeof PromptInputSchema> = {
         areaCountsJson: JSON.stringify(areaCounts),
         analysisPeriodDays: analysisPeriodDays,
@@ -312,7 +285,6 @@ const assessLifeBalanceFlow = ai.defineFlow<
          };
       }
 
-    // Combine AI output with calculated scores
     return {
         areaScores,
         balanceSummary: output.balanceSummary,
