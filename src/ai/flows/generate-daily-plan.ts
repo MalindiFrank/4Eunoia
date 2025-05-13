@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Generates a suggested daily plan based on mood, past activities, and upcoming schedule.
@@ -110,7 +111,7 @@ User Context & Data:
 - Events for Target Date: {{#if eventsForDateJson}} {{{eventsForDateJson}}} {{else}} None {{/if}}
 - Active Goals: {{#if activeGoalsJson}} {{{activeGoalsJson}}} {{else}} None {{/if}}
 - Active Habits: {{#if activeHabitsJson}} {{{activeHabitsJson}}} {{else}} None {{/if}}
-- Preferences: {{#if userPreferences}} Preferred Work Times: {{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}} {{else}} Not specified {{/if}}
+- Preferences: {{#if userPreferences}} Preferred Work Times: {{userPreferences.preferredWorkTimes}}{{else}}Flexible{{/if}}, Energy Pattern: {{#if userPreferences.energyLevelPattern}}{{userPreferences.energyLevelPattern}}{{else}}Not specified{{/if}}, Growth Pace: {{#if userPreferences.growthPace}}{{userPreferences.growthPace}}{{else}}Moderate{{/if}}.{{else}} Not specified.{{/if}}
 
 Planning Task:
 1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals and habits.
