@@ -1,13 +1,14 @@
+
 'use client';
 
  import type { FC } from 'react';
  import React, { useState, useCallback, useEffect } from 'react';
- import { useSearchParams, useRouter } from 'next/navigation'; // Import useSearchParams and useRouter
+ import { useSearchParams, useRouter } from 'next/navigation';
  import { zodResolver } from '@hookform/resolvers/zod';
  import { useForm } from 'react-hook-form';
  import { z } from 'zod';
  import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, isWithinInterval, isValid as isValidDate } from 'date-fns';
- import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map } from 'lucide-react';
+ import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic } from 'lucide-react';
 
  import { Button } from '@/components/ui/button';
  import { Calendar } from '@/components/ui/calendar';
@@ -118,7 +119,7 @@
              }
          } catch { /* Ignore parsing errors */ }
      }
-     return date === null ? null : undefined; 
+     return date === null ? null : undefined;
  };
 
 
@@ -130,7 +131,7 @@
      return items.map(item => {
          const newItem: Record<string, any> = { ...item };
          dateKeys.forEach(key => {
-             if (key in item) { 
+             if (key in item) {
                  newItem[key] = safeFormatISO(item[key]);
              }
          });
@@ -178,26 +179,28 @@
          setIsLoading('dailySuggestion');
          try {
               const now = new Date();
-              const yesterday = startOfDay(subDays(now, 1)); 
-              const tomorrow = endOfDay(subDays(now, -1)); 
+              const yesterday = startOfDay(subDays(now, 1));
+              const tomorrow = endOfDay(subDays(now, -1));
               const todayStart = startOfDay(now);
               const todayEnd = endOfDay(now);
 
               const [logs, tasks, events, habits, goals] = await Promise.all([
-                 getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)), 
-                 getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrow))), 
-                 getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= todayStart && ev.start <= todayEnd)), 
-                 getHabits(dataMode), 
-                 getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')), 
+                 getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)),
+                 getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrow))),
+                 getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= todayStart && ev.start <= todayEnd)),
+                 getHabits(dataMode),
+                 getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
               ]);
 
               const input: GenerateDailySuggestionsInput = {
-                  currentDateTime: safeFormatISO(now)!, 
+                  currentDateTime: safeFormatISO(now)!,
                   recentLogs: formatArrayForFlow(logs, ['date']),
                   upcomingTasks: formatArrayForFlow(tasks, ['createdAt', 'dueDate']),
                   todaysEvents: formatArrayForFlow(events, ['start', 'end']),
                   activeHabits: formatArrayForFlow(habits, ['createdAt', 'updatedAt', 'lastCompleted']),
                   activeGoals: formatArrayForFlow(goals, ['createdAt', 'updatedAt', 'targetDate']),
+                  // TODO: Fetch and add user preferences and location/weather if available
+                  userPreferences: { growthPace: 'Moderate' } // Example, fetch from settings
               };
 
               const result = await generateDailySuggestions(input);
@@ -205,7 +208,11 @@
 
          } catch (error) {
              console.error("Failed to generate daily suggestions:", error);
-             toast({ title: "Error", description: "Could not load daily suggestions.", variant: "destructive" });
+             if (error instanceof Error && error.message.includes("503")) {
+                toast({ title: "AI Service Unavailable", description: "The AI assistant is temporarily overloaded. Please try again in a few moments.", variant: "destructive", duration: 5000 });
+             } else {
+                toast({ title: "Error", description: "Could not load daily suggestions.", variant: "destructive" });
+             }
              setDailySuggestions(null);
          } finally {
              setIsLoading(false);
@@ -216,19 +223,17 @@
          fetchDailySuggestions();
          if (toolParam) {
             form.setValue('insightType', toolParam);
-            // Automatically trigger reflection if that's the tool
             if (toolParam === 'reflection') {
                  const now = new Date();
-                 const startDate = startOfWeek(subDays(now, 7)); // Previous week start
-                 const endDate = endOfWeek(subDays(now, 7));   // Previous week end
+                 const startDate = startOfWeek(subDays(now, 7));
+                 const endDate = endOfWeek(subDays(now, 7));
                  form.setValue('startDate', startDate);
                  form.setValue('endDate', endDate);
                  onSubmit({ insightType: 'reflection', startDate, endDate });
             }
-            // Clear the query param after processing
             router.replace('/insights', {scroll: false});
         }
-     }, [fetchDailySuggestions, toolParam, form, router]); // Added form and router
+     }, [fetchDailySuggestions, toolParam, form, router]);
 
 
     const clearResults = useCallback(() => {
@@ -241,7 +246,7 @@
       setBurnoutRisk(null);
       setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
       setDailyPlan(null);
-    }, []); 
+    }, []);
 
     const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: 'reflection' | 'dailyPlan' | 'dailySuggestion', startDate?: Date, endDate?: Date }) => {
       setIsLoading(data.insightType);
@@ -282,7 +287,7 @@
          const [allLogs, allTasks, allEvents, allExpenses, allNotes, allGoals, allHabits] = await Promise.all(fetchDataPromises);
 
 
-          const dateRange = { start: startOfDay(startDate), end: endOfDay(endDate) }; 
+          const dateRange = { start: startOfDay(startDate), end: endOfDay(endDate) };
           const filterByDate = <T extends { date?: Date; createdAt?: Date; updatedAt?: Date; start?: Date }>(item: T): boolean => {
               const itemDate = item.date || item.createdAt || item.updatedAt || item.start;
               return itemDate instanceof Date && isValidDate(itemDate) && isWithinInterval(itemDate, dateRange);
@@ -294,7 +299,7 @@
               const due = task.dueDate;
               const isCreatedInRange = created instanceof Date && isValidDate(created) && isWithinInterval(created, dateRange);
               const isDueInRange = due instanceof Date && isValidDate(due) && isWithinInterval(due, dateRange);
-              return isCreatedInRange || isDueInRange || task.status !== 'Completed'; 
+              return isCreatedInRange || isDueInRange || task.status !== 'Completed';
           }) : [];
           const eventsInRange = requiresEvents ? allEvents.filter(filterByDate) : [];
           const expensesInRange = requiresExpenses ? allExpenses.filter(filterByDate) : [];
@@ -320,9 +325,9 @@
                    const diaryEntries = logsInRange
                         .filter(l => l.diaryEntry)
                         .map(l => ({ id: l.id, date: safeFormatISO(l.date), text: l.diaryEntry! }))
-                        .filter(e => e.date); 
-                   const effectiveFrequency = frequency ?? 'weekly'; 
-                   const diaryInput: SummarizeDiaryEntriesInput = { frequency: effectiveFrequency, diaryEntries: diaryEntries as any, ...dateInput }; 
+                        .filter(e => e.date);
+                   const effectiveFrequency = frequency ?? 'weekly';
+                   const diaryInput: SummarizeDiaryEntriesInput = { frequency: effectiveFrequency, diaryEntries: diaryEntries as any, ...dateInput };
                    const diaryResult = await summarizeDiaryEntries(diaryInput);
                    setDiarySummary(diaryResult);
                    break;
@@ -342,8 +347,8 @@
               case 'sentimentAnalysis':
                    const diaryTexts = logsInRange.filter(l => l.diaryEntry).map(l => ({ id: l.id, date: safeFormatISO(l.date), text: l.diaryEntry!, source: 'diary' as const }));
                    const noteTexts = notesInRange.map(n => ({ id: n.id, date: safeFormatISO(n.createdAt), text: n.content, source: 'note' as const }));
-                   const validTexts = [...diaryTexts, ...noteTexts].filter(t => t.date); 
-                   const sentimentInput: AnalyzeSentimentTrendsInput = { ...dateInput, textEntries: validTexts as any }; 
+                   const validTexts = [...diaryTexts, ...noteTexts].filter(t => t.date);
+                   const sentimentInput: AnalyzeSentimentTrendsInput = { ...dateInput, textEntries: validTexts as any };
                    const sentimentResult = await analyzeSentimentTrends(sentimentInput);
                    setSentimentAnalysis(sentimentResult);
                    break;
@@ -355,8 +360,8 @@
                       tasks: formatArrayForFlow(tasksInRange, ['createdAt', 'dueDate']),
                       calendarEvents: formatArrayForFlow(eventsInRange, ['start', 'end']),
                       expenses: formatArrayForFlow(expensesInRange, ['date']),
-                      habits: formatArrayForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']), 
-                      goals: formatArrayForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']), 
+                      habits: formatArrayForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
+                      goals: formatArrayForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
                    };
                    const balanceResult = await assessLifeBalance(balanceInput);
                    setLifeBalance(balanceResult);
@@ -366,7 +371,7 @@
                    const burnoutInput: EstimateBurnoutRiskInput = {
                       ...dateInput,
                       dailyLogs: formatArrayForFlow(logsInRange, ['date']),
-                      tasks: formatArrayForFlow(allTasks, ['createdAt', 'dueDate']), 
+                      tasks: formatArrayForFlow(allTasks, ['createdAt', 'dueDate']),
                       calendarEvents: formatArrayForFlow(eventsInRange, ['start', 'end']),
                    };
                    const burnoutResult = await estimateBurnoutRisk(burnoutInput);
@@ -375,7 +380,7 @@
 
                case 'reflection':
                    const reflectionInput: ReflectOnWeekInput = {
-                      ...dateInput, 
+                      ...dateInput,
                       logs: formatArrayForFlow(logsInRange, ['date']),
                       tasks: formatArrayForFlow(tasksInRange, ['createdAt', 'dueDate']),
                       goals: formatArrayForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
@@ -395,34 +400,35 @@
                       },
                       output: reflectionResult,
                   }));
-                  setReflectionUserInput(''); 
+                  setReflectionUserInput('');
                   break;
 
               case 'dailySuggestion':
-                  await fetchDailySuggestions(); 
+                  await fetchDailySuggestions();
                   break;
 
               case 'dailyPlan':
-                 const targetDate = startDate; 
-                 const planContextStart = startOfDay(subDays(targetDate, 2)); 
-                 const planContextEnd = endOfDay(targetDate); 
+                 const targetDate = startDate;
+                 const planContextStart = startOfDay(subDays(targetDate, 2));
+                 const planContextEnd = endOfDay(targetDate);
                  const targetDayStart = startOfDay(targetDate);
                  const targetDayEnd = endOfDay(targetDate);
 
 
                  const logsForPlan = allLogs.filter((l: LogEntry) => l.date >= planContextStart && l.date <= planContextEnd);
-                 const tasksForPlan = allTasks.filter((task: Task) => (task.dueDate && task.dueDate >= targetDayStart && task.dueDate <= targetDayEnd) || task.status !== 'Completed'); 
-                 const eventsForPlan = allEvents.filter((ev: CalendarEvent) => ev.start >= targetDayStart && ev.start <= targetDayEnd); 
+                 const tasksForPlan = allTasks.filter((task: Task) => (task.dueDate && task.dueDate >= targetDayStart && task.dueDate <= targetDayEnd) || task.status !== 'Completed');
+                 const eventsForPlan = allEvents.filter((ev: CalendarEvent) => ev.start >= targetDayStart && ev.start <= targetDayEnd);
                  const activeGoalsPlan = allGoals.filter((goal: Goal) => goal.status === 'In Progress');
-                 const activeHabitsPlan = allHabits; 
+                 const activeHabitsPlan = allHabits;
 
                  const planInput: GenerateDailyPlanInput = {
-                      targetDate: safeFormatISO(targetDate)!, 
+                      targetDate: safeFormatISO(targetDate)!,
                       recentLogs: formatArrayForFlow(logsForPlan, ['date']),
                       tasksForDate: formatArrayForFlow(tasksForPlan, ['createdAt', 'dueDate']),
-                      eventsForDate: formatArrayForFlow(eventsForDate, ['start', 'end']),
+                      eventsForDate: formatArrayForFlow(eventsForPlan, ['start', 'end']),
                       activeGoals: formatArrayForFlow(activeGoalsPlan, ['createdAt', 'updatedAt', 'targetDate']),
                       activeHabits: formatArrayForFlow(activeHabitsPlan, ['createdAt', 'updatedAt', 'lastCompleted']),
+                       userPreferences: { growthPace: 'Moderate' } // Example, fetch from settings
                  };
                  const planResult = await generateDailyPlan(planInput);
                  setDailyPlan(planResult);
@@ -434,16 +440,25 @@
                   throw new Error(`Unhandled insight type: ${exhaustiveCheck}`);
           }
 
-         if (insightType !== 'reflection' && insightType !== 'dailySuggestion') { 
+         if (insightType !== 'reflection' && insightType !== 'dailySuggestion') {
             toast({ title: "Insights Generated", description: `Successfully generated ${insightType.replace(/([A-Z])/g, ' $1').trim()} insights.` });
          }
 
       } catch (error) {
         console.error("Failed to generate insights:", error);
+        let description = 'An unknown error occurred. Please try again.';
+        if (error instanceof Error) {
+            if (error.message.includes("503") || error.message.includes("Service Unavailable") || error.message.includes("overloaded")) {
+                description = "The AI service is temporarily overloaded. Please try again in a few moments.";
+            } else {
+                description = error.message;
+            }
+        }
         toast({
           title: "Error Generating Insights",
-          description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
+          description: description,
           variant: "destructive",
+          duration: 5000,
         });
          if (!['reflection', 'dailySuggestion'].includes(data.insightType)) {
              clearResults();
@@ -453,7 +468,7 @@
       } finally {
         setIsLoading(false);
       }
-    }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions]); 
+    }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions]);
 
 
      const handleReflectionResponse = (e: React.FormEvent) => {
@@ -581,15 +596,15 @@
                               form.setValue('startDate', subDays(now, 7), { shouldValidate: true });
                               form.setValue('endDate', now, { shouldValidate: true });
                           } else if (value === 'diarySummary') {
-                              form.setValue('frequency', 'weekly'); 
+                              form.setValue('frequency', 'weekly');
                               form.setValue('startDate', startOfWeek(now), { shouldValidate: true });
                               form.setValue('endDate', endOfWeek(now), { shouldValidate: true });
                           } else if (value === 'reflection') {
-                              form.setValue('startDate', startOfWeek(subDays(now, 7)), { shouldValidate: true }); 
+                              form.setValue('startDate', startOfWeek(subDays(now, 7)), { shouldValidate: true });
                               form.setValue('endDate', endOfWeek(subDays(now, 7)), { shouldValidate: true });
                           } else if (value === 'dailyPlan') {
-                              form.setValue('startDate', startOfDay(now), { shouldValidate: true }); 
-                              form.setValue('endDate', endOfDay(now), { shouldValidate: true }); 
+                              form.setValue('startDate', startOfDay(now), { shouldValidate: true });
+                              form.setValue('endDate', endOfDay(now), { shouldValidate: true });
                           } else {
                               form.setValue('startDate', undefined);
                               form.setValue('endDate', undefined);
@@ -634,7 +649,7 @@
        </Card>
 
        <div className="space-y-6">
-         {isLoading && typeof isLoading === 'string' && !['dailySuggestion', 'reflection', 'dailyPlan'].includes(isLoading as AIServiceType) && ( 
+         {isLoading && typeof isLoading === 'string' && !['dailySuggestion', 'reflection', 'dailyPlan'].includes(isLoading as AIServiceType) && (
             <Card>
                 <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
                 <CardContent className="space-y-4">
@@ -647,7 +662,7 @@
 
          {isLoading === 'dailyPlan' ? (
               <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
-          ) : dailyPlan && selectedInsightType === 'dailyPlan' && ( 
+          ) : dailyPlan && selectedInsightType === 'dailyPlan' && (
               <Card className="shadow-md bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300"><Map className="h-5 w-5" /> Suggested Daily Plan</CardTitle>
@@ -684,14 +699,14 @@
               </Card>
           )}
 
-          {selectedInsightType === 'reflection' && ( 
+          {selectedInsightType === 'reflection' && (
               <Card className="shadow-md bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700">
                   <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-300"><BrainCircuit className="h-5 w-5" /> Weekly Reflection Coach</CardTitle>
                        <CardDescription>Reflect on your week {form.getValues("startDate") instanceof Date && form.getValues("endDate") instanceof Date && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                       {isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && ( 
+                       {isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && (
                           <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-purple-500" /></div>
                       )}
                       {reflectionState.conversation.questions.map((q, index) => (
@@ -884,9 +899,11 @@
               </Card>
           )}
 
-       </div> 
-     </div> 
+       </div>
+     </div>
    );
  };
 
  export default InsightsPage;
+
+    
