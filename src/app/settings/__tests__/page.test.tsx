@@ -16,9 +16,9 @@ jest.mock('@/hooks/use-toast', () => ({
 // Mock useDataMode
 const mockResetToMockMode = jest.fn();
 jest.mock('@/context/data-mode-context', () => ({
-    ...jest.requireActual('@/context/data-mode-context'), // Import and retain default behavior
+    ...jest.requireActual('@/context/data-mode-context'),
   useDataMode: () => ({
-    dataMode: 'user', // Default to user mode for tests
+    dataMode: 'user',
     switchToUserDataMode: jest.fn(),
     resetToMockMode: mockResetToMockMode,
     isLoading: false,
@@ -47,11 +47,11 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: jest.fn().mockImplementation(query => ({
-      matches: false, // Default to light mode for system theme
+      matches: false,
       media: query,
       onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
       dispatchEvent: jest.fn(),
@@ -79,31 +79,44 @@ describe('SettingsPage', () => {
 
   it('renders all setting sections correctly', async () => {
     renderSettingsPage();
-     await waitFor(() => { // Wait for settings to load
+     await waitFor(() => {
         expect(screen.getByRole('heading', { name: /Application Settings/i })).toBeInTheDocument();
     });
     expect(screen.getByRole('heading', { name: /Preferences/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /AI Customization/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Notifications/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Integrations/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Neurodivergent Mode/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Reset Application/i })).toBeInTheDocument();
   });
 
-  it('allows changing the theme and saves settings', async () => {
+  it('allows changing the theme and AI preferences, and saves settings', async () => {
     renderSettingsPage();
     await waitFor(() => {
         expect(screen.getByLabelText('Select application theme')).toBeInTheDocument();
+        expect(screen.getByLabelText('Select AI Persona')).toBeInTheDocument();
+        expect(screen.getByLabelText('Select AI Insight Verbosity')).toBeInTheDocument();
+        expect(screen.getByLabelText('Your Typical Energy Pattern')).toBeInTheDocument();
     });
 
-    const themeSelect = screen.getByLabelText('Select application theme');
-    fireEvent.mouseDown(themeSelect); // Open the select
-
-    // Wait for options to appear
-    await waitFor(() => {
-        expect(screen.getByText('Dark')).toBeInTheDocument();
-    });
-    
+    // Change Theme
+    fireEvent.mouseDown(screen.getByLabelText('Select application theme'));
+    await waitFor(() => { expect(screen.getByText('Dark')).toBeInTheDocument(); });
     fireEvent.click(screen.getByText('Dark'));
+
+    // Change AI Persona
+    fireEvent.mouseDown(screen.getByLabelText('Select AI Persona'));
+    await waitFor(() => { expect(screen.getByText('Neutral Assistant')).toBeInTheDocument(); });
+    fireEvent.click(screen.getByText('Neutral Assistant'));
+
+    // Change AI Verbosity
+    fireEvent.mouseDown(screen.getByLabelText('Select AI Insight Verbosity'));
+    await waitFor(() => { expect(screen.getByText('Brief Summary')).toBeInTheDocument(); });
+    fireEvent.click(screen.getByText('Brief Summary'));
+    
+    // Change Energy Pattern
+    const energyPatternInput = screen.getByLabelText('Your Typical Energy Pattern');
+    fireEvent.change(energyPatternInput, { target: { value: 'Productive mornings' } });
 
 
     const saveButton = screen.getByRole('button', { name: /Save All Settings/i });
@@ -113,18 +126,31 @@ describe('SettingsPage', () => {
       title: 'Settings Saved',
       description: 'Your preferences have been updated.',
     });
-    // Check if localStorage was updated (simplified check)
+    
     const settings = JSON.parse(localStorage.getItem('4eunoia-app-settings') || '{}');
     expect(settings.preferences.theme).toBe('dark');
+    expect(settings.preferences.aiPersona).toBe('Neutral Assistant');
+    expect(settings.preferences.aiInsightVerbosity).toBe('Brief Summary');
+    expect(settings.preferences.energyPattern).toBe('Productive mornings');
   });
 
-  it('toggles a notification switch and saves settings', async () => {
+  it('toggles a notification switch and Neurodivergent Mode Focus Shield, then saves', async () => {
     renderSettingsPage();
      await waitFor(() => {
         expect(screen.getByLabelText('Toggle task due date reminders')).toBeInTheDocument();
+        expect(screen.getByLabelText('Enable Neurodivergent Mode')).toBeInTheDocument();
     });
     const taskRemindersSwitch = screen.getByLabelText('Toggle task due date reminders');
-    fireEvent.click(taskRemindersSwitch); // Toggle it off (assuming default is on)
+    fireEvent.click(taskRemindersSwitch); // Toggle it off
+
+    const neuroModeSwitch = screen.getByLabelText('Enable Neurodivergent Mode');
+    fireEvent.click(neuroModeSwitch); // Enable Neuro Mode
+    
+    await waitFor(() => { // Wait for conditional elements to render
+        expect(screen.getByLabelText('Enable Focus Shield (In-App)')).toBeInTheDocument();
+    });
+    const focusShieldSwitch = screen.getByLabelText('Enable Focus Shield (In-App)');
+    fireEvent.click(focusShieldSwitch); // Enable Focus Shield
 
     const saveButton = screen.getByRole('button', { name: /Save All Settings/i });
     fireEvent.click(saveButton);
@@ -134,7 +160,9 @@ describe('SettingsPage', () => {
       description: 'Your preferences have been updated.',
     });
     const settings = JSON.parse(localStorage.getItem('4eunoia-app-settings') || '{}');
-    expect(settings.notifications.taskReminders).toBe(false); // Assuming default was true
+    expect(settings.notifications.taskReminders).toBe(false);
+    expect(settings.neurodivergent.enabled).toBe(true);
+    expect(settings.neurodivergent.focusShieldEnabled).toBe(true);
   });
 
 
@@ -147,7 +175,6 @@ describe('SettingsPage', () => {
     const resetButton = screen.getByRole('button', { name: /Clear All My Data & Reset/i });
     fireEvent.click(resetButton);
 
-    // Wait for dialog to appear
     await waitFor(() => {
         expect(screen.getByRole('heading', { name: /Are you absolutely sure?/i })).toBeInTheDocument();
     });
@@ -156,27 +183,37 @@ describe('SettingsPage', () => {
     fireEvent.click(confirmDeleteButton);
 
     expect(mockResetToMockMode).toHaveBeenCalledTimes(1);
-    // Toast for reset is handled in useDataMode, so we don't check it here unless we pass the mock down
   });
 
    it('loads saved settings from localStorage on mount', async () => {
        const initialSettings = {
-           preferences: { theme: 'dark', defaultView: '/', growthPace: 'Aggressive' },
+           preferences: { 
+             theme: 'dark', 
+             defaultView: '/', 
+             growthPace: 'Aggressive',
+             aiPersona: 'Direct Analyst',
+             aiInsightVerbosity: 'Brief Summary',
+             energyPattern: 'Peaks in evening',
+            },
            notifications: { taskReminders: false, eventAlerts: false, habitNudges: false, insightNotifications: false },
+           neurodivergent: { enabled: true, focusShieldEnabled: true, lowStimulationUI: true, taskChunking: true, focusModeTimer: 'custom' },
        };
        localStorage.setItem('4eunoia-app-settings', JSON.stringify(initialSettings));
 
        renderSettingsPage();
 
        await waitFor(() => {
-         expect(screen.getByLabelText('Select application theme')).toHaveTextContent('Dark'); // SelectValue might show this
+         expect(screen.getByLabelText('Select application theme')).toHaveTextContent('Dark');
          expect(screen.getByLabelText('Select personal growth pace')).toHaveTextContent('Aggressive');
+         expect(screen.getByLabelText('Select AI Persona')).toHaveTextContent('Direct Analyst');
+         expect(screen.getByLabelText('Select AI Insight Verbosity')).toHaveTextContent('Brief Summary');
+         expect(screen.getByLabelText('Your Typical Energy Pattern')).toHaveValue('Peaks in evening');
+         expect(screen.getByLabelText('Enable Neurodivergent Mode')).toHaveAttribute('data-state', 'checked');
+         expect(screen.getByLabelText('Enable Focus Shield (In-App)')).toHaveAttribute('data-state', 'checked');
        });
        
        const taskRemindersSwitch = screen.getByLabelText('Toggle task due date reminders') as HTMLButtonElement;
-       // The 'checked' state is on the underlying input, but Radix Switch uses data-state
        expect(taskRemindersSwitch).toHaveAttribute('data-state', 'unchecked'); 
    });
-
-
 });
+    

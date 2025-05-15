@@ -1,13 +1,14 @@
+
 // src/app/settings/page.tsx
 'use client';
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash } from 'lucide-react';
+import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } // Label is imported from ui/label
+import { Label }
 from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,15 +18,21 @@ import { useDataMode } from '@/context/data-mode-context';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import { applyTheme, getInitialTheme, SETTINGS_STORAGE_KEY, type Theme } from '@/lib/theme-utils'; // Import theme utilities
+import { applyTheme, getInitialTheme, SETTINGS_STORAGE_KEY, type Theme } from '@/lib/theme-utils';
+import { Input } from '@/components/ui/input';
 
-// Placeholder types for settings
+
 type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
+type AIPersona = 'Supportive Coach' | 'Neutral Assistant' | 'Direct Analyst';
+type AIInsightVerbosity = 'Brief Summary' | 'Detailed Analysis';
 
 interface UserPreferences {
-  theme: Theme; // Use Theme type from theme-utils
+  theme: Theme;
   defaultView: string;
   growthPace: GrowthPace;
+  aiPersona: AIPersona;
+  aiInsightVerbosity: AIInsightVerbosity;
+  energyPattern: string; // Free text for energy pattern
 }
 
 interface NotificationSettings {
@@ -45,13 +52,21 @@ interface NeurodivergentSettings {
   focusModeTimer: 'pomodoro' | 'custom';
   taskChunking: boolean;
   lowStimulationUI: boolean;
+  focusShieldEnabled: boolean; // For Digital Dopamine Manager
 }
 
 const SettingsPage: FC = () => {
   const { toast } = useToast();
   const { resetToMockMode } = useDataMode();
 
-  const [preferences, setPreferences] = useState<UserPreferences>({ theme: getInitialTheme(), defaultView: '/', growthPace: 'Moderate' });
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    theme: getInitialTheme(),
+    defaultView: '/',
+    growthPace: 'Moderate',
+    aiPersona: 'Supportive Coach',
+    aiInsightVerbosity: 'Detailed Analysis',
+    energyPattern: 'Steady throughout day',
+  });
   const [notifications, setNotifications] = useState<NotificationSettings>({
     taskReminders: true,
     eventAlerts: true,
@@ -64,6 +79,7 @@ const SettingsPage: FC = () => {
     focusModeTimer: 'pomodoro',
     taskChunking: false,
     lowStimulationUI: false,
+    focusShieldEnabled: false,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -74,35 +90,36 @@ const SettingsPage: FC = () => {
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          // Ensure theme is correctly loaded using getInitialTheme's logic
           const loadedTheme = parsedSettings?.preferences?.theme && ['light', 'dark', 'system'].includes(parsedSettings.preferences.theme)
             ? parsedSettings.preferences.theme
-            : getInitialTheme(); // Fallback to getInitialTheme if stored value is odd
+            : getInitialTheme();
 
           setPreferences(prev => ({
             ...prev,
             ...(parsedSettings.preferences || {}),
-            theme: loadedTheme, // Set theme from parsed or default
+            theme: loadedTheme,
+            aiPersona: parsedSettings.preferences?.aiPersona || 'Supportive Coach',
+            aiInsightVerbosity: parsedSettings.preferences?.aiInsightVerbosity || 'Detailed Analysis',
+            energyPattern: parsedSettings.preferences?.energyPattern || 'Steady throughout day',
           }));
           setNotifications(prev => ({ ...prev, ...(parsedSettings.notifications || {}) }));
           setIntegrations(prev => ({ ...prev, ...(parsedSettings.integrations || {}) }));
-          setNeurodivergent(prev => ({ ...prev, ...(parsedSettings.neurodivergent || {}) }));
+          setNeurodivergent(prev => ({
+             ...prev,
+             ...(parsedSettings.neurodivergent || {}),
+             focusShieldEnabled: parsedSettings.neurodivergent?.focusShieldEnabled || false,
+            }));
         } catch (e) {
           console.error("Error loading settings from localStorage:", e);
           toast({ title: "Error", description: "Could not load saved settings.", variant: "destructive" });
         }
       }
-      // No need to call applyTheme here, RootLayout handles initial application.
       setIsLoading(false);
     }
   }, [toast]);
 
-  // This useEffect is now primarily for when the user *changes* the theme in settings.
-  // The initial theme application is handled by RootLayout.
    useEffect(() => {
-     // When preferences.theme changes (e.g., by user interaction on this page),
-     // apply it immediately and save.
-     if (!isLoading) { // Only apply if not in initial loading phase
+     if (!isLoading) {
         applyTheme(preferences.theme);
      }
    }, [preferences.theme, isLoading]);
@@ -117,7 +134,7 @@ const SettingsPage: FC = () => {
      };
     try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(allSettings));
-        applyTheme(preferences.theme); // Ensure immediate application on save
+        applyTheme(preferences.theme);
         toast({ title: "Settings Saved", description: "Your preferences have been updated." });
     } catch (e) {
         console.error("Error saving settings to localStorage:", e);
@@ -135,11 +152,9 @@ const SettingsPage: FC = () => {
 
    const handleIntegrationChange = <K extends keyof IntegrationSettings>(key: K, value: IntegrationSettings[K]) => {
         setIntegrations(prev => ({ ...prev, [key]: value }));
-        if (key === 'googleCalendarSync') {
-             toast({ title: "Google Calendar Sync", description: value ? "Connect your Google Calendar (feature coming soon)." : "Google Calendar sync disabled.", variant: "default"});
-        }
-        if (key === 'slackIntegration') {
-             toast({ title: "Slack Integration", description: value ? "Connect your Slack (feature coming soon)." : "Slack integration disabled.", variant: "default"});
+        if (value) { // Only toast if enabling, as it's a placeholder
+          const integrationName = key === 'googleCalendarSync' ? 'Google Calendar Sync' : 'Slack Integration';
+          toast({ title: `${integrationName} (Coming Soon)`, description: `Connect your ${integrationName.split(' ')[0]} (feature in development).`, variant: "default"});
         }
    };
 
@@ -148,30 +163,28 @@ const SettingsPage: FC = () => {
    };
 
    const handleResetApp = () => {
-        // Reset state first
         const defaultTheme = 'system' as Theme;
-        setPreferences({ theme: defaultTheme, defaultView: '/', growthPace: 'Moderate' });
+        setPreferences({
+          theme: defaultTheme, defaultView: '/', growthPace: 'Moderate',
+          aiPersona: 'Supportive Coach', aiInsightVerbosity: 'Detailed Analysis', energyPattern: 'Steady throughout day'
+        });
         setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
         setIntegrations({ googleCalendarSync: false, slackIntegration: false });
-        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
+        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false, focusShieldEnabled: false });
 
         if (typeof window !== 'undefined') {
             localStorage.removeItem(SETTINGS_STORAGE_KEY);
         }
-        applyTheme(defaultTheme); // Apply the default theme immediately
-
-        resetToMockMode(); // This will clear other data and reload
-        // Toast for reset is usually handled within resetToMockMode or the component calling it
-        // but we can add one here for clarity if resetToMockMode doesn't show one.
+        applyTheme(defaultTheme);
+        resetToMockMode();
         toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
    }
-
 
   if (isLoading) {
       return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
              <Skeleton className="h-10 w-1/2 mb-8" />
-             {[...Array(4)].map((_, i) => (
+             {[...Array(5)].map((_, i) => ( // Increased skeleton cards
                  <Card key={i}>
                      <CardHeader><Skeleton className="h-6 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
                      <CardContent className="space-y-4">
@@ -194,9 +207,9 @@ const SettingsPage: FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" /> Preferences</CardTitle>
-          <CardDescription>Customize the look and feel of the application.</CardDescription>
+          <CardDescription>Customize the look, feel, and AI behavior of the application.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <Label htmlFor="theme-select">Theme</Label>
             <Select value={preferences.theme} onValueChange={(value: Theme) => handlePreferenceChange('theme', value)}>
@@ -223,6 +236,43 @@ const SettingsPage: FC = () => {
                   </SelectContent>
               </Select>
            </div>
+           <Separator />
+            <h3 className="text-md font-semibold flex items-center gap-2"><SlidersHorizontal className="h-4 w-4"/> AI Customization</h3>
+            <div className="flex items-center justify-between">
+                <Label htmlFor="ai-persona-select">AI Persona</Label>
+                <Select value={preferences.aiPersona} onValueChange={(value: AIPersona) => handlePreferenceChange('aiPersona', value)}>
+                    <SelectTrigger id="ai-persona-select" className="w-[180px]" aria-label="Select AI Persona">
+                        <SelectValue placeholder="Select persona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Supportive Coach">Supportive Coach</SelectItem>
+                        <SelectItem value="Neutral Assistant">Neutral Assistant</SelectItem>
+                        <SelectItem value="Direct Analyst">Direct Analyst</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-center justify-between">
+                <Label htmlFor="ai-verbosity-select">AI Insight Verbosity</Label>
+                <Select value={preferences.aiInsightVerbosity} onValueChange={(value: AIInsightVerbosity) => handlePreferenceChange('aiInsightVerbosity', value)}>
+                    <SelectTrigger id="ai-verbosity-select" className="w-[180px]" aria-label="Select AI Insight Verbosity">
+                        <SelectValue placeholder="Select verbosity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Brief Summary">Brief Summary</SelectItem>
+                        <SelectItem value="Detailed Analysis">Detailed Analysis</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+             <div className="space-y-1">
+                <Label htmlFor="energy-pattern">Your Typical Energy Pattern</Label>
+                <Input
+                    id="energy-pattern"
+                    value={preferences.energyPattern}
+                    onChange={(e) => handlePreferenceChange('energyPattern', e.target.value)}
+                    placeholder="e.g., High in morning, dip after lunch"
+                />
+                <p className="text-xs text-muted-foreground">Helps AI tailor suggestions. (e.g., "Morning high, focus dips mid-afternoon")</p>
+            </div>
         </CardContent>
       </Card>
 
@@ -234,39 +284,19 @@ const SettingsPage: FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="task-reminders">Task Due Date Reminders</Label>
-            <Switch
-              id="task-reminders"
-              checked={notifications.taskReminders}
-              onCheckedChange={(checked) => handleNotificationChange('taskReminders', checked)}
-              aria-label="Toggle task due date reminders"
-            />
+            <Switch id="task-reminders" checked={notifications.taskReminders} onCheckedChange={(checked) => handleNotificationChange('taskReminders', checked)} aria-label="Toggle task due date reminders" />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="event-alerts">Calendar Event Alerts</Label>
-            <Switch
-              id="event-alerts"
-              checked={notifications.eventAlerts}
-              onCheckedChange={(checked) => handleNotificationChange('eventAlerts', checked)}
-              aria-label="Toggle calendar event alerts"
-            />
+            <Switch id="event-alerts" checked={notifications.eventAlerts} onCheckedChange={(checked) => handleNotificationChange('eventAlerts', checked)} aria-label="Toggle calendar event alerts" />
           </div>
            <div className="flex items-center justify-between">
               <Label htmlFor="habit-nudges">Habit Nudges & Reminders</Label>
-              <Switch
-                id="habit-nudges"
-                checked={notifications.habitNudges}
-                onCheckedChange={(checked) => handleNotificationChange('habitNudges', checked)}
-                aria-label="Toggle habit nudges and reminders"
-              />
+              <Switch id="habit-nudges" checked={notifications.habitNudges} onCheckedChange={(checked) => handleNotificationChange('habitNudges', checked)} aria-label="Toggle habit nudges and reminders" />
           </div>
            <div className="flex items-center justify-between">
               <Label htmlFor="insight-notifications">New Insight Notifications</Label>
-              <Switch
-                id="insight-notifications"
-                checked={notifications.insightNotifications}
-                onCheckedChange={(checked) => handleNotificationChange('insightNotifications', checked)}
-                aria-label="Toggle new insight notifications"
-              />
+              <Switch id="insight-notifications" checked={notifications.insightNotifications} onCheckedChange={(checked) => handleNotificationChange('insightNotifications', checked)} aria-label="Toggle new insight notifications" />
           </div>
         </CardContent>
       </Card>
@@ -274,7 +304,7 @@ const SettingsPage: FC = () => {
        <Card>
          <CardHeader>
            <CardTitle className="flex items-center gap-2"><LinkIcon className="h-5 w-5" /> Integrations</CardTitle>
-           <CardDescription>Connect 4Eunoia with other services.</CardDescription>
+           <CardDescription>Connect 4Eunoia with other services (features coming soon).</CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
            <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -282,30 +312,17 @@ const SettingsPage: FC = () => {
                     <Label htmlFor="google-calendar-sync" className="font-medium">Google Calendar Sync</Label>
                     <p className="text-xs text-muted-foreground">Sync events between 4Eunoia and Google Calendar.</p>
                 </div>
-                <Switch
-                 id="google-calendar-sync"
-                 checked={integrations.googleCalendarSync}
-                 onCheckedChange={(checked) => handleIntegrationChange('googleCalendarSync', checked)}
-                 aria-label="Toggle Google Calendar sync"
-                 disabled // Feature coming soon
-                />
+                <Switch id="google-calendar-sync" checked={integrations.googleCalendarSync} onCheckedChange={(checked) => handleIntegrationChange('googleCalendarSync', checked)} aria-label="Toggle Google Calendar sync" disabled />
            </div>
             <div className="flex items-center justify-between p-3 border rounded-lg">
                  <div>
                      <Label htmlFor="slack-sync" className="font-medium">Slack Integration</Label>
                      <p className="text-xs text-muted-foreground">Get reminders and updates in Slack.</p>
                  </div>
-                 <Switch 
-                    id="slack-sync" 
-                    checked={integrations.slackIntegration}
-                    onCheckedChange={(checked) => handleIntegrationChange('slackIntegration', checked)}
-                    aria-label="Toggle Slack integration"
-                    disabled // Feature coming soon
-                 />
+                 <Switch  id="slack-sync" checked={integrations.slackIntegration} onCheckedChange={(checked) => handleIntegrationChange('slackIntegration', checked)} aria-label="Toggle Slack integration" disabled />
             </div>
          </CardContent>
        </Card>
-
 
       <Card>
         <CardHeader>
@@ -315,12 +332,7 @@ const SettingsPage: FC = () => {
         <CardContent className="space-y-4">
            <div className="flex items-center justify-between">
               <Label htmlFor="neurodivergent-enable" className="font-medium">Enable Neurodivergent Mode</Label>
-              <Switch
-                id="neurodivergent-enable"
-                checked={neurodivergent.enabled}
-                onCheckedChange={(checked) => handleNeurodivergentChange('enabled', checked)}
-                aria-label="Enable Neurodivergent Mode"
-              />
+              <Switch id="neurodivergent-enable" checked={neurodivergent.enabled} onCheckedChange={(checked) => handleNeurodivergentChange('enabled', checked)} aria-label="Enable Neurodivergent Mode" />
            </div>
             {neurodivergent.enabled && (
                 <>
@@ -328,21 +340,11 @@ const SettingsPage: FC = () => {
                     <div className="space-y-4 pl-2 border-l-2 border-primary/30">
                          <div className="flex items-center justify-between">
                             <Label htmlFor="task-chunking">Enable Task Chunking Suggestions</Label>
-                            <Switch
-                             id="task-chunking"
-                             checked={neurodivergent.taskChunking}
-                             onCheckedChange={(checked) => handleNeurodivergentChange('taskChunking', checked)}
-                             aria-label="Enable task chunking suggestions"
-                            />
+                            <Switch id="task-chunking" checked={neurodivergent.taskChunking} onCheckedChange={(checked) => handleNeurodivergentChange('taskChunking', checked)} aria-label="Enable task chunking suggestions" />
                         </div>
                          <div className="flex items-center justify-between">
                             <Label htmlFor="low-stimulation">Use Low Stimulation UI</Label>
-                            <Switch
-                             id="low-stimulation"
-                             checked={neurodivergent.lowStimulationUI}
-                             onCheckedChange={(checked) => handleNeurodivergentChange('lowStimulationUI', checked)}
-                             aria-label="Use low stimulation UI"
-                            />
+                            <Switch id="low-stimulation" checked={neurodivergent.lowStimulationUI} onCheckedChange={(checked) => handleNeurodivergentChange('lowStimulationUI', checked)} aria-label="Use low stimulation UI" />
                         </div>
                         <div className="flex items-center justify-between">
                             <Label htmlFor="focus-timer">Focus Mode Timer Style</Label>
@@ -356,10 +358,14 @@ const SettingsPage: FC = () => {
                               </SelectContent>
                             </Select>
                         </div>
+                         <div className="flex items-center justify-between">
+                            <Label htmlFor="focus-shield">Enable Focus Shield (In-App)</Label>
+                             <Switch id="focus-shield" checked={neurodivergent.focusShieldEnabled} onCheckedChange={(checked) => handleNeurodivergentChange('focusShieldEnabled', checked)} aria-label="Enable Focus Shield (In-App)" />
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-1">Focus Shield subtly de-emphasizes non-critical app sections when high burnout risk is detected, helping you focus on essentials.</p>
                     </div>
                 </>
             )}
-
         </CardContent>
       </Card>
 
@@ -399,3 +405,4 @@ const SettingsPage: FC = () => {
 };
 
 export default SettingsPage;
+    

@@ -7,7 +7,7 @@
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
+// Unless required by applicable lawL.log(message?: any, ...optionalParams: any[]): void
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
@@ -23,14 +23,11 @@ import '@/ai/flows/assess-life-balance.ts';
 import '@/ai/flows/estimate-burnout-risk.ts';
 import '@/ai/flows/reflect-on-week.ts';
 import '@/ai/flows/generate-daily-suggestions.ts';
-import '@/ai/flows/generate-daily-plan.ts'; 
+import '@/ai/flows/generate-daily-plan.ts';
+import '@/ai/flows/analyze-attention-patterns.ts';
 
 // New Flows
-import '@/ai/flows/analyze-attention-patterns.ts'; // Added Attention Pattern Analysis
-
-// Placeholder for Daily Feed flow (implement later)
-// import '@/ai/flows/generate-daily-feed.ts';
+import '@/ai/flows/process-voice-input.ts'; // Added Voice Input Processing Flow
 
 }
-
     

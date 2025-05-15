@@ -1,10 +1,11 @@
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import Home from '@/app/page'; // Adjust the import path as necessary
-import { SidebarProvider } from '@/components/ui/sidebar'; // Import if needed by layout/page
-import { DataModeProvider } from '@/context/data-mode-context'; // Import DataModeProvider
+import Home from '@/app/page';
+import { SidebarProvider } from '@/components/ui/sidebar';
+import { DataModeProvider } from '@/context/data-mode-context';
+import { useToast } from '@/hooks/use-toast';
 
 // Mock next/link
 jest.mock('next/link', () => {
@@ -17,14 +18,14 @@ jest.mock('next/link', () => {
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
-  usePathname: jest.fn(() => '/'), // Mock the current path
+  usePathname: jest.fn(() => '/'),
 }));
 
 // Mock DataModeProvider
 jest.mock('@/context/data-mode-context', () => ({
-    DataModeProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, // Simple pass-through
+    DataModeProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     useDataMode: () => ({
-      dataMode: 'mock', // Default to mock for tests
+      dataMode: 'mock',
       switchToUserDataMode: jest.fn(),
       resetToMockMode: jest.fn(),
       isLoading: false,
@@ -32,40 +33,80 @@ jest.mock('@/context/data-mode-context', () => ({
 }));
 
 // Mock useToast
+const mockToastFn = jest.fn();
 jest.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
-    toast: jest.fn(),
+    toast: mockToastFn,
   }),
 }));
 
-// Mock AI Flows (return basic structure or null)
+// Mock AI Flows
 jest.mock('@/ai/flows/generate-daily-plan', () => ({
   generateDailyPlan: jest.fn(() => Promise.resolve({
-    suggestedPlan: [],
-    planRationale: 'Mock plan rationale.',
+    suggestedPlan: [{ startTime: 'Morning', activity: 'Mock Plan Item', category: 'Work' }],
+    planRationale: 'Mock plan rationale from test.',
     warnings: [],
   })),
 }));
+jest.mock('@/ai/flows/process-voice-input', () => ({
+    processVoiceInput: jest.fn(() => Promise.resolve({
+        intent: 'log_activity',
+        extractedDetails: { title: 'Processed Voice Input' },
+        responseText: 'Okay, processing your voice input.',
+    })),
+}));
 
-// Mock Services (return empty arrays initially)
+
+// Mock Services
 jest.mock('@/services/daily-log', () => ({ getDailyLogs: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/task', () => ({ getTasks: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/calendar', () => ({ getCalendarEvents: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/goal', () => ({ getGoals: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/habit', () => ({ getHabits: jest.fn(() => Promise.resolve([])) }));
 
+// Mock SpeechRecognition API
+const mockStop = jest.fn();
+const mockStart = jest.fn();
+const mockSpeechRecognition = jest.fn(() => ({
+  continuous: false,
+  interimResults: true,
+  lang: 'en-US',
+  onstart: jest.fn(),
+  onresult: jest.fn(),
+  onerror: jest.fn(),
+  onend: jest.fn(),
+  stop: mockStop,
+  start: mockStart,
+  abort: jest.fn(),
+}));
+global.SpeechRecognition = mockSpeechRecognition;
+(global as any).webkitSpeechRecognition = mockSpeechRecognition; // For Safari/Chrome compatibility
+
 
 describe('Home Page (Dashboard)', () => {
-    // Helper function to render with providers
     const renderHomePage = () => {
         render(
            <DataModeProvider>
-               <SidebarProvider> {/* Wrap if SidebarProvider is used in layout */}
+               <SidebarProvider>
                    <Home />
                </SidebarProvider>
            </DataModeProvider>
         );
     };
+
+  beforeEach(() => {
+    mockToastFn.mockClear();
+    mockStart.mockClear();
+    mockStop.mockClear();
+    // Reset recognitionRef mocks if they were assigned to instance properties
+    if (mockSpeechRecognition.mock.instances.length > 0) {
+        const instance = mockSpeechRecognition.mock.instances[0];
+        instance.onstart.mockClear();
+        instance.onresult.mockClear();
+        instance.onerror.mockClear();
+        instance.onend.mockClear();
+    }
+  });
 
   it('renders the main heading', () => {
     renderHomePage();
@@ -73,11 +114,15 @@ describe('Home Page (Dashboard)', () => {
     expect(heading).toBeInTheDocument();
   });
 
-   it("renders the 'Today's Suggested Plan' card title", async () => {
+   it("renders the 'Today's Suggested Plan' card title and content", async () => {
        renderHomePage();
-       // Wait for the plan to potentially load (even if mock)
        const planTitle = await screen.findByText(/Today's Suggested Plan/i);
        expect(planTitle).toBeInTheDocument();
+       // Check for mocked plan item
+       await waitFor(() => {
+           expect(screen.getByText('Mock Plan Item')).toBeInTheDocument();
+           expect(screen.getByText('Mock plan rationale from test.')).toBeInTheDocument();
+       });
    });
 
     it('renders core feature cards (e.g., Daily Log, Tasks)', () => {
@@ -85,7 +130,6 @@ describe('Home Page (Dashboard)', () => {
         expect(screen.getByText('Daily Log')).toBeInTheDocument();
         expect(screen.getByText('Tasks')).toBeInTheDocument();
         expect(screen.getByText('Calendar')).toBeInTheDocument();
-        // Add more checks for other cards if needed
     });
 
     it('renders links for core features', () => {
@@ -102,7 +146,51 @@ describe('Home Page (Dashboard)', () => {
         expect(screen.getByText('Insights')).toBeInTheDocument();
         expect(screen.getByText('Visualizations')).toBeInTheDocument();
 
-         const insightsLink = screen.getByRole('link', { name: /insights get ai-powered personal insights on productivity, mood, spending, and more./i });
+         const insightsLink = screen.getByRole('link', { name: /insights get ai-powered personal insights./i });
         expect(insightsLink).toHaveAttribute('href', '/insights');
     });
+
+    describe('Voice Companion', () => {
+        it('renders the Voice Companion card and button', () => {
+            renderHomePage();
+            expect(screen.getByText('Voice Companion')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /start voice input/i })).toBeInTheDocument();
+        });
+
+        it('toggles listening state when voice input button is clicked', () => {
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+
+            fireEvent.click(voiceButton);
+            expect(mockStart).toHaveBeenCalledTimes(1);
+            // Assuming the button text changes or an icon appears
+            expect(screen.getByRole('button', { name: /listening.../i })).toBeInTheDocument();
+
+            fireEvent.click(voiceButton); // Click again to stop
+            expect(mockStop).toHaveBeenCalledTimes(1);
+            expect(screen.getByRole('button', { name: /start voice input/i })).toBeInTheDocument();
+        });
+        
+        it('shows toast if SpeechRecognition API is not supported', () => {
+            const originalSpeechRecognition = (window as any).SpeechRecognition;
+            const originalWebkitSpeechRecognition = (window as any).webkitSpeechRecognition;
+            delete (window as any).SpeechRecognition;
+            delete (window as any).webkitSpeechRecognition;
+            
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton);
+
+            expect(mockToastFn).toHaveBeenCalledWith({
+                title: "Voice Input Not Supported",
+                description: "Your browser doesn't support speech recognition.",
+                variant: "destructive",
+            });
+
+            // Restore
+            (window as any).SpeechRecognition = originalSpeechRecognition;
+            (window as any).webkitSpeechRecognition = originalWebkitSpeechRecognition;
+        });
+    });
 });
+    

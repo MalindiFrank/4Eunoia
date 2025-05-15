@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfDay, endOfDay, isWithinInterval, isValid as isValidDate } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye } from 'lucide-react'; // Added Eye for Attention
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye, SlidersHorizontal } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -64,8 +64,8 @@ import {
 } from '@/ai/flows/estimate-burnout-risk';
 import { reflectOnWeek, type ReflectOnWeekInput, type ReflectOnWeekOutput } from '@/ai/flows/reflect-on-week';
 import { generateDailySuggestions, type GenerateDailySuggestionsInput, type GenerateDailySuggestionsOutput } from '@/ai/flows/generate-daily-suggestions';
-import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanOutput } from '@/ai/flows/generate-daily-plan';
-import { analyzeAttentionPatterns, type AnalyzeAttentionPatternsInput, type AnalyzeAttentionPatternsOutput } from '@/ai/flows/analyze-attention-patterns'; // New Flow
+import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanOutput, type UserPreferences } from '@/ai/flows/generate-daily-plan';
+import { analyzeAttentionPatterns, type AnalyzeAttentionPatternsInput, type AnalyzeAttentionPatternsOutput } from '@/ai/flows/analyze-attention-patterns';
 
 
 // --- Import Services ---
@@ -82,18 +82,18 @@ import { useDataMode } from '@/context/data-mode-context';
 // --- Types ---
 type DisplayTask = AnalyzeTaskCompletionOutput['overdueTasks'][number];
 
-type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk' | 'attentionPatterns'; // Added attentionPatterns
+type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk' | 'attentionPatterns';
 type AIServiceType = InsightType | 'reflection' | 'dailySuggestion' | 'dailyPlan';
 
 
 // --- Form Schema ---
 const insightsRequestSchema = z.object({
-  insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion', 'dailyPlan', 'attentionPatterns']), // Added attentionPatterns
+  insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion', 'dailyPlan', 'attentionPatterns']),
   startDate: z.date().optional(),
   endDate: z.date().optional(),
   frequency: z.enum(['weekly', 'monthly']).optional(),
 }).refine(data => {
-    const requiresDateRange: AIServiceType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'diarySummary', 'attentionPatterns']; // Added attentionPatterns
+    const requiresDateRange: AIServiceType[] = ['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'diarySummary', 'attentionPatterns'];
     if (requiresDateRange.includes(data.insightType) && (!data.startDate || !data.endDate || !isValidDate(data.startDate) || !isValidDate(data.endDate))) {
         return false;
     }
@@ -140,7 +140,6 @@ const formatArrayForFlow = <T extends Record<string, any>>(
     });
 };
 
-// Skeleton component for the Insights Page
 const InsightsPageSkeleton: FC = () => {
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
@@ -204,13 +203,48 @@ const InsightsPageClient: FC = () => {
   const [reflectionState, setReflectionState] = useState<{ conversation: { questions: string[], responses: string[] }, output: ReflectOnWeekOutput | null }>({ conversation: { questions: [], responses: [] }, output: null });
   const [dailySuggestions, setDailySuggestions] = useState<GenerateDailySuggestionsOutput | null>(null);
   const [dailyPlan, setDailyPlan] = useState<GenerateDailyPlanOutput | null>(null);
-  const [attentionPatterns, setAttentionPatterns] = useState<AnalyzeAttentionPatternsOutput | null>(null); // New state for attention patterns
+  const [attentionPatterns, setAttentionPatterns] = useState<AnalyzeAttentionPatternsOutput | null>(null);
   const [reflectionUserInput, setReflectionUserInput] = useState('');
-
 
   const [isLoading, setIsLoading] = useState<boolean | AIServiceType>(false);
   const { toast } = useToast();
   const { dataMode } = useDataMode();
+  
+  // State for AI preferences, loaded from localStorage
+  const [aiPreferences, setAiPreferences] = useState<UserPreferences>({
+    aiPersona: 'Supportive Coach',
+    aiInsightVerbosity: 'Detailed Analysis',
+    energyLevelPattern: 'Steady throughout day',
+    growthPace: 'Moderate',
+    preferredWorkTimes: 'Flexible',
+    // theme and defaultView are not directly used by flows but part of the structure
+    theme: 'system', 
+    defaultView: '/',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedSettings = localStorage.getItem('4eunoia-app-settings');
+      if (storedSettings) {
+        try {
+          const parsed = JSON.parse(storedSettings);
+          if (parsed.preferences) {
+            setAiPreferences(prev => ({
+              ...prev,
+              aiPersona: parsed.preferences.aiPersona || prev.aiPersona,
+              aiInsightVerbosity: parsed.preferences.aiInsightVerbosity || prev.aiInsightVerbosity,
+              energyLevelPattern: parsed.preferences.energyPattern || prev.energyLevelPattern,
+              growthPace: parsed.preferences.growthPace || prev.growthPace,
+              preferredWorkTimes: parsed.preferences.preferredWorkTimes || prev.preferredWorkTimes,
+            }));
+          }
+        } catch (e) {
+          console.error("Error loading AI preferences for Insights page:", e);
+        }
+      }
+    }
+  }, []);
+
 
   const form = useForm<InsightsRequestFormValues>({
     resolver: zodResolver(insightsRequestSchema),
@@ -249,7 +283,7 @@ const InsightsPageClient: FC = () => {
                  todaysEvents: formatArrayForFlow(events, ['start', 'end']),
                  activeHabits: formatArrayForFlow(habits, ['createdAt', 'updatedAt', 'lastCompleted']),
                  activeGoals: formatArrayForFlow(goals, ['createdAt', 'updatedAt', 'targetDate']),
-                 userPreferences: { growthPace: 'Moderate' } 
+                 userPreferences: aiPreferences,
              };
 
              const result = await generateDailySuggestions(input);
@@ -270,7 +304,7 @@ const InsightsPageClient: FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataMode, toast]);
+    }, [dataMode, toast, aiPreferences]);
 
     useEffect(() => {
         fetchDailySuggestions();
@@ -287,10 +321,10 @@ const InsightsPageClient: FC = () => {
      setBurnoutRisk(null);
      setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
      setDailyPlan(null);
-     setAttentionPatterns(null); // Clear attention patterns
+     setAttentionPatterns(null);
    }, []);
 
-   const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: 'reflection' | 'dailyPlan' | 'dailySuggestion' | 'attentionPatterns', startDate?: Date, endDate?: Date }) => { // Added attentionPatterns
+   const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: AIServiceType, startDate?: Date, endDate?: Date }) => {
      setIsLoading(data.insightType);
       if (!['reflection', 'dailySuggestion'].includes(data.insightType)) {
           clearResults();
@@ -308,7 +342,7 @@ const InsightsPageClient: FC = () => {
         }
         const dateInput = { startDate: formatISO(startDate), endDate: formatISO(endDate) };
 
-        const requiresLogs = ['productivity', 'diarySummary', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'attentionPatterns'].includes(insightType); // Added attentionPatterns
+        const requiresLogs = ['productivity', 'diarySummary', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'attentionPatterns'].includes(insightType);
         const requiresTasks = ['productivity', 'taskCompletion', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'].includes(insightType);
         const requiresEvents = ['productivity', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan'].includes(insightType);
         const requiresExpenses = ['expenseTrends', 'lifeBalance'].includes(insightType);
@@ -358,6 +392,7 @@ const InsightsPageClient: FC = () => {
                     tasks: formatArrayForFlow(tasksInRange, ['createdAt', 'dueDate']),
                     calendarEvents: formatArrayForFlow(eventsInRange, ['start', 'end']),
                     notes: formatArrayForFlow(notesInRange, ['createdAt', 'updatedAt']),
+                    userPreferences: aiPreferences,
                  };
                  const prodResult = await analyzeProductivityPatterns(prodInput);
                  setProductivityInsights(prodResult);
@@ -420,7 +455,7 @@ const InsightsPageClient: FC = () => {
                   setBurnoutRisk(burnoutResult);
                   break;
             
-             case 'attentionPatterns': // New case for attention patterns
+             case 'attentionPatterns':
                 const attentionInput: AnalyzeAttentionPatternsInput = {
                     ...dateInput,
                     dailyLogs: formatArrayForFlow(logsInRange, ['date', 'mood', 'focusLevel', 'diaryEntry']) ?? [],
@@ -465,7 +500,6 @@ const InsightsPageClient: FC = () => {
                 const targetDayStart = startOfDay(targetDate);
                 const targetDayEnd = endOfDay(targetDate);
 
-
                 const logsForPlan = allLogs.filter((l: LogEntry) => l.date >= planContextStart && l.date <= planContextEnd);
                 const tasksForPlan = allTasks.filter((task: Task) => (task.dueDate && task.dueDate >= targetDayStart && task.dueDate <= targetDayEnd) || task.status !== 'Completed');
                 const eventsForPlan = allEvents.filter((ev: CalendarEvent) => ev.start >= targetDayStart && ev.start <= targetDayEnd);
@@ -479,7 +513,7 @@ const InsightsPageClient: FC = () => {
                      eventsForDate: formatArrayForFlow(eventsForPlan, ['start', 'end']),
                      activeGoals: formatArrayForFlow(activeGoalsPlan, ['createdAt', 'updatedAt', 'targetDate']),
                      activeHabits: formatArrayForFlow(activeHabitsPlan, ['createdAt', 'updatedAt', 'lastCompleted']),
-                      userPreferences: { growthPace: 'Moderate' } 
+                     userPreferences: aiPreferences,
                 };
                 const planResult = await generateDailyPlan(planInput);
                 setDailyPlan(planResult);
@@ -522,7 +556,7 @@ const InsightsPageClient: FC = () => {
      } finally {
        setIsLoading(false);
      }
-   }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions]);
+   }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences]);
 
 
    useEffect(() => {
@@ -538,7 +572,7 @@ const InsightsPageClient: FC = () => {
             } else if (toolParam === 'dailyPlan') {
                 effectiveStartDate = startOfDay(now);
                 effectiveEndDate = endOfDay(now);
-            } else if (toolParam === 'attentionPatterns') { // Set default date range for attention patterns
+            } else if (toolParam === 'attentionPatterns') {
                  effectiveStartDate = subDays(now, 7);
                  effectiveEndDate = now;
             }
@@ -625,7 +659,7 @@ const InsightsPageClient: FC = () => {
                  <CardTitle className="text-lg flex items-center gap-2">
                      <Zap className="h-5 w-5 text-primary" /> Daily Suggestions
                  </CardTitle>
-                 <CardDescription>Context-aware suggestions for your day.</CardDescription>
+                 <CardDescription>Context-aware suggestions for your day, influenced by your AI preferences.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading === 'dailySuggestion' && !dailySuggestions ? (
@@ -659,7 +693,7 @@ const InsightsPageClient: FC = () => {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Generate Specific Insights</CardTitle>
-          <CardDescription>Select the type of insight and parameters to analyze your data ({dataMode === 'mock' ? 'using Mock Data' : 'using Your Data'}).</CardDescription>
+          <CardDescription>Select the type of insight and parameters to analyze your data ({dataMode === 'mock' ? 'using Mock Data' : 'using Your Data'}). AI responses will reflect your preferences from Settings.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -677,7 +711,7 @@ const InsightsPageClient: FC = () => {
                          }
 
                          const now = new Date();
-                         if (['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'attentionPatterns'].includes(value)) { // Added attentionPatterns
+                         if (['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'attentionPatterns'].includes(value)) {
                              form.setValue('startDate', subDays(now, 7), { shouldValidate: true });
                              form.setValue('endDate', now, { shouldValidate: true });
                          } else if (value === 'diarySummary') {
@@ -703,7 +737,7 @@ const InsightsPageClient: FC = () => {
                         <SelectItem value="dailySuggestion"><div className="flex items-center gap-2"><Zap className="h-4 w-4" /> Get Daily Suggestions</div></SelectItem>
                         <SelectItem value="dailyPlan"><div className="flex items-center gap-2"><Map className="h-4 w-4" /> Generate Daily Plan</div></SelectItem>
                         <SelectItem value="productivity"><div className="flex items-center gap-2"><BarChartHorizontalBig className="h-4 w-4" /> Productivity Patterns</div></SelectItem>
-                        <SelectItem value="attentionPatterns"><div className="flex items-center gap-2"><Eye className="h-4 w-4" /> Attention Patterns</div></SelectItem> {/* New Item */}
+                        <SelectItem value="attentionPatterns"><div className="flex items-center gap-2"><Eye className="h-4 w-4" /> Attention Patterns</div></SelectItem>
                         <SelectItem value="expenseTrends"><div className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Expense Trends</div></SelectItem>
                         <SelectItem value="taskCompletion"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4" /> Task Completion</div></SelectItem>
                         <SelectItem value="sentimentAnalysis"><div className="flex items-center gap-2"><Smile className="h-4 w-4" /> Sentiment Analysis</div></SelectItem>
@@ -718,7 +752,7 @@ const InsightsPageClient: FC = () => {
                 )}
               />
 
-                 {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'diarySummary', 'attentionPatterns'].includes(selectedInsightType) && renderDateRangePicker()} {/* Added attentionPatterns */}
+                 {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'diarySummary', 'attentionPatterns'].includes(selectedInsightType) && renderDateRangePicker()}
 
                 {!['reflection', 'dailySuggestion'].includes(selectedInsightType) && (
                      <Button type="submit" disabled={!!isLoading || (isLoading !== false && isLoading !== selectedInsightType)}>
@@ -746,7 +780,6 @@ const InsightsPageClient: FC = () => {
            </Card>
          )}
         
-        {/* Attention Patterns Analysis Display */}
         {isLoading === 'attentionPatterns' ? (
             <Card><CardHeader><Skeleton className="h-6 w-1/2 rounded-md" /></CardHeader><CardContent><Skeleton className="h-48 w-full rounded-md" /></CardContent></Card>
         ) : attentionPatterns && selectedInsightType === 'attentionPatterns' && (
@@ -1060,5 +1093,4 @@ const InsightsPage: FC = () => {
 };
 
 export default InsightsPage;
-
     
