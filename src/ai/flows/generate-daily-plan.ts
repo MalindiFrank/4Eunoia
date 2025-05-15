@@ -51,7 +51,7 @@ const UserPreferencesSchema = z.object({
     growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's desired pace for personal growth activities (e.g., tackling goals)."),
 });
 
-export const GenerateDailyPlanInputSchema = z.object({
+const GenerateDailyPlanInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the past 1-3 days.'),
     tasksForDate: z.array(InputTaskSchema).optional().describe('Tasks due on or relevant to the target date.'),
@@ -70,7 +70,7 @@ const TimeBlockSchema = z.object({
     reasoning: z.string().optional().describe('Brief rationale for the suggestion (e.g., "Leverage morning energy", "Fit between meetings").'),
 });
 
-export const GenerateDailyPlanOutputSchema = z.object({
+const GenerateDailyPlanOutputSchema = z.object({
     suggestedPlan: z.array(TimeBlockSchema).describe('A list of suggested time blocks or activities for the day.'),
     planRationale: z.string().describe('A brief overall explanation of the plan\'s structure, considering mood, energy, and schedule.'),
     warnings: z.array(z.string()).optional().describe('Any potential conflicts or areas of concern (e.g., "Overloaded afternoon", "Low energy forecast").'),
