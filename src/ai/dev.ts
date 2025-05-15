@@ -1,3 +1,4 @@
+
 {// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,11 +23,14 @@ import '@/ai/flows/assess-life-balance.ts';
 import '@/ai/flows/estimate-burnout-risk.ts';
 import '@/ai/flows/reflect-on-week.ts';
 import '@/ai/flows/generate-daily-suggestions.ts';
+import '@/ai/flows/generate-daily-plan.ts'; 
 
 // New Flows
-import '@/ai/flows/generate-daily-plan.ts'; // Added Emotionally-Informed Planning
+import '@/ai/flows/analyze-attention-patterns.ts'; // Added Attention Pattern Analysis
 
 // Placeholder for Daily Feed flow (implement later)
 // import '@/ai/flows/generate-daily-feed.ts';
 
 }
+
+    

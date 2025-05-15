@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Generates a suggested daily plan based on mood, past activities, and upcoming schedule.
@@ -50,7 +51,7 @@ const UserPreferencesSchema = z.object({
     growthPace: z.enum(['Slow', 'Moderate', 'Aggressive']).optional().describe("User's desired pace for personal growth activities (e.g., tackling goals)."),
 });
 
-const GenerateDailyPlanInputSchema = z.object({
+export const GenerateDailyPlanInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the past 1-3 days.'),
     tasksForDate: z.array(InputTaskSchema).optional().describe('Tasks due on or relevant to the target date.'),
@@ -69,7 +70,7 @@ const TimeBlockSchema = z.object({
     reasoning: z.string().optional().describe('Brief rationale for the suggestion (e.g., "Leverage morning energy", "Fit between meetings").'),
 });
 
-const GenerateDailyPlanOutputSchema = z.object({
+export const GenerateDailyPlanOutputSchema = z.object({
     suggestedPlan: z.array(TimeBlockSchema).describe('A list of suggested time blocks or activities for the day.'),
     planRationale: z.string().describe('A brief overall explanation of the plan\'s structure, considering mood, energy, and schedule.'),
     warnings: z.array(z.string()).optional().describe('Any potential conflicts or areas of concern (e.g., "Overloaded afternoon", "Low energy forecast").'),
@@ -89,7 +90,7 @@ export async function generateDailyPlan(
 // --- Prompt Definition ---
 const PromptInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
-    recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days (mood, activity, focusLevel).'),
+    recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days (mood, activity, focusLevel). Focus levels are 1=Low, 5=High.'),
     tasksForDateJson: z.string().optional().describe('JSON string of tasks due on or relevant to the target date (title, status, dueDate).'),
     eventsForDateJson: z.string().optional().describe('JSON string of calendar events scheduled for the target date (title, start, end).'),
     activeGoalsJson: z.string().optional().describe("JSON string of user's 'In Progress' goals (title, status)."),
@@ -106,7 +107,7 @@ const generatePlanPrompt = ai.definePrompt({
 
 User Context & Data:
 - Target Date: {{targetDate}}
-- Recent Logs (Mood, Activity, Focus): {{#if recentLogsJson}}{{{recentLogsJson}}}{{else}}None{{/if}}
+- Recent Logs (Mood, Activity, Focus Level 1-5): {{#if recentLogsJson}}{{{recentLogsJson}}}{{else}}None{{/if}}
 - Tasks for Target Date: {{#if tasksForDateJson}}{{{tasksForDateJson}}}{{else}}None{{/if}}
 - Events for Target Date: {{#if eventsForDateJson}}{{{eventsForDateJson}}}{{else}}None{{/if}}
 - Active Goals: {{#if activeGoalsJson}}{{{activeGoalsJson}}}{{else}}None{{/if}}
@@ -117,13 +118,16 @@ Planning Task:
 1.  **Analyze:** Review the user's recent logs (especially mood and focus levels), their scheduled events, and pending tasks for the target date. Consider their active goals, habits, and stated preferences, especially 'preferredWorkTimes', 'energyLevelPattern', and 'growthPace'.
 2.  **Structure:** Create a **Suggested Plan** consisting of realistic time blocks or activities for the day.
     - **Integrate fixed events:** Include scheduled calendar events first.
-    - **Allocate task time:** Suggest specific blocks for important or due tasks. Consider recent mood/focus – if low energy/focus recently, suggest starting with easier tasks or breaking down larger ones. If high energy, suggest tackling challenging tasks during 'preferredWorkTimes' or typical peak 'energyLevelPattern' periods (if known).
+    - **Allocate task time:** Suggest specific blocks for important or due tasks. **Crucially, use \`focusLevel\` (1=Low, 5=High) and \`mood\` from \`recentLogsJson\` to adapt:**
+        - If recent logs show **low focus levels (e.g., 1-2) or negative moods (e.g., Stressed, Tired, Anxious)**, suggest starting the day with easier, shorter tasks or breaking down larger ones into smaller, more manageable steps. Schedule more frequent short breaks.
+        - If recent logs show **high focus levels (e.g., 4-5) or positive moods (e.g., Productive, Happy)**, suggest tackling more challenging or important tasks during 'preferredWorkTimes' or typical peak 'energyLevelPattern' periods (if known).
+        - For neutral focus/mood, suggest a balanced approach.
     - **Incorporate goals/habits:** Suggest time for a small step towards an active goal (based on 'growthPace' preference - e.g., aggressive pace means more/longer goal blocks). Remind them of daily/relevant habits.
     - **Suggest breaks:** Include short breaks (5-15 mins) after focus blocks or long meetings.
-    - **Consider mood/energy:** If recent logs show stress/tiredness, prioritize rest, self-care, or lower-intensity activities. If logs show positive mood/productivity, leverage that momentum.
+    - **Consider mood/energy:** **If recent \`mood\` logs indicate 'Stressed', 'Tired', or 'Anxious', explicitly prioritize rest, self-care (e.g., a short walk, mindfulness), or lower-intensity activities in the plan. If logs show positive mood (e.g., 'Happy', 'Productive') and good \`focusLevel\`, leverage that momentum for productive tasks.**
     - **Use flexible timing:** Use general times like "Morning (9-12)", "Afternoon (1-5)", "Evening (7-9)" or specific times (e.g., "9:00 AM - 10:00 AM") where appropriate.
     - **Categorize activities:** Use categories like Work, Personal, Health, Learning, Break, Chore, Social, Goal, Habit, Event, Other.
-    - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (e.g., "Leverage morning high energy for [Goal Task]", "Fit [Task] between meetings", "Short break after [Event]").
+    - **Add reasoning:** Briefly explain *why* certain activities are suggested at certain times (e.g., "Leverage morning high energy for [Goal Task]", "Fit [Task] between meetings", "Short break after [Event]", "Based on recent low focus, starting with a smaller task").
 3.  **Rationale:** Provide a brief **Plan Rationale** explaining the overall approach (e.g., "Plan prioritizes [Task X] due to deadline and schedules breaks around meetings, considering recent low energy logs and preferred afternoon work time. Goal work is scheduled based on Moderate growth pace.").
 4.  **Warnings (Optional):** List any potential **Warnings** like a very packed schedule, conflicting items, or suggestions based on potential low energy (e.g., "Afternoon looks busy; ensure you take your breaks.").
 
@@ -166,13 +170,13 @@ const generateDailyPlanFlow = ai.defineFlow<
                          if (isValid(parsedDate)) {
                              newItem[key] = formatISO(parsedDate);
                          } else {
-                             newItem[key] = null; 
+                             newItem[key] = null;
                          }
                      } catch {
-                         newItem[key] = null; 
+                         newItem[key] = null;
                      }
                  } else if (dateValue === undefined || dateValue === null) {
-                    newItem[key] = null; 
+                    newItem[key] = null;
                  }
             });
             return newItem;
@@ -215,3 +219,5 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
+
+    
