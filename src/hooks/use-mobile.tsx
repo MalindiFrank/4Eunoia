@@ -1,23 +1,30 @@
+
+"use client"
+
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+  // Default to a consistent value for SSR, e.g., false (desktop).
+  // This ensures server and initial client render match.
+  const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") { // Check if window is defined
-      const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-      const onChange = () => {
-        setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-      }
-      mql.addEventListener("change", onChange)
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT) // Initial check
-      return () => mql.removeEventListener("change", onChange)
-    } else {
-      setIsMobile(false); // Default to false or handle as needed on server
-    }
-  }, [])
+    // This effect only runs on the client.
+    if (typeof window !== "undefined") {
+      const checkDevice = () => {
+        setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      };
 
-  return !!isMobile
+      checkDevice(); // Initial check on client mount
+      window.addEventListener("resize", checkDevice);
+
+      return () => {
+        window.removeEventListener("resize", checkDevice);
+      };
+    }
+  }, []); // Empty dependency array ensures this runs once on mount and only on client
+
+  return isMobile;
 }
