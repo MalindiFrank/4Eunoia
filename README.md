@@ -1,4 +1,4 @@
-
+ta
 # 4Eunoia – Your Life, In Harmony
 
 4Eunoia is a comprehensive Next.js application that serves as your personal operating system for productivity, self-reflection, and well-being. It brings together multiple life domains—from tasks and expenses to mood tracking and journaling—augmented with AI-powered insights to help you better understand your habits, optimize your routines, and live more intentionally.
