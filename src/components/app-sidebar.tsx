@@ -1,4 +1,4 @@
-
+// src/components/app-sidebar.tsx
 'use client';
 
 import Link from 'next/link';
@@ -71,11 +71,11 @@ export function AppSidebar() {
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
+                asChild // Important: Let Link component render the anchor
                 isActive={pathname === item.href}
                 className="justify-start"
                 aria-label={item.label}
                 tooltip={item.label} // SidebarMenuButton handles its own tooltip
-                asChild // SidebarMenuButton will act as a Slot for the Link
               >
                 <Link href={item.href}>
                   <item.icon className="h-4 w-4" />

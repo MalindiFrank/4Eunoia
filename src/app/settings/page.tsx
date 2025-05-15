@@ -1,3 +1,4 @@
+// src/app/settings/page.tsx
 'use client';
 
 import type { FC } from 'react';
@@ -6,7 +7,8 @@ import { Settings, Bell, Link as LinkIcon, Brain, User, Palette, Trash } from 'l
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Label } // Label is imported from ui/label
+from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -15,15 +17,16 @@ import { useDataMode } from '@/context/data-mode-context';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { applyTheme, getInitialTheme, SETTINGS_STORAGE_KEY, type Theme } from '@/lib/theme-utils'; // Import theme utilities
 
 // Placeholder types for settings
-interface UserPreferences {
-  theme: 'light' | 'dark' | 'system';
-  defaultView: string; 
-  growthPace: GrowthPace;
-}
 type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
 
+interface UserPreferences {
+  theme: Theme; // Use Theme type from theme-utils
+  defaultView: string;
+  growthPace: GrowthPace;
+}
 
 interface NotificationSettings {
   taskReminders: boolean;
@@ -44,13 +47,11 @@ interface NeurodivergentSettings {
   lowStimulationUI: boolean;
 }
 
-const SETTINGS_STORAGE_KEY = '4eunoia-app-settings'; 
-
 const SettingsPage: FC = () => {
   const { toast } = useToast();
   const { resetToMockMode } = useDataMode();
 
-  const [preferences, setPreferences] = useState<UserPreferences>({ theme: 'system', defaultView: '/', growthPace: 'Moderate' });
+  const [preferences, setPreferences] = useState<UserPreferences>({ theme: getInitialTheme(), defaultView: '/', growthPace: 'Moderate' });
   const [notifications, setNotifications] = useState<NotificationSettings>({
     taskReminders: true,
     eventAlerts: true,
@@ -66,28 +67,23 @@ const SettingsPage: FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const applyTheme = (theme: UserPreferences['theme']) => {
-     if (typeof window === 'undefined') return;
-     const root = window.document.documentElement;
-     root.classList.remove('light', 'dark');
-
-     if (theme === 'system') {
-       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-       root.classList.add(systemTheme);
-       return;
-     }
-     root.classList.add(theme);
-   };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      let loadedPreferences = preferences; 
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          loadedPreferences = { ...preferences, ...(parsedSettings.preferences || {}) }; 
-          setPreferences(loadedPreferences);
+          // Ensure theme is correctly loaded using getInitialTheme's logic
+          const loadedTheme = parsedSettings?.preferences?.theme && ['light', 'dark', 'system'].includes(parsedSettings.preferences.theme)
+            ? parsedSettings.preferences.theme
+            : getInitialTheme(); // Fallback to getInitialTheme if stored value is odd
+
+          setPreferences(prev => ({
+            ...prev,
+            ...(parsedSettings.preferences || {}),
+            theme: loadedTheme, // Set theme from parsed or default
+          }));
           setNotifications(prev => ({ ...prev, ...(parsedSettings.notifications || {}) }));
           setIntegrations(prev => ({ ...prev, ...(parsedSettings.integrations || {}) }));
           setNeurodivergent(prev => ({ ...prev, ...(parsedSettings.neurodivergent || {}) }));
@@ -96,14 +92,20 @@ const SettingsPage: FC = () => {
           toast({ title: "Error", description: "Could not load saved settings.", variant: "destructive" });
         }
       }
-      applyTheme(loadedPreferences.theme); 
+      // No need to call applyTheme here, RootLayout handles initial application.
       setIsLoading(false);
     }
-  }, [toast]); 
+  }, [toast]);
 
+  // This useEffect is now primarily for when the user *changes* the theme in settings.
+  // The initial theme application is handled by RootLayout.
    useEffect(() => {
-     applyTheme(preferences.theme);
-   }, [preferences.theme]);
+     // When preferences.theme changes (e.g., by user interaction on this page),
+     // apply it immediately and save.
+     if (!isLoading) { // Only apply if not in initial loading phase
+        applyTheme(preferences.theme);
+     }
+   }, [preferences.theme, isLoading]);
 
   const saveSettings = () => {
      if (typeof window === 'undefined') return;
@@ -115,7 +117,7 @@ const SettingsPage: FC = () => {
      };
     try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(allSettings));
-        applyTheme(preferences.theme); 
+        applyTheme(preferences.theme); // Ensure immediate application on save
         toast({ title: "Settings Saved", description: "Your preferences have been updated." });
     } catch (e) {
         console.error("Error saving settings to localStorage:", e);
@@ -146,16 +148,21 @@ const SettingsPage: FC = () => {
    };
 
    const handleResetApp = () => {
-        setPreferences({ theme: 'system', defaultView: '/', growthPace: 'Moderate' });
+        // Reset state first
+        const defaultTheme = 'system' as Theme;
+        setPreferences({ theme: defaultTheme, defaultView: '/', growthPace: 'Moderate' });
         setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
         setIntegrations({ googleCalendarSync: false, slackIntegration: false });
         setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false });
+
         if (typeof window !== 'undefined') {
             localStorage.removeItem(SETTINGS_STORAGE_KEY);
         }
-        applyTheme('system'); 
+        applyTheme(defaultTheme); // Apply the default theme immediately
 
-        resetToMockMode(); 
+        resetToMockMode(); // This will clear other data and reload
+        // Toast for reset is usually handled within resetToMockMode or the component calling it
+        // but we can add one here for clarity if resetToMockMode doesn't show one.
         toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
    }
 
@@ -192,7 +199,7 @@ const SettingsPage: FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="theme-select">Theme</Label>
-            <Select value={preferences.theme} onValueChange={(value: UserPreferences['theme']) => handlePreferenceChange('theme', value)}>
+            <Select value={preferences.theme} onValueChange={(value: Theme) => handlePreferenceChange('theme', value)}>
               <SelectTrigger id="theme-select" className="w-[180px]" aria-label="Select application theme">
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
@@ -392,4 +399,3 @@ const SettingsPage: FC = () => {
 };
 
 export default SettingsPage;
-

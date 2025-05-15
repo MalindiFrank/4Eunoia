@@ -1,3 +1,4 @@
+// src/components/ui/sidebar.tsx
 "use client"
 
 import * as React from "react"
@@ -537,13 +538,20 @@ const sidebarMenuButtonVariants = cva(
   }
 )
 
+export interface SidebarMenuButtonProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'href' | 'onClick'>,
+    Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick'>,
+    VariantProps<typeof sidebarMenuButtonVariants> {
+  asChild?: boolean;
+  isActive?: boolean;
+  tooltip?: string; // Simplified to string for direct use
+  href?: string;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement, MouseEvent> | React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
+}
+
 const SidebarMenuButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<"button"> & {
-    asChild?: boolean
-    isActive?: boolean
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>
-  } & VariantProps<typeof sidebarMenuButtonVariants>
+  HTMLButtonElement | HTMLAnchorElement,
+  SidebarMenuButtonProps
 >(
   (
     {
@@ -553,48 +561,48 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
-      ...props
+      children,
+      ...props // href and onClick from Link will be in here
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button"
-    const { isMobile, state } = useSidebar()
+    const { state: sidebarState, isMobile: sidebarIsMobile, openMobile } = useSidebar(); // Added openMobile
+    const isLink = typeof props.href === 'string';
+    const Comp = asChild ? Slot : isLink ? "a" : "button";
 
-    const button = (
+    const element = (
       <Comp
-        ref={ref}
+        ref={ref as any}
         data-sidebar="menu-button"
         data-size={size}
         data-active={isActive}
-        className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...props}
-      />
-    )
+        className={cn(sidebarMenuButtonVariants({ variant, size, className }))}
+        {...props} // Spread all props, including href and onClick from Link
+      >
+        {children}
+      </Comp>
+    );
 
     if (!tooltip) {
-      return button
-    }
-
-    if (typeof tooltip === "string") {
-      tooltip = {
-        children: tooltip,
-      }
+      return element;
     }
 
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipTrigger asChild>{element}</TooltipTrigger>
         <TooltipContent
           side="right"
           align="center"
-          hidden={(state !== "collapsed" && !isMobile) || isMobile && openMobile } // Adjust visibility condition
-          {...tooltip}
-        />
+          hidden={(sidebarState === "expanded" && !sidebarIsMobile) || (sidebarIsMobile && openMobile)} // Show only when collapsed on desktop, or when mobile sidebar is closed but still icon-mode conceptually
+        >
+          {tooltip}
+        </TooltipContent>
       </Tooltip>
-    )
+    );
   }
-)
-SidebarMenuButton.displayName = "SidebarMenuButton"
+);
+SidebarMenuButton.displayName = "SidebarMenuButton";
+
 
 const SidebarMenuAction = React.forwardRef<
   HTMLButtonElement,
@@ -765,4 +773,3 @@ export {
   SidebarTrigger,
   useSidebar,
 }
-

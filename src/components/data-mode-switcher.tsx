@@ -1,3 +1,4 @@
+// src/components/data-mode-switcher.tsx
 'use client';
 
 import React from 'react';
