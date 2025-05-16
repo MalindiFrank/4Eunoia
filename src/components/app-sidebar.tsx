@@ -16,23 +16,23 @@ import {
   Smile,
   StickyNote,
   Target,
-  PanelLeft, 
-  Menu 
+  PanelLeft,
+  Menu
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import {
-  Sidebar, 
+  Sidebar,
   SidebarContent,
   SidebarHeader as DesktopSidebarHeader, // Renamed to avoid conflict
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger as DesktopSidebarTrigger, 
+  SidebarTrigger as DesktopSidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button'; 
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet'; // Added SheetHeader, SheetTitle
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,18 +58,25 @@ export function AppSidebar() {
       {menuItems.map((item) => (
         <SidebarMenuItem key={item.label}>
           <SidebarMenuButton
-            asChild
+            asChild // SidebarMenuButton will act as the Link
             isActive={pathname === item.href}
             className="justify-start"
             aria-label={item.label}
             tooltip={item.label}
           >
-            <Link href={item.href} onClick={() => isMobile && setOpenMobile(false)}>
+            <Link
+              href={item.href}
+              onClick={() => {
+                if (isMobile) {
+                  setOpenMobile(false); // Close mobile sheet on navigation
+                }
+              }}
+            >
               <item.icon className="h-4 w-4" />
               <span className={cn(
                 (desktopSidebarState === 'collapsed' && !isMobile) ? "sr-only" : "",
                 (isMobile && openMobile) ? "" : (desktopSidebarState === 'collapsed' && !isMobile) ? "sr-only" : "",
-                "group-data-[collapsible=icon]:sr-only" 
+                "group-data-[collapsible=icon]:sr-only"
               )}>
                 {item.label}
               </span>
@@ -85,9 +92,9 @@ export function AppSidebar() {
       <>
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetContent side="left" className="w-[var(--sidebar-width-mobile,18rem)] bg-sidebar p-0 text-sidebar-foreground">
-            <SheetHeader className="border-b border-sidebar-border p-2"> {/* Use SheetHeader */}
+            <SheetHeader className="border-b border-sidebar-border p-2">
               <div className="flex items-center justify-between">
-                <SheetTitle className="text-lg font-semibold tracking-tight text-sidebar-foreground">4Eunoia</SheetTitle> {/* Use SheetTitle */}
+                <SheetTitle className="text-lg font-semibold tracking-tight text-sidebar-foreground">4Eunoia</SheetTitle>
                 <SheetClose asChild>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground">
                         <PanelLeft />
@@ -96,7 +103,7 @@ export function AppSidebar() {
                 </SheetClose>
               </div>
             </SheetHeader>
-            <SidebarContent className="p-2"> {/* This SidebarContent is from ui/sidebar and is fine as a div */}
+            <SidebarContent className="p-2">
               {sidebarMenuContent}
             </SidebarContent>
           </SheetContent>
@@ -107,8 +114,8 @@ export function AppSidebar() {
 
   // Desktop Sidebar
   return (
-    <Sidebar variant="sidebar" collapsible="icon"> 
-      <DesktopSidebarHeader> {/* Use aliased DesktopSidebarHeader */}
+    <Sidebar variant="sidebar" collapsible="icon">
+      <DesktopSidebarHeader>
         <div className="flex items-center justify-between">
            {(desktopSidebarState === 'expanded') && (
              <h1 className="text-lg font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
@@ -118,7 +125,7 @@ export function AppSidebar() {
            <DesktopSidebarTrigger aria-label="Toggle sidebar" />
         </div>
       </DesktopSidebarHeader>
-      <SidebarContent className="p-2"> {/* This SidebarContent is from ui/sidebar */}
+      <SidebarContent className="p-2">
         {sidebarMenuContent}
       </SidebarContent>
     </Sidebar>
