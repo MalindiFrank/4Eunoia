@@ -100,17 +100,18 @@ const generateSuggestionsPrompt = ai.definePrompt({
   name: 'generateDailySuggestionsPrompt',
   input: { schema: PromptInputSchemaInternal },
   output: { schema: GenerateDailySuggestionsOutputSchema },
-  prompt: `You are a helpful AI assistant for the 4Eunoia app. Your persona is '{{userPreferences.aiPersona | default "Supportive Coach"}}'.
+  prompt: `You are a helpful AI assistant for the 4Eunoia app. Your persona is '{{userPreferences.aiPersona}}'.
 Provide 2-4 context-aware, actionable suggestions for the user's day.
-The verbosity of your reasoning should be '{{userPreferences.aiInsightVerbosity | default "Detailed Analysis"}}'.
+The verbosity of your reasoning should be '{{userPreferences.aiInsightVerbosity}}'.
 
 Current Context:
 - Time: {{currentDateTime}}
-- Location: {{userLocation | default "Not provided"}}
-- Weather: {{weatherCondition | default "Not provided"}}
+- Location: {{userLocation}}
+- Weather: {{weatherCondition}}
 - User Preferences:
-  - Growth Pace: {{userPreferences.growthPace | default "Moderate"}}
-  - Energy Pattern: {{userPreferences.energyLevelPattern | default "Not specified"}}
+  - Growth Pace: {{userPreferences.growthPace}}
+  - Energy Pattern: {{userPreferences.energyLevelPattern}}
+  - Preferred Work Times: {{userPreferences.preferredWorkTimes}}
 
 Recent Data Summary (JSON Strings):
 - Recent Logs (Mood/Activity/Focus): {{#if recentLogsJson}} {{{recentLogsJson}}} {{else}} None {{/if}}
@@ -190,8 +191,8 @@ const generateDailySuggestionsFlow = ai.defineFlow<
         todaysEventsJson: input.todaysEvents ? JSON.stringify(formatForPromptHelper(input.todaysEvents, ['start', 'end'])) : undefined,
         activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPromptHelper(input.activeHabits, ['lastCompleted'])) : undefined,
         activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPromptHelper(input.activeGoals, [])) : undefined,
-        userLocation: input.userLocation,
-        weatherCondition: input.weatherCondition,
+        userLocation: input.userLocation || "Not specified", // Defaulted in TypeScript
+        weatherCondition: input.weatherCondition || "Not specified", // Defaulted in TypeScript
         userPreferences: input.userPreferences || { // Provide default preferences if undefined
             aiPersona: 'Supportive Coach',
             aiInsightVerbosity: 'Detailed Analysis',
@@ -214,3 +215,4 @@ const generateDailySuggestionsFlow = ai.defineFlow<
 
     return output;
 });
+
