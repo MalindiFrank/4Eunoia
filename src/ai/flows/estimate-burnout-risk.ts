@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -253,5 +254,3 @@ const estimateBurnoutRiskFlow = ai.defineFlow<
 
     return output;
 });
-
-    

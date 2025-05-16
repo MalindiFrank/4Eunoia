@@ -47,7 +47,7 @@ const InputGoalSchema = z.object({
 
 
 // --- Input/Output Schemas ---
-export const GenerateDailySuggestionsInputSchema = z.object({
+const GenerateDailySuggestionsInputSchema = z.object({
     currentDateTime: z.string().datetime().describe('The current date and time in ISO 8601 format.'),
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the last 1-2 days, including mood and focus levels.'),
     upcomingTasks: z.array(InputTaskSchema).optional().describe('Pending or In Progress tasks due soon (next 1-2 days).'),
@@ -66,7 +66,7 @@ const SuggestionSchema = z.object({
     reasoning: z.string().optional().describe("Brief explanation why this suggestion is relevant (e.g., 'Based on low mood/focus log', 'Upcoming deadline', 'Matches your Moderate growth pace for goals'). Adjust tone based on aiPersona."),
 });
 
-export const GenerateDailySuggestionsOutputSchema = z.object({
+const GenerateDailySuggestionsOutputSchema = z.object({
     suggestions: z.array(SuggestionSchema).describe('A list of 2-4 context-aware suggestions for the user.'),
     dailyFocus: z.string().optional().describe("A brief motivational focus or theme for the day. Adjust tone based on aiPersona."),
 });
@@ -214,4 +214,3 @@ const generateDailySuggestionsFlow = ai.defineFlow<
 
     return output;
 });
-    

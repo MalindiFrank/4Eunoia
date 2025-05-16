@@ -4,20 +4,20 @@
  * @fileOverview Processes transcribed voice input to categorize and extract information.
  *
  * - processVoiceInput - Analyzes text to determine user intent (log, task, note).
- * - ProcessVoiceInputSchema - Input for the voice processing.
- * - ProcessedVoiceOutputSchema - Output of the voice processing.
+ * - ProcessVoiceInput - Input for the voice processing.
+ * - ProcessedVoiceOutput - Output of the voice processing.
  */
 
 import { ai } from '@/ai/ai-instance';
 import { z } from 'genkit';
 
-export const ProcessVoiceInputSchema = z.object({
+const ProcessVoiceInputSchema = z.object({
   transcribedText: z.string().min(1).describe('The text transcribed from user\'s voice input.'),
   currentDate: z.string().datetime().describe('The current date and time in ISO 8601 format, for context.'),
 });
 export type ProcessVoiceInput = z.infer<typeof ProcessVoiceInputSchema>;
 
-export const ProcessedVoiceOutputSchema = z.object({
+const ProcessedVoiceOutputSchema = z.object({
   intent: z.enum(['log_activity', 'create_task', 'create_note', 'general_query', 'unclear'])
     .describe('The classified intent of the voice input.'),
   extractedDetails: z.object({
@@ -100,4 +100,3 @@ const processVoiceInputFlow = ai.defineFlow<
     };
   }
 });
-    

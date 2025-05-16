@@ -55,7 +55,7 @@ const UserPreferencesSchema = z.object({
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;
 
 
-export const GenerateDailyPlanInputSchema = z.object({
+const GenerateDailyPlanInputSchema = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogs: z.array(InputLogSchema).optional().describe('Daily logs from the past 1-3 days.'),
     tasksForDate: z.array(InputTaskSchema).optional().describe('Tasks due on or relevant to the target date.'),
@@ -74,7 +74,7 @@ const TimeBlockSchema = z.object({
     reasoning: z.string().optional().describe('Brief rationale for the suggestion (e.g., "Leverage morning energy", "Fit between meetings").'),
 });
 
-export const GenerateDailyPlanOutputSchema = z.object({
+const GenerateDailyPlanOutputSchema = z.object({
     suggestedPlan: z.array(TimeBlockSchema).describe('A list of suggested time blocks or activities for the day.'),
     planRationale: z.string().describe('A brief overall explanation of the plan\'s structure, considering mood, energy, and schedule. Adjust detail based on aiInsightVerbosity preference.'),
     warnings: z.array(z.string()).optional().describe('Any potential conflicts or areas of concern (e.g., "Overloaded afternoon", "Low energy forecast").'),
@@ -92,7 +92,7 @@ export async function generateDailyPlan(
 }
 
 // --- Prompt Definition ---
-const PromptInputSchemaInternal = z.object({ // Renamed to avoid export conflict
+const PromptInputSchemaInternal = z.object({
     targetDate: z.string().datetime().describe('The date for which to generate the plan (ISO 8601 format).'),
     recentLogsJson: z.string().optional().describe('JSON string of daily logs from the past 1-3 days (mood, activity, focusLevel). Focus levels are 1=Low, 5=High.'),
     tasksForDateJson: z.string().optional().describe('JSON string of tasks due on or relevant to the target date (title, status, dueDate).'),
@@ -105,12 +105,11 @@ const PromptInputSchemaInternal = z.object({ // Renamed to avoid export conflict
 
 const generatePlanPrompt = ai.definePrompt({
   name: 'generateDailyPlanPrompt',
-  input: { schema: PromptInputSchemaInternal }, // Use internal schema
+  input: { schema: PromptInputSchemaInternal },
   output: { schema: GenerateDailyPlanOutputSchema },
   prompt: `You are an AI assistant creating a realistic and emotionally-informed daily plan for a user of the 4Eunoia app.
-Your persona should be: {{userPreferences.aiPersona | default "Supportive Coach"}}.
-The desired verbosity for the plan rationale is: {{userPreferences.aiInsightVerbosity | default "Detailed Analysis"}}.
-
+Your persona should be: {{userPreferences.aiPersona}}.
+The desired verbosity for the plan rationale is: {{userPreferences.aiInsightVerbosity}}.
 User Context & Data:
 - Target Date: {{targetDate}}
 - Recent Logs (Mood, Activity, Focus Level 1-5): {{#if recentLogsJson}}{{{recentLogsJson}}}{{else}}None{{/if}}
@@ -119,9 +118,9 @@ User Context & Data:
 - Active Goals: {{#if activeGoalsJson}}{{{activeGoalsJson}}}{{else}}None{{/if}}
 - Active Habits: {{#if activeHabitsJson}}{{{activeHabitsJson}}}{{else}}None{{/if}}
 - User Preferences:
-  - Preferred Work Times: {{userPreferences.preferredWorkTimes | default "Flexible"}}
-  - Typical Energy Pattern: {{userPreferences.energyLevelPattern | default "Not specified"}}
-  - Growth Pace: {{userPreferences.growthPace | default "Moderate"}}
+  - Preferred Work Times: {{userPreferences.preferredWorkTimes}}
+  - Typical Energy Pattern: {{userPreferences.energyLevelPattern}}
+  - Growth Pace: {{userPreferences.growthPace}}
 
 Planning Task:
 1.  **Analyze:** Review recent logs (mood, focus levels), scheduled events, and pending tasks for {{targetDate}}.
@@ -141,18 +140,18 @@ Planning Task:
 3.  **Rationale:** Provide a **Plan Rationale**. Explain the plan's structure, considering mood, energy (from logs and preferences), and schedule. Adjust length based on '{{userPreferences.aiInsightVerbosity}}' preference.
 4.  **Warnings (Optional):** List potential **Warnings** like a packed schedule or low energy forecast.
 
-Generate output in JSON. Be realistic, empathetic, and flexible. Maintain the persona: {{userPreferences.aiPersona | default "Supportive Coach"}}.`,
+Generate output in JSON. Be realistic, empathetic, and flexible. Maintain the persona: {{userPreferences.aiPersona}}.`,
 });
 
 
 // --- Flow Definition ---
 const generateDailyPlanFlow = ai.defineFlow<
-  typeof GenerateDailyPlanInputSchema,
-  typeof GenerateDailyPlanOutputSchema
+  typeof GenerateDailyPlanInputSchema, 
+  typeof GenerateDailyPlanOutputSchema 
 >({
   name: 'generateDailyPlanFlow',
   inputSchema: GenerateDailyPlanInputSchema,
-  outputSchema: GenerateDailyPlanOutputSchema
+  outputSchema: GenerateDailyPlanOutputSchema,
 }, async (input) => {
 
     if (!input.tasksForDate?.length && !input.eventsForDate?.length && !input.recentLogs?.length && !input.activeGoals?.length && !input.activeHabits?.length) {
@@ -193,6 +192,16 @@ const generateDailyPlanFlow = ai.defineFlow<
         });
     };
 
+    // Ensure userPreferences has default values if not provided
+    const effectiveUserPreferences = {
+        aiPersona: input.userPreferences?.aiPersona ?? 'Supportive Coach',
+        aiInsightVerbosity: input.userPreferences?.aiInsightVerbosity ?? 'Detailed Analysis',
+        energyLevelPattern: input.userPreferences?.energyLevelPattern ?? 'Not specified',
+        preferredWorkTimes: input.userPreferences?.preferredWorkTimes ?? 'Flexible',
+        growthPace: input.userPreferences?.growthPace ?? 'Moderate',
+    };
+
+
     const promptInputForAI: z.infer<typeof PromptInputSchemaInternal> = {
         targetDate: input.targetDate,
         recentLogsJson: input.recentLogs ? JSON.stringify(formatForPromptHelper(input.recentLogs, ['date'])) : undefined,
@@ -200,13 +209,7 @@ const generateDailyPlanFlow = ai.defineFlow<
         eventsForDateJson: input.eventsForDate ? JSON.stringify(formatForPromptHelper(input.eventsForDate, ['start', 'end'])) : undefined,
         activeGoalsJson: input.activeGoals ? JSON.stringify(formatForPromptHelper(input.activeGoals, [])) : undefined,
         activeHabitsJson: input.activeHabits ? JSON.stringify(formatForPromptHelper(input.activeHabits, ['lastCompleted'])) : undefined,
-        userPreferences: input.userPreferences || { // Provide default preferences if undefined
-            aiPersona: 'Supportive Coach',
-            aiInsightVerbosity: 'Detailed Analysis',
-            energyLevelPattern: 'Not specified',
-            preferredWorkTimes: 'Flexible',
-            growthPace: 'Moderate',
-        },
+        userPreferences: effectiveUserPreferences,
     };
 
 
@@ -223,4 +226,3 @@ const generateDailyPlanFlow = ai.defineFlow<
 
     return output;
 });
-    

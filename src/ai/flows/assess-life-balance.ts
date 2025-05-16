@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -141,7 +142,7 @@ const assessLifeBalancePrompt = ai.definePrompt({
   output: {
     schema: z.object({
         balanceSummary: z.string().describe('Write a brief **Balance Summary** (2-3 sentences) based on the provided scores/counts. Highlight the 1-2 most dominant areas and point out potentially neglected ones. Comment on the overall distribution. May comment on quality if focus levels suggest it (e.g., "Work/Career dominates activity, and focus levels reported during these activities were generally high.").'),
-        neglectedAreas: z.array(z.enum(LIFE_AREAS)).describe('Identify 1-3 **Neglected Areas** that have significantly lower scores (e.g., below 10%) compared to the dominant areas, or zero counts.'),
+        neglectedAreas: z.array(z.enum(LIFE_AREAS)).describe('Identify 1-3 **Neglected Areas** that have significantly lower scores (e.g., below 10%) or zero counts compared to the dominant areas.'),
         suggestions: z.array(z.string()).optional().describe('Provide 1-2 actionable and practical **Suggestions** for improving balance, tailored to the neglected areas (e.g., "Try scheduling one \'Social/Relationships\' activity like calling a friend this weekend," or "Dedicate 30 minutes to \'Personal Growth\' on Tuesday by reading a chapter of a book"). Omit if balance seems good or data is insufficient.'),
     })
   },
@@ -292,5 +293,3 @@ const assessLifeBalanceFlow = ai.defineFlow<
         suggestions: output.suggestions,
     };
 });
-
-    

@@ -115,11 +115,11 @@ If no focus levels are logged at all, the assessment should reflect that, and su
 });
 
 const analyzeAttentionPatternsFlow = ai.defineFlow<
-  typeof AnalyzeAttentionPatternsInputSchema, // Input to the flow uses the exported schema
+  typeof AnalyzeAttentionPatternsInputSchema, 
   typeof AnalyzeAttentionPatternsOutputSchema
 >({
   name: 'analyzeAttentionPatternsFlow',
-  inputSchema: AnalyzeAttentionPatternsInputSchema, // Use the main schema here
+  inputSchema: AnalyzeAttentionPatternsInputSchema, 
   outputSchema: AnalyzeAttentionPatternsOutputSchema,
 }, async (input) => {
     const { startDate, endDate, dailyLogs } = input; // dailyLogs here are already filtered with focus levels
@@ -156,5 +156,3 @@ const analyzeAttentionPatternsFlow = ai.defineFlow<
 
     return output;
 });
-
-    

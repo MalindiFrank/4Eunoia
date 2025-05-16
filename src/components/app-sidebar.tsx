@@ -1,3 +1,4 @@
+
 // src/components/app-sidebar.tsx
 'use client';
 
@@ -29,9 +30,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-// TooltipProvider is usually at a higher level (e.g., layout.tsx or SidebarProvider)
-// If not, it should be added here if SidebarMenuButton relies on it directly being a child of TooltipProvider.
-// For now, assuming TooltipProvider is correctly placed in layout.tsx or SidebarProvider.
 
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -52,7 +50,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { state: sidebarState, isMobile, openMobile } = useSidebar(); // Renamed 'state' to 'sidebarState' for clarity
+  const { state: sidebarState, isMobile, openMobile } = useSidebar();
 
   return (
     <Sidebar variant="sidebar" collapsible={isMobile ? "offcanvas" : "icon"}>
@@ -71,11 +69,11 @@ export function AppSidebar() {
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
-                asChild // Important: Let Link component render the anchor
+                asChild // SidebarMenuButton will render its child (the Link)
                 isActive={pathname === item.href}
                 className="justify-start"
                 aria-label={item.label}
-                tooltip={item.label} // SidebarMenuButton handles its own tooltip
+                tooltip={item.label}
               >
                 <Link href={item.href}>
                   <item.icon className="h-4 w-4" />
@@ -85,7 +83,7 @@ export function AppSidebar() {
                     // 2. Is mobile AND mobile sidebar is open
                     // Otherwise, make it screen-reader only if collapsed on desktop
                     (sidebarState === 'expanded' && !isMobile) || (isMobile && openMobile) ? "" : ((sidebarState === 'collapsed' && !isMobile) ? "sr-only" : ""),
-                    "group-data-[collapsible=icon]:sr-only" // General rule for icon-only state from parent
+                    "group-data-[collapsible=icon]:sr-only"
                   )}>
                     {item.label}
                   </span>

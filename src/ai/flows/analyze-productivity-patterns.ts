@@ -51,7 +51,7 @@ const LogEntrySchema = z.object({
 });
 
 
-export const AnalyzeProductivityPatternsInputSchema = z.object({
+const AnalyzeProductivityPatternsInputSchema = z.object({
   startDate: z.string().datetime().describe('The start date (ISO 8601 format) for analyzing productivity patterns.'),
   endDate: z.string().datetime().describe('The end date (ISO 8601 format) for analyzing productivity patterns.'),
   calendarEvents: z.array(EventSchema).optional().describe('Calendar events within the specified date range.'),
@@ -68,7 +68,7 @@ export type AnalyzeProductivityPatternsInput = z.infer<
   typeof AnalyzeProductivityPatternsInputSchema
 >;
 
-export const AnalyzeProductivityPatternsOutputSchema = z.object({
+const AnalyzeProductivityPatternsOutputSchema = z.object({
   peakPerformanceTimes: z
     .string()
     .describe('Identifies the times of day or days of the week when the user seems most productive or focused based on logs (activity, mood, focusLevel), task completion, and calendar events. Should correlate this with types of activities logged if possible.'),
@@ -259,4 +259,3 @@ const analyzeProductivityPatternsFlow = ai.defineFlow<
     return output;
   }
 );
-    

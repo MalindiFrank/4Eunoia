@@ -170,5 +170,3 @@ const summarizeDiaryEntriesFlow = ai.defineFlow<
         dateRange: { start: startDate, end: endDate }, 
     };
 });
-
-    
