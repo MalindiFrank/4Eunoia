@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { CalendarEvent } from '@/services/calendar';
-import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent } from '@/services/calendar';
+import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent, CALENDAR_EVENTS_STORAGE_KEY } from '@/services/calendar';
 import { useDataMode } from '@/context/data-mode-context';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
@@ -366,8 +366,14 @@ const CalendarPage: FC = () => {
                  >
                  {dayLabel}
                  </span>
-                 <Button variant="ghost" size="icon" className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity z-10" onClick={(e) => { e.stopPropagation(); openEventDialog(day); }} aria-label={`Add event on ${fullDayLabel}`}>
-                     <Plus className="h-3 w-3" />
+                 <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7 absolute top-1 right-1 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity z-10" 
+                    onClick={(e) => { e.stopPropagation(); openEventDialog(day); }} 
+                    aria-label={`Add event on ${fullDayLabel}`}
+                 >
+                     <Plus className="h-4 w-4" />
                       <span className="sr-only">Add event</span>
                  </Button>
             </div>
@@ -381,7 +387,7 @@ const CalendarPage: FC = () => {
               {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( 
                 <div
                   key={event.id || `${event.title}-${event.start.toISOString()}`} 
-                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus:ring-1 focus:ring-primary" 
+                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1" 
                    title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} 
                    onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} 
                    tabIndex={0} 
