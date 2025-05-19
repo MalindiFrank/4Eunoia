@@ -58,7 +58,7 @@ export function AppSidebar() {
       {menuItems.map((item) => (
         <SidebarMenuItem key={item.label}>
           <SidebarMenuButton
-            asChild // SidebarMenuButton will act as the Link
+            asChild // SidebarMenuButton will act as the Link's slot
             isActive={pathname === item.href}
             className="justify-start"
             aria-label={item.label}
