@@ -21,13 +21,13 @@ import '@/ai/flows/analyze-task-completion.ts';
 import '@/ai/flows/analyze-sentiment-trends.ts';
 import '@/ai/flows/assess-life-balance.ts';
 import '@/ai/flows/estimate-burnout-risk.ts';
-import '@/ai/flows/reflect-on-week.ts';
 import '@/ai/flows/generate-daily-suggestions.ts';
 import '@/ai/flows/generate-daily-plan.ts';
 import '@/ai/flows/analyze-attention-patterns.ts';
+import '@/ai/flows/process-voice-input.ts';
 
 // New Flows
-import '@/ai/flows/process-voice-input.ts'; // Added Voice Input Processing Flow
+import '@/ai/flows/reflect-on-week.ts';
 
 }
     

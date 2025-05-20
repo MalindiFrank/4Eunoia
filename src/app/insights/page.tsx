@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfDay, endOfDay, isWithinInterval, isValid as isValidDate } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye, SlidersHorizontal } from 'lucide-react';
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye, SlidersHorizontal, Send } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -24,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 // --- Import AI Flows ---
@@ -210,14 +211,12 @@ const InsightsPageClient: FC = () => {
   const { toast } = useToast();
   const { dataMode } = useDataMode();
   
-  // State for AI preferences, loaded from localStorage
   const [aiPreferences, setAiPreferences] = useState<UserPreferences>({
     aiPersona: 'Supportive Coach',
     aiInsightVerbosity: 'Detailed Analysis',
     energyLevelPattern: 'Steady throughout day',
     growthPace: 'Moderate',
     preferredWorkTimes: 'Flexible',
-    // theme and defaultView are not directly used by flows but part of the structure
     theme: 'system', 
     defaultView: '/',
   });
@@ -292,13 +291,13 @@ const InsightsPageClient: FC = () => {
         } catch (error) {
             console.error("Failed to generate daily suggestions:", error);
             let description = "Could not load daily suggestions.";
-            if (error instanceof Error) {
-                if (error.message.includes("503") || error.message.includes("Service Unavailable") || error.message.includes("overloaded")) {
-                    description = "The AI assistant is temporarily overloaded. Please try again in a few moments.";
-                } else {
-                    description = error.message;
-                }
-            }
+             if (error instanceof Error) {
+                 if (error.message.includes("503") || error.message.includes("Service Unavailable") || error.message.toLowerCase().includes("overloaded")) {
+                     description = "The AI assistant is temporarily overloaded. Please try again in a few moments.";
+                 } else {
+                     description = error.message;
+                 }
+             }
             toast({ title: "Error", description, variant: "destructive", duration: 5000 });
             setDailySuggestions(null);
         } finally {
@@ -319,10 +318,13 @@ const InsightsPageClient: FC = () => {
      setSentimentAnalysis(null);
      setLifeBalance(null);
      setBurnoutRisk(null);
-     setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
+     // Do not clear reflectionState if selectedInsightType is 'reflection' to allow conversation continuation
+     if (selectedInsightType !== 'reflection') {
+       setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
+     }
      setDailyPlan(null);
      setAttentionPatterns(null);
-   }, []);
+   }, [selectedInsightType]);
 
    const onSubmit = useCallback(async (data: InsightsRequestFormValues | { insightType: AIServiceType, startDate?: Date, endDate?: Date }) => {
      setIsLoading(data.insightType);
@@ -333,8 +335,21 @@ const InsightsPageClient: FC = () => {
      try {
        const { insightType } = data;
 
-       const startDate = 'startDate' in data && data.startDate instanceof Date && isValidDate(data.startDate) ? data.startDate : subDays(new Date(), 7);
-       const endDate = 'endDate' in data && data.endDate instanceof Date && isValidDate(data.endDate) ? data.endDate : new Date();
+       let startDate = 'startDate' in data && data.startDate instanceof Date && isValidDate(data.startDate) ? data.startDate : subDays(new Date(), 7);
+       let endDate = 'endDate' in data && data.endDate instanceof Date && isValidDate(data.endDate) ? data.endDate : new Date();
+       
+       if (insightType === 'reflection') {
+           // Ensure reflection always uses a consistent past week if not explicitly set by toolParam
+           if (!toolParam || toolParam !== 'reflection') { // Only default if not from toolParam navigation
+                const today = new Date();
+                startDate = startOfWeek(subDays(today, 7), { weekStartsOn: 1 }); // Previous week, Monday
+                endDate = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });     // Previous week, Sunday
+                form.setValue('startDate', startDate);
+                form.setValue('endDate', endDate);
+           }
+       }
+
+
        const frequency = 'frequency' in data && data.frequency ? data.frequency : undefined;
 
         if (!(startDate instanceof Date && isValidDate(startDate)) || !(endDate instanceof Date && isValidDate(endDate))) {
@@ -363,25 +378,25 @@ const InsightsPageClient: FC = () => {
         const [allLogs, allTasks, allEvents, allExpenses, allNotes, allGoals, allHabits] = await Promise.all(fetchDataPromises);
 
 
-         const dateRange = { start: startOfDay(startDate), end: endOfDay(endDate) };
+         const dateRangeFilter = { start: startOfDay(startDate), end: endOfDay(endDate) };
          const filterByDate = <T extends { date?: Date; createdAt?: Date; updatedAt?: Date; start?: Date }>(item: T): boolean => {
              const itemDate = item.date || item.createdAt || item.updatedAt || item.start;
-             return itemDate instanceof Date && isValidDate(itemDate) && isWithinInterval(itemDate, dateRange);
+             return itemDate instanceof Date && isValidDate(itemDate) && isWithinInterval(itemDate, dateRangeFilter);
          };
 
          const logsInRange = requiresLogs ? allLogs.filter(filterByDate) : [];
          const tasksInRange = requiresTasks ? allTasks.filter((task: Task) => {
              const created = task.createdAt;
              const due = task.dueDate;
-             const isCreatedInRange = created instanceof Date && isValidDate(created) && isWithinInterval(created, dateRange);
-             const isDueInRange = due instanceof Date && isValidDate(due) && isWithinInterval(due, dateRange);
-             return isCreatedInRange || isDueInRange || task.status !== 'Completed';
+             const isCreatedInRange = created instanceof Date && isValidDate(created) && isWithinInterval(created, dateRangeFilter);
+             const isDueInRange = due instanceof Date && isValidDate(due) && isWithinInterval(due, dateRangeFilter);
+             return isCreatedInRange || isDueInRange || task.status !== 'Completed'; // Consider all non-completed or those within range
          }) : [];
          const eventsInRange = requiresEvents ? allEvents.filter(filterByDate) : [];
          const expensesInRange = requiresExpenses ? allExpenses.filter(filterByDate) : [];
          const notesInRange = requiresNotes ? allNotes.filter(filterByDate) : [];
-         const goalsInRange = requiresGoals ? allGoals.filter((g: Goal) => g.updatedAt instanceof Date && isValidDate(g.updatedAt) && isWithinInterval(g.updatedAt, dateRange)) : [];
-         const habitsInRange = requiresHabits ? allHabits.filter((h: Habit) => h.updatedAt instanceof Date && isValidDate(h.updatedAt) && isWithinInterval(h.updatedAt, dateRange)) : [];
+         const goalsInRange = requiresGoals ? allGoals.filter((g: Goal) => g.updatedAt instanceof Date && isValidDate(g.updatedAt) && isWithinInterval(g.updatedAt, dateRangeFilter)) : [];
+         const habitsInRange = requiresHabits ? allHabits.filter((h: Habit) => h.updatedAt instanceof Date && isValidDate(h.updatedAt) && isWithinInterval(h.updatedAt, dateRangeFilter)) : [];
 
 
         switch (insightType) {
@@ -458,13 +473,14 @@ const InsightsPageClient: FC = () => {
              case 'attentionPatterns':
                 const attentionInput: AnalyzeAttentionPatternsInput = {
                     ...dateInput,
-                    dailyLogs: formatArrayForFlow(logsInRange, ['date', 'mood', 'focusLevel', 'diaryEntry']) ?? [],
+                    dailyLogs: formatArrayForFlow(logsInRange, ['date']) ?? [],
                 };
                 const attentionResult = await analyzeAttentionPatterns(attentionInput);
                 setAttentionPatterns(attentionResult);
                 break;
 
               case 'reflection':
+                  // Data for reflection should be for the specified period
                   const reflectionInput: ReflectOnWeekInput = {
                      ...dateInput,
                      logs: formatArrayForFlow(logsInRange, ['date']),
@@ -472,21 +488,22 @@ const InsightsPageClient: FC = () => {
                      goals: formatArrayForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
                      habits: formatArrayForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
                       previousReflection: reflectionState.output ? {
-                          questionsAsked: [...reflectionState.conversation.questions],
-                          userResponses: [...reflectionState.conversation.responses],
+                          questionsAsked: [...reflectionState.conversation.questions, reflectionState.output.coachPrompt].slice(-5), // Keep last 5 questions
+                          userResponses: [...reflectionState.conversation.responses, reflectionUserInput].slice(-5), // Keep last 5 responses
                           aiSummary: reflectionState.output.observation,
                       } : undefined,
                       userResponse: reflectionUserInput || undefined,
+                      userPreferences: aiPreferences,
                   };
                   const reflectionResult = await reflectOnWeek(reflectionInput);
                   setReflectionState(prev => ({
                      conversation: {
-                         questions: [...prev.conversation.questions, reflectionResult.coachPrompt],
-                         responses: [...prev.conversation.responses, reflectionUserInput],
+                         questions: [...prev.conversation.questions, prev.output?.coachPrompt || (prev.conversation.questions.length === 0 ? reflectionResult.coachPrompt : "")].filter(q=>q),
+                         responses: [...prev.conversation.responses, reflectionUserInput].filter(r=>r),
                      },
                      output: reflectionResult,
                  }));
-                 setReflectionUserInput('');
+                 setReflectionUserInput(''); // Clear input after sending
                  break;
 
              case 'dailySuggestion':
@@ -494,8 +511,8 @@ const InsightsPageClient: FC = () => {
                  break;
 
              case 'dailyPlan':
-                const targetDate = startDate;
-                const planContextStart = startOfDay(subDays(targetDate, 2));
+                const targetDate = startDate; // For daily plan, startDate is the target date
+                const planContextStart = startOfDay(subDays(targetDate, 2)); // Logs from past 2 days + target day
                 const planContextEnd = endOfDay(targetDate);
                 const targetDayStart = startOfDay(targetDate);
                 const targetDayEnd = endOfDay(targetDate);
@@ -533,7 +550,7 @@ const InsightsPageClient: FC = () => {
        console.error("Failed to generate insights:", error);
        let description = 'An unknown error occurred. Please try again.';
        if (error instanceof Error) {
-           if (error.message.includes("503") || error.message.includes("Service Unavailable") || error.message.includes("overloaded")) {
+           if (error.message.includes("503") || error.message.includes("Service Unavailable") || error.message.toLowerCase().includes("overloaded")) {
                description = "The AI service is temporarily overloaded. Please try again in a few moments.";
            } else if (error.message.includes("Schema validation failed")){
                description = "There was an issue with the data sent to the AI. Please check your inputs or try a different date range.";
@@ -556,7 +573,7 @@ const InsightsPageClient: FC = () => {
      } finally {
        setIsLoading(false);
      }
-   }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences]);
+   }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences, form, toolParam]);
 
 
    useEffect(() => {
@@ -567,8 +584,8 @@ const InsightsPageClient: FC = () => {
             let effectiveEndDate = now;
 
             if (toolParam === 'reflection') {
-                effectiveStartDate = startOfWeek(subDays(now, 7));
-                effectiveEndDate = endOfWeek(subDays(now, 7));
+                effectiveStartDate = startOfWeek(subDays(now, 7), { weekStartsOn: 1 }); // Previous full week
+                effectiveEndDate = endOfWeek(subDays(now, 7), { weekStartsOn: 1 });
             } else if (toolParam === 'dailyPlan') {
                 effectiveStartDate = startOfDay(now);
                 effectiveEndDate = endOfDay(now);
@@ -590,10 +607,16 @@ const InsightsPageClient: FC = () => {
     }, [toolParam, form, router, onSubmit, fetchDailySuggestions]);
 
 
-    const handleReflectionResponse = (e: React.FormEvent) => {
+    const handleReflectionResponseSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!reflectionUserInput.trim() || isLoading === 'reflection') return;
-        onSubmit({ insightType: 'reflection', startDate: form.getValues('startDate'), endDate: form.getValues('endDate') });
+        // Fetch current form values for dates to pass to onSubmit
+        const currentFormValues = form.getValues();
+        onSubmit({ 
+            insightType: 'reflection', 
+            startDate: currentFormValues.startDate, 
+            endDate: currentFormValues.endDate 
+        });
     };
 
 
@@ -697,7 +720,7 @@ const InsightsPageClient: FC = () => {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(data => onSubmit(data as AIServiceType))} className="space-y-6">
               <FormField
                 control={form.control}
                 name="insightType"
@@ -716,11 +739,12 @@ const InsightsPageClient: FC = () => {
                              form.setValue('endDate', now, { shouldValidate: true });
                          } else if (value === 'diarySummary') {
                              form.setValue('frequency', 'weekly');
-                             form.setValue('startDate', startOfWeek(now), { shouldValidate: true });
+                             form.setValue('startDate', startOfWeek(now), { shouldValidate: true }); // Current week default
                              form.setValue('endDate', endOfWeek(now), { shouldValidate: true });
                          } else if (value === 'reflection') {
-                             form.setValue('startDate', startOfWeek(subDays(now, 7)), { shouldValidate: true });
-                             form.setValue('endDate', endOfWeek(subDays(now, 7)), { shouldValidate: true });
+                            // Default to previous full week for reflection
+                             form.setValue('startDate', startOfWeek(subDays(now, 7),{weekStartsOn: 1}), { shouldValidate: true });
+                             form.setValue('endDate', endOfWeek(subDays(now, 7),{weekStartsOn: 1}), { shouldValidate: true });
                          } else if (value === 'dailyPlan') {
                              form.setValue('startDate', startOfDay(now), { shouldValidate: true }); 
                              form.setValue('endDate', endOfDay(now), { shouldValidate: true });
@@ -886,47 +910,62 @@ const InsightsPageClient: FC = () => {
                       <CardDescription>Reflect on your week {form.getValues("startDate") instanceof Date && form.getValues("endDate") instanceof Date && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
-                      {isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && (
-                         <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-purple-500" /></div>
+                    {(isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && !reflectionState.output) && (
+                        <Button onClick={() => onSubmit({ insightType: 'reflection', startDate: form.getValues('startDate'), endDate: form.getValues('endDate')})} disabled={isLoading === 'reflection'}>
+                             {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                             Start Reflection
+                        </Button>
                      )}
-                     {reflectionState.conversation.questions.map((q, index) => (
-                         <div key={`conv-${index}`} className="space-y-2 mb-3 pb-3 border-b border-purple-100 dark:border-purple-800 last:border-b-0">
-                             <p className="text-sm font-semibold text-purple-800 dark:text-purple-300">Coach: <span className="font-normal italic">{q}</span></p>
-                             {reflectionState.conversation.responses[index] && (
-                                 <p className="text-sm pl-4 text-gray-700 dark:text-gray-300">You: <span className="font-normal">{reflectionState.conversation.responses[index]}</span></p>
-                             )}
-                              {isLoading === 'reflection' && index === reflectionState.conversation.questions.length - 1 && reflectionState.output && !reflectionState.output.isComplete && (
-                                    <div className="flex items-center pl-4 pt-2"><Loader2 className="h-4 w-4 animate-spin text-purple-500 mr-2" /> <span className="text-xs italic text-purple-600 dark:text-purple-400">Coach is thinking...</span></div>
-                               )}
-                         </div>
-                      ))}
 
-                      {reflectionState.conversation.questions.length === 0 && !isLoading && (
-                            <Button onClick={() => onSubmit({ insightType: 'reflection', startDate: form.getValues('startDate'), endDate: form.getValues('endDate')})} disabled={isLoading === 'reflection'}>
-                                 Start Reflection
-                            </Button>
-                       )}
+                    {reflectionState.conversation.questions.length > 0 && (
+                        <ScrollArea className="h-[300px] w-full rounded-md border p-3 space-y-3 bg-background/50">
+                            {reflectionState.conversation.questions.map((q, index) => (
+                                <React.Fragment key={`conv-${index}`}>
+                                    { q && (
+                                    <div className="mb-2 p-2 rounded-md bg-purple-100 dark:bg-purple-800/60 shadow-sm">
+                                        <p className="text-sm font-semibold text-purple-800 dark:text-purple-300">Coach:</p>
+                                        <p className="text-sm italic text-purple-700 dark:text-purple-200">{q}</p>
+                                    </div>
+                                    )}
+                                    {reflectionState.conversation.responses[index] && (
+                                        <div className="mb-3 p-2 rounded-md bg-background shadow-sm text-right">
+                                        <p className="text-sm font-semibold text-primary">You:</p>
+                                        <p className="text-sm text-foreground">{reflectionState.conversation.responses[index]}</p>
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                             {isLoading === 'reflection' && reflectionState.output && !reflectionState.output.isComplete && (
+                                <div className="flex items-center justify-start p-2"><Loader2 className="h-5 w-5 animate-spin text-purple-500 mr-2" /> <span className="text-xs italic text-purple-600 dark:text-purple-400">Coach is thinking...</span></div>
+                            )}
+                        </ScrollArea>
+                    )}
+                    
 
-                     {reflectionState.output && !reflectionState.output.isComplete && (
-                         <form onSubmit={handleReflectionResponse} className="space-y-3 mt-4">
-                             <Label htmlFor="reflection-response" className="sr-only">Your Response:</Label>
+                     {reflectionState.output && !reflectionState.output.isComplete && reflectionState.conversation.questions.length > 0 && (
+                         <form onSubmit={handleReflectionResponseSubmit} className="space-y-3 mt-4">
+                             <Label htmlFor="reflection-response" className="font-medium text-purple-700 dark:text-purple-300">Your Response:</Label>
                              <Textarea
                                 id="reflection-response"
-                                placeholder="Your thoughts..."
+                                placeholder="Share your thoughts..."
                                 value={reflectionUserInput}
                                 onChange={(e) => setReflectionUserInput(e.target.value)}
-                                rows={4}
+                                rows={3}
                                 disabled={isLoading === 'reflection'}
                                 aria-label="Your reflection response"
+                                className="bg-background"
                              />
-                             <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim()}>
-                                {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Send Response
+                             <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim()} className="bg-purple-600 hover:bg-purple-700 text-purple-50">
+                                {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />} Send Response
                              </Button>
                          </form>
                      )}
 
                      {reflectionState.output?.isComplete && (
-                         <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-4">✅ Reflection complete! Great job taking the time to reflect.</p>
+                        <div className="p-3 rounded-md bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-700">
+                             <p className="text-sm font-semibold text-green-700 dark:text-green-300">✅ Reflection complete!</p>
+                             {reflectionState.output.coachPrompt && <p className="text-sm text-green-600 dark:text-green-400 mt-1">{reflectionState.output.coachPrompt}</p>}
+                        </div>
                      )}
                       {reflectionState.output?.observation && (
                           <Alert variant="default" className="mt-4 bg-purple-100/50 dark:bg-purple-900/50 border-purple-200 dark:border-purple-700">
