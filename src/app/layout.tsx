@@ -7,15 +7,16 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import React, { useEffect } from 'react';
 import './globals.css';
 import { cn } from '@/lib/utils';
-import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'; // Import useSidebar
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Toaster } from '@/components/ui/toaster';
 import { DataModeProvider } from '@/context/data-mode-context';
 import { DataModeSwitcher } from '@/components/data-mode-switcher';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { getInitialTheme, applyTheme } from '@/lib/theme-utils';
-import { Button } from '@/components/ui/button'; // Import Button
-import { PanelLeft, Menu } from 'lucide-react'; // Import PanelLeft or Menu icon
+import { Button } from '@/components/ui/button';
+import { PanelLeft, Menu } from 'lucide-react';
+import { OnboardingGuide } from '@/components/onboarding-guide'; // Import the OnboardingGuide
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,7 +30,7 @@ const geistMono = Geist_Mono({
 
 // Layout component that uses the sidebar context
 function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isMobile, toggleSidebar } = useSidebar(); // Get isMobile and toggleSidebar from context
+  const { isMobile, toggleSidebar } = useSidebar();
 
   return (
     <div className="flex">
@@ -37,7 +38,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50 md:hidden bg-background/80 backdrop-blur-sm hover:bg-accent" // Positioned for mobile, hidden on md+
+          className="fixed top-4 left-4 z-50 md:hidden bg-background/80 backdrop-blur-sm hover:bg-accent"
           onClick={toggleSidebar}
           aria-label="Open sidebar"
         >
@@ -45,7 +46,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </Button>
       )}
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pt-16 md:pt-4"> {/* Add padding-top for mobile to account for fixed trigger */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pt-16 md:pt-4">
         <DataModeSwitcher />
         <div className="mt-4">
           {children}
@@ -90,8 +91,9 @@ export default function RootLayout({
       >
          <TooltipProvider>
            <DataModeProvider>
-             <SidebarProvider> {/* SidebarProvider wraps the layout that needs sidebar context */}
+             <SidebarProvider>
                 <AppLayout>{children}</AppLayout>
+                <OnboardingGuide /> {/* Add the OnboardingGuide here */}
              </SidebarProvider>
            </DataModeProvider>
          </TooltipProvider>
