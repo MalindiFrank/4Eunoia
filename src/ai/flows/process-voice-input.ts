@@ -22,7 +22,7 @@ const ExtractedDetailsSchema = z.object({
     title: z.string().optional().describe('Extracted title for a task or note, or main activity for a log.'),
     description: z.string().optional().describe('Extracted description for a task, or part of content for a note/log.'),
     content: z.string().optional().describe('Extracted main content for a note. Could also be used for detailed diary part of a log.'),
-    date: z.string().datetime().optional().describe('Extracted date for a task or log (ISO 8601 format). Default to current if not specified.'),
+    date: z.string().datetime().optional().describe('Extracted date for a log (ISO 8601 format). Default to current if not specified.'),
     dueDate: z.string().datetime().optional().describe('Extracted due date for a task (ISO 8601 format).'),
     mood: z.string().optional().describe("Extracted mood for a log entry (e.g., 'Happy', 'Stressed')."),
     focusLevel: z.number().min(1).max(5).optional().describe("Extracted focus level (1-5) for a log entry."),
@@ -79,7 +79,7 @@ Your tasks:
     *   If intent is 'unclear': Politely say you didn't understand and ask them to rephrase (e.g., "Sorry, I didn't quite catch that. Could you please rephrase?").
 
 Consider common phrasing. For tasks, "remind me to..." or "add to tasks..." are common. For logs, past tense is common.
-Focus on extracting structured data for title, date, dueDate, mood, focusLevel, description, content.
+Focus on extracting structured data for 'title', 'date', 'dueDate', 'mood', 'focusLevel', 'description', 'content'.
 If a date is "today" or a time like "5 PM" is mentioned without a day for a task, assume it's for {{currentDate}}.
 
 Output the result in the specified JSON format.
@@ -168,4 +168,3 @@ const processVoiceInputFlow = ai.defineFlow<
     };
   }
 });
-
