@@ -108,7 +108,7 @@ export const OnboardingGuide: React.FC = () => {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleFinish(); }}>
       <DialogContent 
-        className="sm:max-w-[520px] p-6" 
+        className="sm:max-w-[520px] p-4 sm:p-6" 
         onPointerDownOutside={(e) => e.preventDefault()} // Prevents closing by clicking outside for guided flow
         onEscapeKeyDown={(e) => e.preventDefault()} // Prevents closing with Escape key
       >
@@ -117,12 +117,12 @@ export const OnboardingGuide: React.FC = () => {
             <StepIcon className="h-10 w-10" />
           </div>
           <DialogTitle className="text-2xl font-semibold">{onboardingSteps[currentStep].title}</DialogTitle>
-          <DialogDescription className="text-muted-foreground mt-1 px-4 text-sm leading-relaxed">
+          <DialogDescription className="text-muted-foreground mt-1 px-2 sm:px-4 text-sm leading-relaxed">
             {onboardingSteps[currentStep].description}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center my-6">
+        <div className="flex justify-center my-4 sm:my-6">
           {onboardingSteps.map((_, index) => (
             <div
               key={index}
