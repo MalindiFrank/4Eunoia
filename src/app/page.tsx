@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Activity, Calendar, ListChecks, CreditCard, Lightbulb, PieChart, Settings, Smile, StickyNote, Target, BrainCircuit, Loader2, Mic, XCircle, CheckCircle, Eye, Map, SlidersHorizontal, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Activity, Calendar, ListChecks, CreditCard, Lightbulb, PieChart, Settings, Smile, StickyNote, Target, BrainCircuit, Loader2, Mic, XCircle, CheckCircle, Eye, Map, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 import { useDataMode } from '@/context/data-mode-context';
@@ -15,12 +15,14 @@ import { Button } from '@/components/ui/button';
 import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanOutput, type UserPreferences } from '@/ai/flows/generate-daily-plan';
 import { processVoiceInput, type ProcessVoiceInput, type ProcessedVoiceOutput } from '@/ai/flows/process-voice-input';
 import { estimateBurnoutRisk, type EstimateBurnoutRiskInput, type EstimateBurnoutRiskOutput } from '@/ai/flows/estimate-burnout-risk';
-import { getDailyLogs } from '@/services/daily-log';
-import { getTasks } from '@/services/task';
+
+import { getDailyLogs, addUserLog } from '@/services/daily-log';
+import { getTasks, addUserTask } from '@/services/task';
 import { getCalendarEvents } from '@/services/calendar';
 import { getGoals } from '@/services/goal';
 import { getHabits } from '@/services/habit';
-import { formatISO, startOfDay, endOfDay, subDays } from 'date-fns';
+import { addUserNote } from '@/services/note'; // Import addUserNote
+import { formatISO, startOfDay, endOfDay, subDays, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 // Helper to format data for flows
@@ -62,7 +64,7 @@ export default function Home() {
     });
     const [neuroSettings, setNeuroSettings] = useState({ focusShieldEnabled: false, enabled: false, lowStimulationUI: false, taskChunking: false, focusModeTimer: 'pomodoro' as 'pomodoro' | 'custom' });
     const [burnoutData, setBurnoutData] = useState<EstimateBurnoutRiskOutput | null>(null);
-    const [isLoadingBurnout, setIsLoadingBurnout] = useState(false); 
+    const [isLoadingBurnout, setIsLoadingBurnout] = useState(false);
 
     useEffect(() => {
       if (typeof window !== 'undefined') {
@@ -98,14 +100,14 @@ export default function Home() {
     }, []);
 
     const fetchBurnoutRisk = useCallback(async () => {
-        if (!neuroSettings.enabled || !neuroSettings.focusShieldEnabled) { 
-            setBurnoutData(null); 
+        if (!neuroSettings.enabled || !neuroSettings.focusShieldEnabled) {
+            setBurnoutData(null);
             return;
         }
         setIsLoadingBurnout(true);
         try {
             const endDate = new Date();
-            const startDate = subDays(endDate, 14); 
+            const startDate = subDays(endDate, 14);
 
             const [logs, tasks, events] = await Promise.all([
                 getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
@@ -132,7 +134,7 @@ export default function Home() {
     }, [dataMode, toast, neuroSettings.enabled, neuroSettings.focusShieldEnabled]);
 
     useEffect(() => {
-        fetchBurnoutRisk(); 
+        fetchBurnoutRisk();
     }, [fetchBurnoutRisk]);
 
 
@@ -140,7 +142,7 @@ export default function Home() {
         setIsLoadingPlan(true);
         try {
             const today = new Date();
-            const startDateLogs = startOfDay(subDays(today, 2)); 
+            const startDateLogs = startOfDay(subDays(today, 2));
             const endDateLogs = endOfDay(today);
 
             const [logs, tasks, events, goals, habits] = await Promise.all([
@@ -233,7 +235,12 @@ export default function Home() {
     }, []);
 
     const handleVoiceInputCallback = useCallback(async (text: string) => {
-        if (!text) return;
+        if (!text || dataMode === 'mock') {
+             if (dataMode === 'mock') {
+                 toast({ title: "Voice Action Disabled", description: "Actions via voice are disabled in Mock Data Mode. Please 'Start My Journey'.", variant: "destructive"});
+             }
+            return;
+        }
         toast({ title: "Processing voice input...", description: `Recognized: "${text}"`});
         try {
             const input: ProcessVoiceInput = {
@@ -241,31 +248,78 @@ export default function Home() {
                 currentDate: formatISO(new Date()),
             };
             const result = await processVoiceInput(input);
-            
+
             let actionDescription = result.responseText;
-            if (result.intent === 'log_activity' && result.extractedDetails?.title) {
-                actionDescription = `Logged activity: "${result.extractedDetails.title}".`;
-            } else if (result.intent === 'create_task' && result.extractedDetails?.title) {
-                actionDescription = `Created task: "${result.extractedDetails.title}".`;
-            } else if (result.intent === 'create_note' && result.extractedDetails?.title) {
-                actionDescription = `Created note: "${result.extractedDetails.title}".`;
+            let actionTaken = false;
+
+            if (result.extractedDetails) {
+                const { title, description, content, date, dueDate, mood, focusLevel } = result.extractedDetails;
+                const logDate = date ? parseISO(date) : new Date();
+
+                switch (result.intent) {
+                    case 'log_activity':
+                        if (title) {
+                            addUserLog({
+                                date: logDate,
+                                activity: title,
+                                notes: description,
+                                diaryEntry: content,
+                                mood: mood as any, // Cast as Mood type might be needed if schema is strict
+                                focusLevel: focusLevel,
+                            });
+                            actionDescription = `Activity logged: "${title}".`;
+                            actionTaken = true;
+                        } else {
+                            actionDescription = "What activity should I log?";
+                        }
+                        break;
+                    case 'create_task':
+                        if (title) {
+                            addUserTask({
+                                title: title,
+                                description: description,
+                                dueDate: dueDate ? parseISO(dueDate) : undefined,
+                                status: 'Pending',
+                            });
+                            actionDescription = `Task created: "${title}".`;
+                            actionTaken = true;
+                        } else {
+                            actionDescription = "What's the title of the task?";
+                        }
+                        break;
+                    case 'create_note':
+                        if (title && (description || content)) {
+                             addUserNote({
+                                title: title,
+                                content: content || description || '',
+                            });
+                            actionDescription = `Note created: "${title}".`;
+                            actionTaken = true;
+                        } else {
+                            actionDescription = "What's the title and content of the note?";
+                        }
+                        break;
+                    default:
+                        // For 'general_query' or 'unclear', AI's responseText is already good.
+                        break;
+                }
             }
 
             toast({
-                title: `Voice Command: ${result.intent.replace(/_/g, ' ')}`,
+                title: actionTaken ? `Voice Command: ${result.intent.replace(/_/g, ' ')} Executed` : `Voice Command: ${result.intent.replace(/_/g, ' ')}`,
                 description: actionDescription,
                 duration: 7000,
             });
 
         } catch (error) {
             console.error("Error processing voice input with AI:", error);
+            let errDesc = "Could not process your voice command.";
             if (error instanceof Error && (error.message.includes("503") || error.message.toLowerCase().includes("overloaded") || error.message.toLowerCase().includes("service unavailable"))) {
-                 toast({ title: "AI Service Unavailable", description: "Could not process voice command, the AI service is temporarily overloaded.", variant: "destructive", duration: 7000 });
-            } else {
-                toast({ title: "AI Processing Error", description: "Could not process your voice command.", variant: "destructive" });
+                 errDesc = "The AI service is temporarily overloaded. Please try again later.";
             }
+            toast({ title: "AI Processing Error", description: errDesc, variant: "destructive" });
         }
-    }, [toast]);
+    }, [toast, dataMode]);
 
 
     useEffect(() => {
@@ -273,7 +327,7 @@ export default function Home() {
         handleVoiceInputCallback(finalTranscript.trim());
         setFinalTranscript('');
       }
-    }, [isListening, finalTranscript, handleVoiceInputCallback]); 
+    }, [isListening, finalTranscript, handleVoiceInputCallback]);
 
     const toggleListen = () => {
         if (!recognitionRef.current) {
@@ -291,7 +345,7 @@ export default function Home() {
             }
         }
     };
-    
+
     const showFocusShieldAlert = neuroSettings.enabled && neuroSettings.focusShieldEnabled && burnoutData && (burnoutData.riskLevel === 'High' || burnoutData.riskLevel === 'Very High');
 
   return (
@@ -385,7 +439,7 @@ export default function Home() {
              <div className="lg:col-span-1 flex flex-col gap-6 pt-12 lg:pt-[68px]">
                   <DashboardCardLarge title="Insights" icon={Lightbulb} description="Get AI-powered personal insights." href="/insights" isShielded={showFocusShieldAlert} data-ai-hint="analytics chart" />
                   <DashboardCardLarge title="Visualizations" icon={PieChart} description="See charts and graphs of your data." href="/visualizations" isShielded={showFocusShieldAlert} data-ai-hint="data graph" />
-                 
+
                   <Card className="bg-card hover:shadow-xl transition-shadow duration-300">
                      <CardHeader className="pb-3">
                          <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -420,15 +474,15 @@ interface DashboardCardProps {
 
 function DashboardCard({ title, icon: Icon, description, href, isShielded, "data-ai-hint": aiHint }: DashboardCardProps) {
   const cardContent = (
-    <Card 
+    <Card
       className={cn(
         "hover:shadow-lg transition-shadow duration-300 h-full",
-        isShielded 
-          ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none" 
+        isShielded
+          ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none pointer-events-none cursor-not-allowed"
           : "cursor-pointer hover:border-primary/30 bg-card"
       )}
       aria-disabled={isShielded}
-      data-ai-hint={aiHint} 
+      data-ai-hint={aiHint}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -441,7 +495,7 @@ function DashboardCard({ title, icon: Icon, description, href, isShielded, "data
   );
 
   if (isShielded) {
-    return <div className="block h-full pointer-events-none cursor-not-allowed">{cardContent}</div>;
+    return <div className="block h-full">{cardContent}</div>; // Render as div, pointer-events handled by Card className
   }
 
   return (
@@ -453,15 +507,15 @@ function DashboardCard({ title, icon: Icon, description, href, isShielded, "data
 
 function DashboardCardLarge({ title, icon: Icon, description, href, isShielded, "data-ai-hint": aiHint }: DashboardCardProps) {
   const cardContent = (
-    <Card 
+    <Card
       className={cn(
         "hover:shadow-xl transition-shadow duration-300 h-full",
-        isShielded 
-          ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none" 
+        isShielded
+          ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none pointer-events-none cursor-not-allowed"
           : "cursor-pointer hover:border-primary/40 bg-card"
       )}
       aria-disabled={isShielded}
-      data-ai-hint={aiHint} 
+      data-ai-hint={aiHint}
     >
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -476,9 +530,9 @@ function DashboardCardLarge({ title, icon: Icon, description, href, isShielded, 
   );
 
   if (isShielded) {
-    return <div className="block h-full pointer-events-none cursor-not-allowed">{cardContent}</div>;
+     return <div className="block h-full">{cardContent}</div>;
   }
-  
+
   return (
     <Link href={href} className="block h-full">
        {cardContent}
@@ -491,4 +545,4 @@ const ImagePlaceholder: React.FC<{ src: string; alt: string; width: number; heig
   // eslint-disable-next-line @next/next/no-img-element
   <img src={src} alt={alt} width={width} height={height} className="rounded-md object-cover" {...props} />
 );
-    
+

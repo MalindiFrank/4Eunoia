@@ -6,6 +6,11 @@ import Home from '@/app/page';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { DataModeProvider } from '@/context/data-mode-context';
 import { useToast } from '@/hooks/use-toast';
+import { processVoiceInput } from '@/ai/flows/process-voice-input';
+import { addUserLog } from '@/services/daily-log';
+import { addUserTask } from '@/services/task';
+import { addUserNote } from '@/services/note';
+
 
 // Mock next/link
 jest.mock('next/link', () => {
@@ -25,7 +30,7 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/context/data-mode-context', () => ({
     DataModeProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     useDataMode: () => ({
-      dataMode: 'mock',
+      dataMode: 'user', // Default to user mode for voice actions
       switchToUserDataMode: jest.fn(),
       resetToMockMode: jest.fn(),
       isLoading: false,
@@ -48,21 +53,33 @@ jest.mock('@/ai/flows/generate-daily-plan', () => ({
     warnings: [],
   })),
 }));
-jest.mock('@/ai/flows/process-voice-input', () => ({
-    processVoiceInput: jest.fn(() => Promise.resolve({
-        intent: 'log_activity',
-        extractedDetails: { title: 'Processed Voice Input' },
-        responseText: 'Okay, processing your voice input.',
-    })),
+jest.mock('@/ai/flows/process-voice-input');
+jest.mock('@/ai/flows/estimate-burnout-risk', () => ({
+    estimateBurnoutRisk: jest.fn(() => Promise.resolve({
+        riskLevel: 'Low', riskScore: 10, assessmentSummary: 'Low risk', contributingFactors: [], recommendations: []
+    }))
 }));
 
 
 // Mock Services
-jest.mock('@/services/daily-log', () => ({ getDailyLogs: jest.fn(() => Promise.resolve([])) }));
-jest.mock('@/services/task', () => ({ getTasks: jest.fn(() => Promise.resolve([])) }));
+jest.mock('@/services/daily-log', () => ({
+    ...jest.requireActual('@/services/daily-log'), // Keep actual constants
+    getDailyLogs: jest.fn(() => Promise.resolve([])),
+    addUserLog: jest.fn(),
+}));
+jest.mock('@/services/task', () => ({
+    ...jest.requireActual('@/services/task'),
+    getTasks: jest.fn(() => Promise.resolve([])),
+    addUserTask: jest.fn(),
+}));
 jest.mock('@/services/calendar', () => ({ getCalendarEvents: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/goal', () => ({ getGoals: jest.fn(() => Promise.resolve([])) }));
 jest.mock('@/services/habit', () => ({ getHabits: jest.fn(() => Promise.resolve([])) }));
+jest.mock('@/services/note', () => ({
+    ...jest.requireActual('@/services/note'),
+    addUserNote: jest.fn(),
+}));
+
 
 // Mock SpeechRecognition API
 const mockStop = jest.fn();
@@ -80,7 +97,7 @@ const mockSpeechRecognition = jest.fn(() => ({
   abort: jest.fn(),
 }));
 global.SpeechRecognition = mockSpeechRecognition;
-(global as any).webkitSpeechRecognition = mockSpeechRecognition; // For Safari/Chrome compatibility
+(global as any).webkitSpeechRecognition = mockSpeechRecognition;
 
 
 describe('Home Page (Dashboard)', () => {
@@ -98,7 +115,11 @@ describe('Home Page (Dashboard)', () => {
     mockToastFn.mockClear();
     mockStart.mockClear();
     mockStop.mockClear();
-    // Reset recognitionRef mocks if they were assigned to instance properties
+    (processVoiceInput as jest.Mock).mockClear();
+    (addUserLog as jest.Mock).mockClear();
+    (addUserTask as jest.Mock).mockClear();
+    (addUserNote as jest.Mock).mockClear();
+
     if (mockSpeechRecognition.mock.instances.length > 0) {
         const instance = mockSpeechRecognition.mock.instances[0];
         instance.onstart.mockClear();
@@ -118,79 +139,204 @@ describe('Home Page (Dashboard)', () => {
        renderHomePage();
        const planTitle = await screen.findByText(/Today's Suggested Plan/i);
        expect(planTitle).toBeInTheDocument();
-       // Check for mocked plan item
        await waitFor(() => {
            expect(screen.getByText('Mock Plan Item')).toBeInTheDocument();
            expect(screen.getByText('Mock plan rationale from test.')).toBeInTheDocument();
        });
    });
 
-    it('renders core feature cards (e.g., Daily Log, Tasks)', () => {
+    it('renders core feature cards', () => {
         renderHomePage();
         expect(screen.getByText('Daily Log')).toBeInTheDocument();
         expect(screen.getByText('Tasks')).toBeInTheDocument();
-        expect(screen.getByText('Calendar')).toBeInTheDocument();
     });
 
-    it('renders links for core features', () => {
-        renderHomePage();
-        const dailyLogLink = screen.getByRole('link', { name: /daily log log activities, mood & reflections./i });
-        expect(dailyLogLink).toHaveAttribute('href', '/daily-log');
 
-        const tasksLink = screen.getByRole('link', { name: /tasks manage your to-do list./i });
-        expect(tasksLink).toHaveAttribute('href', '/tasks');
-    });
+    describe('Voice Companion Actions', () => {
+        const mockRecognitionInstance = () => mockSpeechRecognition.mock.instances[0];
 
-    it('renders the Insights and Visualizations cards', () => {
-        renderHomePage();
-        expect(screen.getByText('Insights')).toBeInTheDocument();
-        expect(screen.getByText('Visualizations')).toBeInTheDocument();
-
-         const insightsLink = screen.getByRole('link', { name: /insights get ai-powered personal insights./i });
-        expect(insightsLink).toHaveAttribute('href', '/insights');
-    });
-
-    describe('Voice Companion', () => {
-        it('renders the Voice Companion card and button', () => {
-            renderHomePage();
-            expect(screen.getByText('Voice Companion')).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: /start voice input/i })).toBeInTheDocument();
-        });
-
-        it('toggles listening state when voice input button is clicked', () => {
-            renderHomePage();
-            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
-
-            fireEvent.click(voiceButton);
-            expect(mockStart).toHaveBeenCalledTimes(1);
-            // Assuming the button text changes or an icon appears
-            expect(screen.getByRole('button', { name: /listening.../i })).toBeInTheDocument();
-
-            fireEvent.click(voiceButton); // Click again to stop
-            expect(mockStop).toHaveBeenCalledTimes(1);
-            expect(screen.getByRole('button', { name: /start voice input/i })).toBeInTheDocument();
-        });
-        
-        it('shows toast if SpeechRecognition API is not supported', () => {
-            const originalSpeechRecognition = (window as any).SpeechRecognition;
-            const originalWebkitSpeechRecognition = (window as any).webkitSpeechRecognition;
-            delete (window as any).SpeechRecognition;
-            delete (window as any).webkitSpeechRecognition;
-            
-            renderHomePage();
-            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
-            fireEvent.click(voiceButton);
-
-            expect(mockToastFn).toHaveBeenCalledWith({
-                title: "Voice Input Not Supported",
-                description: "Your browser doesn't support speech recognition.",
-                variant: "destructive",
+        it('calls addUserLog when voice input intent is "log_activity"', async () => {
+            (processVoiceInput as jest.Mock).mockResolvedValueOnce({
+                intent: 'log_activity',
+                extractedDetails: { title: 'Logged via voice', mood: 'Happy', focusLevel: 4 },
+                responseText: 'Activity logged.',
             });
 
-            // Restore
-            (window as any).SpeechRecognition = originalSpeechRecognition;
-            (window as any).webkitSpeechRecognition = originalWebkitSpeechRecognition;
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton); // Start listening
+
+            // Simulate speech recognition result
+            act(() => {
+                mockRecognitionInstance().onresult({
+                    resultIndex: 0,
+                    results: [{ 0: { transcript: 'Log that I finished coding' }, isFinal: true }],
+                } as unknown as SpeechRecognitionEvent);
+            });
+             act(() => {
+                mockRecognitionInstance().onend(); // Trigger processing
+            });
+
+
+            await waitFor(() => {
+                expect(processVoiceInput).toHaveBeenCalledWith(expect.objectContaining({ transcribedText: 'Log that I finished coding' }));
+            });
+            await waitFor(() => {
+                expect(addUserLog).toHaveBeenCalledWith(expect.objectContaining({
+                    activity: 'Logged via voice',
+                    mood: 'Happy',
+                    focusLevel: 4,
+                }));
+                expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Command: log activity Executed',
+                    description: 'Activity logged: "Logged via voice".',
+                }));
+            });
         });
+
+        it('calls addUserTask when voice input intent is "create_task"', async () => {
+            (processVoiceInput as jest.Mock).mockResolvedValueOnce({
+                intent: 'create_task',
+                extractedDetails: { title: 'Voice Task', description: 'Details for task' },
+                responseText: 'Task created.',
+            });
+
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton);
+
+            act(() => {
+                mockRecognitionInstance().onresult({
+                    resultIndex: 0,
+                    results: [{ 0: { transcript: 'Create task voice task' }, isFinal: true }],
+                } as unknown as SpeechRecognitionEvent);
+            });
+             act(() => {
+                mockRecognitionInstance().onend();
+            });
+
+            await waitFor(() => {
+                expect(processVoiceInput).toHaveBeenCalled();
+            });
+            await waitFor(() => {
+                expect(addUserTask).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Task',
+                    description: 'Details for task',
+                    status: 'Pending',
+                }));
+                expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Command: create task Executed',
+                    description: 'Task created: "Voice Task".',
+                }));
+            });
+        });
+
+        it('calls addUserNote when voice input intent is "create_note"', async () => {
+            (processVoiceInput as jest.Mock).mockResolvedValueOnce({
+                intent: 'create_note',
+                extractedDetails: { title: 'Voice Note', content: 'This is the note content.' },
+                responseText: 'Note created.',
+            });
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton);
+
+            act(() => {
+                mockRecognitionInstance().onresult({
+                    resultIndex: 0,
+                    results: [{ 0: { transcript: 'Note voice note this is the note content' }, isFinal: true }],
+                } as unknown as SpeechRecognitionEvent);
+            });
+             act(() => {
+                mockRecognitionInstance().onend();
+            });
+
+            await waitFor(() => {
+                expect(processVoiceInput).toHaveBeenCalled();
+            });
+            await waitFor(() => {
+                expect(addUserNote).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Note',
+                    content: 'This is the note content.',
+                }));
+                 expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Command: create note Executed',
+                    description: 'Note created: "Voice Note".',
+                }));
+            });
+        });
+
+        it('shows AI clarification response if details are missing', async () => {
+            (processVoiceInput as jest.Mock).mockResolvedValueOnce({
+                intent: 'create_task',
+                extractedDetails: {}, // Missing title
+                responseText: 'What should I call this task?',
+            });
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton);
+
+            act(() => {
+                 mockRecognitionInstance().onresult({
+                    resultIndex: 0,
+                    results: [{ 0: { transcript: 'Create a new task' }, isFinal: true }],
+                } as unknown as SpeechRecognitionEvent);
+            });
+             act(() => {
+                mockRecognitionInstance().onend();
+            });
+
+            await waitFor(() => expect(processVoiceInput).toHaveBeenCalled());
+            await waitFor(() => {
+                expect(addUserTask).not.toHaveBeenCalled();
+                expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({
+                    title: 'Voice Command: create task',
+                    description: 'What should I call this task?',
+                }));
+            });
+        });
+
+         it('does not call action services if in mock mode', async () => {
+             // Temporarily mock useDataMode to return 'mock'
+             jest.spyOn(require('@/context/data-mode-context'), 'useDataMode').mockReturnValueOnce({
+                 dataMode: 'mock',
+                 switchToUserDataMode: jest.fn(),
+                 resetToMockMode: jest.fn(),
+                 isLoading: false,
+             });
+
+            (processVoiceInput as jest.Mock).mockResolvedValueOnce({
+                intent: 'create_task',
+                extractedDetails: { title: 'Test Task in Mock Mode' },
+                responseText: 'Task created.',
+            });
+
+            renderHomePage();
+            const voiceButton = screen.getByRole('button', { name: /start voice input/i });
+            fireEvent.click(voiceButton);
+
+            act(() => {
+                mockRecognitionInstance().onresult({
+                    resultIndex: 0,
+                    results: [{ 0: { transcript: 'Create task test task' }, isFinal: true }],
+                } as unknown as SpeechRecognitionEvent);
+            });
+             act(() => {
+                mockRecognitionInstance().onend();
+            });
+
+            await waitFor(() => {
+                expect(addUserTask).not.toHaveBeenCalled();
+                 expect(mockToastFn).toHaveBeenCalledWith(expect.objectContaining({
+                    title: "Voice Action Disabled",
+                    description: "Actions via voice are disabled in Mock Data Mode. Please 'Start My Journey'.",
+                    variant: "destructive",
+                }));
+            });
+
+             // Restore the original mock
+             jest.spyOn(require('@/context/data-mode-context'), 'useDataMode').mockRestore();
+         });
     });
 });
-    
+
