@@ -25,14 +25,17 @@ import { Input } from '@/components/ui/input';
 type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
 type AIPersona = 'Supportive Coach' | 'Neutral Assistant' | 'Direct Analyst';
 type AIInsightVerbosity = 'Brief Summary' | 'Detailed Analysis';
+type PreferredWorkTimes = 'Morning' | 'Afternoon' | 'Evening' | 'Flexible';
+
 
 interface UserPreferences {
   theme: Theme;
-  defaultView: string;
+  defaultView: string; // Example: might be used for default page after login
   growthPace: GrowthPace;
   aiPersona: AIPersona;
   aiInsightVerbosity: AIInsightVerbosity;
   energyPattern: string; // Free text for energy pattern
+  preferredWorkTimes: PreferredWorkTimes;
 }
 
 interface NotificationSettings {
@@ -66,6 +69,7 @@ const SettingsPage: FC = () => {
     aiPersona: 'Supportive Coach',
     aiInsightVerbosity: 'Detailed Analysis',
     energyPattern: 'Steady throughout day',
+    preferredWorkTimes: 'Flexible',
   });
   const [notifications, setNotifications] = useState<NotificationSettings>({
     taskReminders: true,
@@ -90,7 +94,7 @@ const SettingsPage: FC = () => {
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          const loadedTheme = parsedSettings?.preferences?.theme && ['light', 'dark', 'system'].includes(parsedSettings.preferences.theme)
+          const loadedTheme = parsedSettings?.preferences?.theme && ['light', 'dark', 'system', 'victoria'].includes(parsedSettings.preferences.theme)
             ? parsedSettings.preferences.theme
             : getInitialTheme();
 
@@ -101,6 +105,7 @@ const SettingsPage: FC = () => {
             aiPersona: parsedSettings.preferences?.aiPersona || 'Supportive Coach',
             aiInsightVerbosity: parsedSettings.preferences?.aiInsightVerbosity || 'Detailed Analysis',
             energyPattern: parsedSettings.preferences?.energyPattern || 'Steady throughout day',
+            preferredWorkTimes: parsedSettings.preferences?.preferredWorkTimes || 'Flexible',
           }));
           setNotifications(prev => ({ ...prev, ...(parsedSettings.notifications || {}) }));
           setIntegrations(prev => ({ ...prev, ...(parsedSettings.integrations || {}) }));
@@ -160,13 +165,19 @@ const SettingsPage: FC = () => {
 
    const handleNeurodivergentChange = <K extends keyof NeurodivergentSettings>(key: K, value: NeurodivergentSettings[K]) => {
         setNeurodivergent(prev => ({ ...prev, [key]: value }));
+        if (key === 'lowStimulationUI') {
+            document.documentElement.classList.toggle('filter', value);
+            document.documentElement.classList.toggle('grayscale', value);
+            document.documentElement.classList.toggle('contrast-75', value);
+        }
    };
 
    const handleResetApp = () => {
         const defaultTheme = 'system' as Theme;
         setPreferences({
           theme: defaultTheme, defaultView: '/', growthPace: 'Moderate',
-          aiPersona: 'Supportive Coach', aiInsightVerbosity: 'Detailed Analysis', energyPattern: 'Steady throughout day'
+          aiPersona: 'Supportive Coach', aiInsightVerbosity: 'Detailed Analysis', energyPattern: 'Steady throughout day',
+          preferredWorkTimes: 'Flexible',
         });
         setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
         setIntegrations({ googleCalendarSync: false, slackIntegration: false });
@@ -174,9 +185,11 @@ const SettingsPage: FC = () => {
 
         if (typeof window !== 'undefined') {
             localStorage.removeItem(SETTINGS_STORAGE_KEY);
+            // Remove low stimulation UI classes if they were applied
+            document.documentElement.classList.remove('filter', 'grayscale', 'contrast-75');
         }
-        applyTheme(defaultTheme);
-        resetToMockMode();
+        applyTheme(defaultTheme); // Apply default theme immediately
+        resetToMockMode(); // This function in context will handle reload
         toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
    }
 
@@ -184,7 +197,7 @@ const SettingsPage: FC = () => {
       return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
              <Skeleton className="h-10 w-1/2 mb-8" />
-             {[...Array(5)].map((_, i) => ( // Increased skeleton cards
+             {[...Array(5)].map((_, i) => (
                  <Card key={i}>
                      <CardHeader><Skeleton className="h-6 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
                      <CardContent className="space-y-4">
@@ -220,6 +233,7 @@ const SettingsPage: FC = () => {
                 <SelectItem value="light">Light</SelectItem>
                 <SelectItem value="dark">Dark</SelectItem>
                 <SelectItem value="system">System Default</SelectItem>
+                <SelectItem value="victoria">Victoria (Pink)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -272,6 +286,20 @@ const SettingsPage: FC = () => {
                     placeholder="e.g., High in morning, dip after lunch"
                 />
                 <p className="text-xs text-muted-foreground">Helps AI tailor suggestions. (e.g., "Morning high, focus dips mid-afternoon")</p>
+            </div>
+            <div className="flex items-center justify-between">
+                <Label htmlFor="preferred-work-times">Preferred Work Times</Label>
+                <Select value={preferences.preferredWorkTimes} onValueChange={(value: PreferredWorkTimes) => handlePreferenceChange('preferredWorkTimes', value)}>
+                    <SelectTrigger id="preferred-work-times" className="w-[180px]" aria-label="Select preferred work times">
+                        <SelectValue placeholder="Select times" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Afternoon">Afternoon</SelectItem>
+                        <SelectItem value="Evening">Evening</SelectItem>
+                        <SelectItem value="Flexible">Flexible</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
         </CardContent>
       </Card>
@@ -405,4 +433,3 @@ const SettingsPage: FC = () => {
 };
 
 export default SettingsPage;
-    

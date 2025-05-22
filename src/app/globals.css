@@ -8,7 +8,7 @@ body {
 
 @layer base {
   :root {
-    /* Brown Theme - Light Mode */
+    /* Brown Theme - Light Mode (Default if no specific theme class is applied) */
     --background: 40 30% 96%; /* Very Light Warm Gray/Beige */
     --foreground: 40 60% 15%; /* Dark Rich Brown */
     --card: 40 20% 100%; /* Off-White */
@@ -50,7 +50,7 @@ body {
   }
 
   .dark {
-    /* Brown Theme - Dark Mode */
+    /* Brown Theme - Dark Mode (Default if no specific theme class is applied) */
     --background: 35 20% 8%; /* Very Dark Brown */
     --foreground: 35 15% 85%; /* Light Beige/Gray */
     --card: 35 20% 12%; /* Slightly Lighter Dark Brown */
@@ -87,6 +87,86 @@ body {
     --sidebar-accent-foreground: 30 70% 75%; /* Brighter Warm Brown */
     --sidebar-border: 35 20% 25%; /* Medium Dark Brown Border */
     --sidebar-ring: 30 65% 70%; /* Brighter Warm Brown */
+  }
+
+  /* Victoria Pink Theme - Light Mode */
+  .theme-victoria {
+    --background: 330 60% 96%; /* Very Light Pink/Lavender */
+    --foreground: 335 50% 25%; /* Dark Magenta/Deep Pink */
+    --card: 330 50% 100%; /* Off-White with a hint of pink */
+    --card-foreground: 335 50% 25%;
+    --popover: 330 50% 100%;
+    --popover-foreground: 335 50% 25%;
+    --primary: 330 70% 60%; /* Medium Bright Pink */
+    --primary-foreground: 330 60% 98%; /* Very Light Pink/White */
+    --secondary: 330 50% 90%; /* Light Pink */
+    --secondary-foreground: 330 60% 30%; /* Medium-Dark Pink */
+    --muted: 330 40% 94%; /* Lighter Pink/Gray */
+    --muted-foreground: 330 30% 50%; /* Medium Grayish Pink */
+    --accent: 340 70% 75%; /* Soft Rose Pink */
+    --accent-foreground: 340 60% 20%; /* Darker Rose/Magenta */
+    --destructive: 0 84.2% 60.2%; /* Keep Red for Destructive */
+    --destructive-foreground: 0 0% 98%;
+    --border: 330 40% 88%; /* Light Pinkish Gray Border */
+    --input: 330 40% 88%;
+    --ring: 330 70% 70%; /* Slightly Lighter/Brighter Pink for Focus Ring */
+
+    /* Pink-themed Chart Colors */
+    --chart-1: 320 60% 65%; /* Medium Pink */
+    --chart-2: 340 70% 70%; /* Rose Pink */
+    --chart-3: 300 50% 60%; /* Lavender/Purple-Pink */
+    --chart-4: 350 75% 75%; /* Coral Pink */
+    --chart-5: 310 55% 55%; /* Deep Orchid Pink */
+
+    /* Sidebar - Victoria Light Mode */
+    --sidebar-background: 330 50% 94%;
+    --sidebar-foreground: 335 50% 25%;
+    --sidebar-primary: 330 70% 60%;
+    --sidebar-primary-foreground: 330 60% 98%;
+    --sidebar-accent: 340 70% 75%;
+    --sidebar-accent-foreground: 330 70% 50%;
+    --sidebar-border: 330 40% 85%;
+    --sidebar-ring: 330 70% 70%;
+  }
+
+  /* Victoria Pink Theme - Dark Mode (Example, might need further tweaking for perfect balance) */
+  .dark .theme-victoria {
+    --background: 335 30% 10%; /* Very Dark Magenta/Plum */
+    --foreground: 330 40% 90%; /* Light Pink/Lavender */
+    --card: 335 30% 15%; /* Slightly Lighter Dark Magenta */
+    --card-foreground: 330 40% 90%;
+    --popover: 335 30% 8%; /* Darkest Magenta */
+    --popover-foreground: 330 40% 90%;
+    --primary: 330 70% 70%; /* Lighter, softer Pink */
+    --primary-foreground: 335 50% 15%; /* Very Dark Pink/Magenta */
+    --secondary: 335 25% 25%; /* Dark Desaturated Pink */
+    --secondary-foreground: 330 40% 85%; /* Light Pinkish Gray */
+    --muted: 335 20% 20%; /* Darker Grayish Pink */
+    --muted-foreground: 330 30% 65%; /* Medium Grayish Pink */
+    --accent: 340 40% 35%; /* Medium Dark Rose */
+    --accent-foreground: 330 50% 95%; /* Very Light Pink */
+    --destructive: 0 62.8% 45%; /* Keep dark red for destructive */
+    --destructive-foreground: 0 0% 98%;
+    --border: 335 25% 30%; /* Medium Dark Pink Border */
+    --input: 335 25% 30%;
+    --ring: 330 70% 80%; /* Brighter Pink for Focus Ring */
+
+    /* Pink-themed Chart Colors - Dark Mode */
+    --chart-1: 320 50% 70%; /* Lighter Medium Pink */
+    --chart-2: 340 60% 75%; /* Lighter Rose Pink */
+    --chart-3: 300 40% 65%; /* Lighter Lavender */
+    --chart-4: 350 65% 80%; /* Lighter Coral Pink */
+    --chart-5: 310 45% 60%; /* Lighter Deep Orchid */
+    
+    /* Sidebar - Victoria Dark Mode */
+    --sidebar-background: 335 30% 15%;
+    --sidebar-foreground: 330 40% 90%;
+    --sidebar-primary: 330 70% 70%;
+    --sidebar-primary-foreground: 335 50% 15%;
+    --sidebar-accent: 340 40% 35%;
+    --sidebar-accent-foreground: 330 70% 85%;
+    --sidebar-border: 335 25% 30%;
+    --sidebar-ring: 330 70% 80%;
   }
 }
 
