@@ -1,5 +1,5 @@
 
-# -- 4Eunoia –-
+# -- -- 4Eunoia –- --
 
 4Eunoia is a comprehensive Next.js application designed as your personal operating system for productivity, self-reflection, and well-being. It integrates multiple life domains—from tasks and expenses to mood and attention tracking—augmented with AI-powered insights to help you understand habits, optimize routines, and live more intentionally.
 
