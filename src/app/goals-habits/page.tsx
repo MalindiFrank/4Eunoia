@@ -16,44 +16,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-// import { Progress } from '@/components/ui/progress'; // Progress removed for now
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { getGoals, addUserGoal, updateUserGoal, deleteUserGoal, type Goal, type GoalStatus } from '@/services/goal'; // Import Goal services
-import { getHabits, addUserHabit, updateUserHabit, deleteUserHabit, markUserHabitComplete, type Habit, type HabitFrequency } from '@/services/habit'; // Import Habit services
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { useDataMode } from '@/context/data-mode-context'; 
+import { getGoals, addUserGoal, updateUserGoal, deleteUserGoal, type Goal, type GoalStatus, GOALS_STORAGE_KEY } from '@/services/goal'; 
+import { getHabits, addUserHabit, updateUserHabit, deleteUserHabit, markUserHabitComplete, type Habit, type HabitFrequency, HABITS_STORAGE_KEY } from '@/services/habit'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
+import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils';
 
-// --- Types and Schemas ---
 
-// GoalStatus and HabitFrequency types are now imported from services
 type GrowthPace = 'Slow' | 'Moderate' | 'Aggressive';
 
 const goalSchema = z.object({
   title: z.string().min(1, 'Goal title cannot be empty.'),
   description: z.string().optional(),
   status: z.enum(['Not Started', 'In Progress', 'Achieved', 'On Hold']).default('Not Started'),
-  // targetDate: z.date().optional(), // TODO: Add Date Picker input later
 });
 
 const habitSchema = z.object({
   title: z.string().min(1, 'Habit title cannot be empty.'),
   description: z.string().optional(),
   frequency: z.enum(['Daily', 'Weekly', 'Monthly', 'Specific Days']).default('Daily'),
-  // specificDays: z.array(z.number().min(0).max(6)).optional(), // TODO: Add multi-select for days
 });
 
 type GoalFormValues = z.infer<typeof goalSchema>;
 type HabitFormValues = z.infer<typeof habitSchema>;
 
-// --- Local Storage ---
-// Keys are now exported from service files
-const SETTINGS_STORAGE_KEY = 'prodev-growth-settings';
-
-// --- Component ---
 
 const GoalsHabitsPage: FC = () => {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -66,9 +57,8 @@ const GoalsHabitsPage: FC = () => {
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
   const [isLoadingHabits, setIsLoadingHabits] = useState(true);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use data mode context
+  const { dataMode } = useDataMode(); 
 
-  // Load data and settings on mount or when dataMode changes
   useEffect(() => {
     const loadData = async () => {
       setIsLoadingGoals(true);
@@ -93,26 +83,27 @@ const GoalsHabitsPage: FC = () => {
 
     loadData();
 
-    const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (storedSettings) {
-        try {
-            // Settings are stored as [{pace: 'Moderate'}], access the first element
-            const settingsArray = JSON.parse(storedSettings);
-             if (Array.isArray(settingsArray) && settingsArray.length > 0) {
-                const { pace } = settingsArray[0];
-                if (['Slow', 'Moderate', 'Aggressive'].includes(pace)) {
-                    setGrowthPace(pace);
+    if (typeof window !== 'undefined') {
+        const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (storedSettings) {
+            try {
+                const settings = JSON.parse(storedSettings);
+                if (settings?.preferences?.growthPace && ['Slow', 'Moderate', 'Aggressive'].includes(settings.preferences.growthPace)) {
+                    setGrowthPace(settings.preferences.growthPace);
                 }
-            }
-        } catch (e) { console.error("Error parsing settings:", e); }
+            } catch (e) { console.error("Error parsing settings for growth pace:", e); }
+        }
     }
   }, [dataMode, toast]);
 
-   // Save settings when growthPace changes
    useEffect(() => {
         if (typeof window !== 'undefined') {
-           // Save as an array containing the settings object
-           localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify([{ pace: growthPace }]));
+            const existingSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+            let settings = {};
+            if (existingSettings) {
+                try { settings = JSON.parse(existingSettings); } catch (e) { console.error("Error parsing existing settings:", e); }
+            }
+           localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ ...settings, preferences: { ...(settings as any).preferences, growthPace } }));
         }
    }, [growthPace]);
 
@@ -127,14 +118,12 @@ const GoalsHabitsPage: FC = () => {
         defaultValues: { title: '', description: '', frequency: 'Daily' },
     });
 
-  // --- Goal Handlers ---
   const openGoalDialog = (goal: Goal | null = null) => {
     setEditingGoal(goal);
     goalForm.reset(goal ? {
         title: goal.title,
         description: goal.description || '',
         status: goal.status,
-        // targetDate: goal.targetDate, // Need date picker input
     } : { title: '', description: '', status: 'Not Started' });
     setIsGoalDialogOpen(true);
   };
@@ -142,7 +131,7 @@ const GoalsHabitsPage: FC = () => {
   const closeGoalDialog = () => {
     setIsGoalDialogOpen(false);
     setEditingGoal(null);
-    goalForm.reset(); // Reset form on close
+    goalForm.reset(); 
   };
 
   const onGoalSubmit = (data: GoalFormValues) => {
@@ -184,7 +173,7 @@ const GoalsHabitsPage: FC = () => {
          const success = deleteUserGoal(goalId);
          if (success) {
             setGoals(prev => prev.filter(g => g.id !== goalId));
-            toast({ title: "Goal Deleted", description: `Goal "${goalToDelete?.title}" deleted.`, variant: "default" }); // Use default variant
+            toast({ title: "Goal Deleted", description: `Goal "${goalToDelete?.title}" deleted.`, variant: "default" }); 
          } else {
               throw new Error("Failed to find goal to delete.");
          }
@@ -194,14 +183,12 @@ const GoalsHabitsPage: FC = () => {
      }
   };
 
-  // --- Habit Handlers ---
    const openHabitDialog = (habit: Habit | null = null) => {
      setEditingHabit(habit);
      habitForm.reset(habit ? {
          title: habit.title,
          description: habit.description || '',
          frequency: habit.frequency,
-         // specificDays: habit.specificDays, // Need multi-select input
      } : { title: '', description: '', frequency: 'Daily' });
      setIsHabitDialogOpen(true);
    };
@@ -209,7 +196,7 @@ const GoalsHabitsPage: FC = () => {
    const closeHabitDialog = () => {
      setIsHabitDialogOpen(false);
      setEditingHabit(null);
-     habitForm.reset(); // Reset form on close
+     habitForm.reset(); 
    };
 
    const onHabitSubmit = (data: HabitFormValues) => {
@@ -251,7 +238,7 @@ const GoalsHabitsPage: FC = () => {
          const success = deleteUserHabit(habitId);
           if (success) {
              setHabits(prev => prev.filter(h => h.id !== habitId));
-             toast({ title: "Habit Deleted", description: `Habit "${habitToDelete?.title}" deleted.`, variant: "default" }); // Use default variant
+             toast({ title: "Habit Deleted", description: `Habit "${habitToDelete?.title}" deleted.`, variant: "default" }); 
          } else {
               throw new Error("Failed to find habit to delete.");
          }
@@ -272,7 +259,6 @@ const GoalsHabitsPage: FC = () => {
                  setHabits(prev => prev.map(h => h.id === habitId ? updatedHabit : h).sort((a,b) => b.updatedAt.getTime() - a.updatedAt.getTime()));
                  toast({ title: "Habit Completed!", description: `Great job on "${updatedHabit.title}"! Streak: ${updatedHabit.streak}` });
              } else {
-                  // Habit might already be completed today
                   const habit = habits.find(h => h.id === habitId);
                   if (habit) {
                       toast({ title: "Already Completed", description: `Habit "${habit.title}" marked complete today.`, variant: "default"});
@@ -284,7 +270,6 @@ const GoalsHabitsPage: FC = () => {
          }
    };
 
-   // --- Render ---
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
@@ -292,7 +277,6 @@ const GoalsHabitsPage: FC = () => {
         <h1 className="text-3xl font-bold flex items-center gap-2">
             <Target className="h-8 w-8 text-primary" /> Goals & Habits
         </h1>
-        {/* Growth Pace Setting */}
          <div className="flex items-center gap-2">
              <Label htmlFor="growth-pace" className="text-sm font-medium flex-shrink-0">Growth Pace:</Label>
              <Select value={growthPace} onValueChange={(value: GrowthPace) => setGrowthPace(value)}>
@@ -308,19 +292,14 @@ const GoalsHabitsPage: FC = () => {
          </div>
       </div>
 
-        {/* AI Suggestions Placeholder (Can be re-enabled later) */}
-       {/* <Card className="bg-primary/10 border-primary/30"> ... </Card> */}
-
-
       <Tabs defaultValue="goals" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="goals">Goals</TabsTrigger>
           <TabsTrigger value="habits">Habits</TabsTrigger>
         </TabsList>
 
-        {/* Goals Tab */}
         <TabsContent value="goals" className="mt-6">
-          <Card>
+          <Card className="shadow-lg">
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <CardTitle>Manage Goals</CardTitle>
@@ -328,7 +307,7 @@ const GoalsHabitsPage: FC = () => {
                 </div>
                 <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button size="sm" onClick={() => openGoalDialog()}>
+                        <Button size="sm" onClick={() => openGoalDialog()} className="shadow-md">
                             <Plus className="mr-2 h-4 w-4" /> Add Goal
                         </Button>
                     </DialogTrigger>
@@ -341,7 +320,6 @@ const GoalsHabitsPage: FC = () => {
                                  <FormField control={goalForm.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="e.g., Learn Spanish" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                  <FormField control={goalForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="Add details about the goal" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                  <FormField control={goalForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Not Started">Not Started</SelectItem><SelectItem value="In Progress">In Progress</SelectItem><SelectItem value="Achieved">Achieved</SelectItem><SelectItem value="On Hold">On Hold</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                                 {/* TODO: Add Date Picker for targetDate */}
                                  <DialogFooter>
                                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                                      <Button type="submit" disabled={dataMode === 'mock'}>{editingGoal ? 'Update Goal' : 'Create Goal'}</Button>
@@ -364,14 +342,14 @@ const GoalsHabitsPage: FC = () => {
                     ) : (
                          <div className="space-y-3">
                             {goals.map(goal => (
-                                <div key={goal.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors">
+                                <div key={goal.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors shadow-sm">
                                     <div className="flex-grow overflow-hidden pr-4">
                                         <p className="font-medium truncate">{goal.title}</p>
                                         <p className="text-xs text-muted-foreground truncate">{goal.description || 'No description'}</p>
                                         <p className="text-xs mt-1">Status: <span className={`font-medium ${goal.status === 'Achieved' ? 'text-green-600 dark:text-green-400' : goal.status === 'In Progress' ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{goal.status}</span></p>
                                         {goal.targetDate && <p className="text-xs text-muted-foreground">Target: {format(goal.targetDate, 'PP')}</p>}
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0"> {/* Show on focus-within */}
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0"> 
                                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openGoalDialog(goal)} aria-label={`Edit goal "${goal.title}"`}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete goal "${goal.title}"`}><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>
@@ -390,9 +368,8 @@ const GoalsHabitsPage: FC = () => {
           </Card>
         </TabsContent>
 
-        {/* Habits Tab */}
         <TabsContent value="habits" className="mt-6">
-          <Card>
+          <Card className="shadow-lg">
              <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <CardTitle>Manage Habits</CardTitle>
@@ -400,7 +377,7 @@ const GoalsHabitsPage: FC = () => {
                 </div>
                 <Dialog open={isHabitDialogOpen} onOpenChange={setIsHabitDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button size="sm" onClick={() => openHabitDialog()}>
+                        <Button size="sm" onClick={() => openHabitDialog()} className="shadow-md">
                              <Plus className="mr-2 h-4 w-4" /> Add Habit
                         </Button>
                     </DialogTrigger>
@@ -413,7 +390,6 @@ const GoalsHabitsPage: FC = () => {
                                 <FormField control={habitForm.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="e.g., Drink water, Meditate" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                 <FormField control={habitForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea placeholder="Why is this habit important?" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                 <FormField control={habitForm.control} name="frequency" render={({ field }) => (<FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Daily">Daily</SelectItem><SelectItem value="Weekly">Weekly</SelectItem><SelectItem value="Monthly">Monthly</SelectItem><SelectItem value="Specific Days">Specific Days</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                                {/* TODO: Add multi-select day picker if frequency is 'Specific Days' */}
                                 <DialogFooter>
                                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
                                     <Button type="submit" disabled={dataMode === 'mock'}>{editingHabit ? 'Update Habit' : 'Create Habit'}</Button>
@@ -438,7 +414,7 @@ const GoalsHabitsPage: FC = () => {
                             {habits.map(habit => {
                                 const isCompletedToday = habit.lastCompleted && startOfDay(habit.lastCompleted) >= startOfDay(new Date());
                                 return (
-                                    <div key={habit.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors">
+                                    <div key={habit.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-accent transition-colors shadow-sm">
                                         <div className="flex-grow overflow-hidden pr-2">
                                             <p className="font-medium truncate">{habit.title}</p>
                                             <p className="text-xs text-muted-foreground truncate">{habit.description || 'No description'}</p>
@@ -451,7 +427,7 @@ const GoalsHabitsPage: FC = () => {
                                              <Button
                                                  variant={isCompletedToday ? "secondary" : "outline"}
                                                  size="icon"
-                                                 className="h-7 w-7"
+                                                 className="h-7 w-7 shadow-sm"
                                                  onClick={() => markHabitCompleteHandler(habit.id)}
                                                  disabled={isCompletedToday || dataMode === 'mock'}
                                                  aria-label={isCompletedToday ? `Habit "${habit.title}" completed today` : `Mark habit "${habit.title}" as complete`}
@@ -459,7 +435,7 @@ const GoalsHabitsPage: FC = () => {
                                                 <Check className="h-4 w-4" />
                                                 <span className="sr-only">{isCompletedToday ? "Completed Today" : "Mark Complete"}</span>
                                             </Button>
-                                            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"> {/* Show on focus-within */}
+                                            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-1"> 
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openHabitDialog(habit)} aria-label={`Edit habit "${habit.title}"`}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Button>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete habit "${habit.title}"`}><Trash2 className="h-4 w-4" /><span className="sr-only">Delete</span></Button></AlertDialogTrigger>

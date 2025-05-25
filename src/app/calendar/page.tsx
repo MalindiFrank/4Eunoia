@@ -2,7 +2,7 @@
 
 import type { FC } from 'react';
 import React, { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, parseISO, setHours, setMinutes } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Edit, Trash2 } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -42,7 +42,6 @@ const eventSchema = z.object({
 type EventFormValues = z.infer<typeof eventSchema>;
 
 
-// Event Form Component
 const EventForm: FC<{
     onClose: () => void;
     initialData?: CalendarEvent | null;
@@ -51,16 +50,36 @@ const EventForm: FC<{
 }> = ({ onClose, initialData, selectedDate, onSave }) => {
   const { toast } = useToast();
   const { dataMode } = useDataMode(); 
+  const [defaultStartDateTime, setDefaultStartDateTime] = useState<Date | undefined>(undefined);
+  const [defaultEndDateTime, setDefaultEndDateTime] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+      if (!initialData) {
+          const baseDate = selectedDate || new Date();
+          setDefaultStartDateTime(setHours(setMinutes(new Date(baseDate), 0), 9));
+          setDefaultEndDateTime(setHours(setMinutes(new Date(baseDate), 0), 10));
+      }
+  }, [initialData, selectedDate]);
+
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
         title: initialData?.title || '',
-        startDateTime: initialData?.start || (selectedDate ? new Date(selectedDate.setHours(9, 0, 0, 0)) : new Date(new Date().setHours(9, 0, 0, 0))),
-        endDateTime: initialData?.end || (selectedDate ? new Date(selectedDate.setHours(10, 0, 0, 0)) : new Date(new Date().setHours(10, 0, 0, 0))),
+        startDateTime: initialData?.start || undefined,
+        endDateTime: initialData?.end || undefined,
         description: initialData?.description || '',
     },
   });
+
+  useEffect(() => {
+      if (!form.getValues('startDateTime') && !initialData && defaultStartDateTime) {
+          form.setValue('startDateTime', defaultStartDateTime, { shouldValidate: true });
+      }
+      if (!form.getValues('endDateTime') && !initialData && defaultEndDateTime) {
+          form.setValue('endDateTime', defaultEndDateTime, { shouldValidate: true });
+      }
+  }, [form, initialData, defaultStartDateTime, defaultEndDateTime]);
 
   const onSubmit = (data: EventFormValues) => {
      if (dataMode === 'mock') {
@@ -103,9 +122,9 @@ const EventForm: FC<{
    const handleDateTimeChange = (field: keyof EventFormValues, date: Date | undefined, time: string) => {
         if (!date) return;
         const [hours, minutes] = time.split(':').map(Number);
-        const newDateTime = new Date(date);
+        let newDateTime = new Date(date);
         if (!isNaN(hours) && !isNaN(minutes)) {
-            newDateTime.setHours(hours, minutes, 0, 0);
+            newDateTime = setHours(setMinutes(newDateTime, minutes), hours);
             form.setValue(field, newDateTime, { shouldValidate: true }); 
         }
    };
@@ -346,9 +365,9 @@ const CalendarPage: FC = () => {
           <div
             key={day.toString()}
             className={cn(
-              "relative border rounded-md min-h-[100px] sm:min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 focus-within:bg-accent/50 transition-colors", 
+              "relative border rounded-md min-h-[100px] sm:min-h-[120px] p-1 flex flex-col group cursor-pointer hover:bg-accent/50 focus-within:bg-accent/50 transition-colors shadow-sm hover:shadow-md", 
               !isCurrentMonth && "bg-muted/30 text-muted-foreground/70 pointer-events-none", 
-              isToday && "bg-accent border-primary"
+              isToday && "bg-accent border-primary shadow-lg"
             )}
              onClick={() => isCurrentMonth && openEventDialog(day)} 
              role="button" 
@@ -387,7 +406,7 @@ const CalendarPage: FC = () => {
               {!isLoading && dayEvents.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event) => ( 
                 <div
                   key={event.id || `${event.title}-${event.start.toISOString()}`} 
-                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1" 
+                  className="bg-primary/20 text-primary-foreground p-1 rounded-sm truncate relative mb-0.5 group/event cursor-pointer hover:bg-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 shadow-xs" 
                    title={`${format(event.start, 'p')} - ${event.title}${event.description ? ` (${event.description})`: ''}`} 
                    onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} 
                    tabIndex={0} 
@@ -433,7 +452,7 @@ const CalendarPage: FC = () => {
         <h1 className="text-3xl font-bold">Calendar</h1>
         <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
           <DialogTrigger asChild>
-             <Button onClick={() => openEventDialog(new Date())} aria-label="Add new event"> 
+             <Button onClick={() => openEventDialog(new Date())} aria-label="Add new event" className="shadow-md"> 
                <Plus className="mr-2 h-4 w-4" /> Add Event
              </Button>
           </DialogTrigger>

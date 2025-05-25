@@ -168,6 +168,247 @@ body {
     --sidebar-border: 335 20% 30%;
     --sidebar-ring: 330 70% 75%;
   }
+
+  /* Sapphire Sky Theme - Light Mode */
+  .theme-sapphire {
+    --background: 210 100% 97%; /* Very Light Cool Sky Blue */
+    --foreground: 215 60% 25%; /* Deep Sapphire Blue */
+    --card: 210 80% 99%; /* Almost White with a hint of blue */
+    --card-foreground: 215 60% 25%;
+    --popover: 210 80% 99%;
+    --popover-foreground: 215 60% 25%;
+    --primary: 210 75% 55%; /* Bright Sapphire Blue */
+    --primary-foreground: 210 80% 98%; /* Very Light Blue/White */
+    --secondary: 210 70% 90%; /* Soft Light Sky Blue */
+    --secondary-foreground: 210 60% 40%; /* Medium Blue */
+    --muted: 210 60% 95%; /* Very Pale Blue */
+    --muted-foreground: 210 40% 60%; /* Medium Grayish Blue */
+    --accent: 205 80% 80%; /* Clear Light Blue */
+    --accent-foreground: 205 70% 30%; /* Darker Blue for text */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 50% 88%; /* Light Blueish Border */
+    --input: 210 50% 88%;
+    --ring: 210 75% 65%; /* Bright Sapphire for Focus */
+
+    /* Sapphire Chart Colors */
+    --chart-1: 210 70% 60%; /* Medium Sapphire */
+    --chart-2: 190 65% 55%; /* Teal Blue */
+    --chart-3: 230 60% 65%; /* Indigo Blue */
+    --chart-4: 200 75% 70%; /* Sky Blue */
+    --chart-5: 220 55% 50%; /* Deep Blue */
+
+    /* Sidebar - Sapphire Light Mode */
+    --sidebar-background: 210 90% 96%;
+    --sidebar-foreground: 215 60% 25%;
+    --sidebar-primary: 210 75% 55%;
+    --sidebar-primary-foreground: 210 80% 98%;
+    --sidebar-accent: 205 80% 85%;
+    --sidebar-accent-foreground: 210 70% 40%;
+    --sidebar-border: 210 50% 85%;
+    --sidebar-ring: 210 75% 65%;
+  }
+
+  /* Sapphire Sky Theme - Dark Mode */
+  .dark .theme-sapphire {
+    --background: 215 40% 10%; /* Deep Navy Blue */
+    --foreground: 210 60% 90%; /* Light Cool Gray/Blue */
+    --card: 215 35% 15%; /* Dark Blue-Gray */
+    --card-foreground: 210 60% 90%;
+    --popover: 215 40% 8%; /* Very Dark Navy */
+    --popover-foreground: 210 60% 90%;
+    --primary: 210 70% 65%; /* Lighter, Vibrant Sapphire */
+    --primary-foreground: 215 80% 15%; /* Darkest Blue for text on primary */
+    --secondary: 215 30% 25%; /* Dark Muted Blue */
+    --secondary-foreground: 210 55% 85%; /* Lighter Blue-Gray */
+    --muted: 215 25% 20%; /* Darker Grayish Blue */
+    --muted-foreground: 210 35% 70%; /* Medium Grayish Blue */
+    --accent: 205 50% 40%; /* Noticeable Medium-Dark Blue */
+    --accent-foreground: 210 70% 92%; /* Lightest Blue for text on accent */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 215 30% 30%; /* Dark Blueish Border */
+    --input: 215 30% 30%;
+    --ring: 210 70% 75%; /* Brighter Sapphire for Focus */
+
+    /* Sapphire Chart Colors - Dark Mode */
+    --chart-1: 210 60% 70%;
+    --chart-2: 190 55% 60%;
+    --chart-3: 230 50% 70%;
+    --chart-4: 200 65% 75%;
+    --chart-5: 220 45% 55%;
+
+    /* Sidebar - Sapphire Dark Mode */
+    --sidebar-background: 215 35% 12%;
+    --sidebar-foreground: 210 60% 90%;
+    --sidebar-primary: 210 70% 65%;
+    --sidebar-primary-foreground: 215 80% 15%;
+    --sidebar-accent: 205 50% 35%;
+    --sidebar-accent-foreground: 210 70% 88%;
+    --sidebar-border: 215 30% 28%;
+    --sidebar-ring: 210 70% 75%;
+  }
+
+  /* Forest Canopy Theme - Light Mode */
+  .theme-forest {
+    --background: 120 30% 96%; /* Very Light Minty Green */
+    --foreground: 130 50% 18%; /* Deep Forest Green */
+    --card: 120 20% 99%; /* Off-White with a hint of green */
+    --card-foreground: 130 50% 18%;
+    --popover: 120 20% 99%;
+    --popover-foreground: 130 50% 18%;
+    --primary: 140 60% 40%; /* Rich Emerald Green */
+    --primary-foreground: 140 70% 97%; /* Very Light Green/Cream */
+    --secondary: 130 40% 88%; /* Soft Sage Green */
+    --secondary-foreground: 130 50% 30%; /* Medium Dark Green */
+    --muted: 120 25% 94%; /* Very Pale Green/Gray */
+    --muted-foreground: 130 30% 55%; /* Medium Grayish Green */
+    --accent: 100 40% 75%; /* Soft Lime/Olive Green */
+    --accent-foreground: 100 50% 25%; /* Darker Olive */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 120 20% 85%; /* Light Greenish Border */
+    --input: 120 20% 85%;
+    --ring: 140 60% 50%; /* Brighter Emerald for Focus */
+
+    /* Forest Chart Colors */
+    --chart-1: 140 55% 50%; /* Emerald */
+    --chart-2: 90 40% 55%;  /* Olive */
+    --chart-3: 160 30% 60%; /* Teal Green */
+    --chart-4: 70 45% 65%;  /* Moss Green */
+    --chart-5: 120 35% 40%; /* Darker Forest Green */
+
+    /* Sidebar - Forest Light Mode */
+    --sidebar-background: 120 25% 94%;
+    --sidebar-foreground: 130 50% 18%;
+    --sidebar-primary: 140 60% 40%;
+    --sidebar-primary-foreground: 140 70% 97%;
+    --sidebar-accent: 100 40% 80%;
+    --sidebar-accent-foreground: 140 50% 30%;
+    --sidebar-border: 120 20% 82%;
+    --sidebar-ring: 140 60% 50%;
+  }
+
+  /* Forest Canopy Theme - Dark Mode */
+  .dark .theme-forest {
+    --background: 130 25% 8%;  /* Very Dark Forest Green */
+    --foreground: 120 30% 88%; /* Light Sage/Gray */
+    --card: 130 20% 12%;  /* Dark Greenish Gray */
+    --card-foreground: 120 30% 88%;
+    --popover: 130 25% 6%;   /* Darkest Forest Green */
+    --popover-foreground: 120 30% 88%;
+    --primary: 140 55% 55%; /* Lighter Emerald/Forest Green */
+    --primary-foreground: 140 70% 10%; /* Darkest Green */
+    --secondary: 130 15% 20%; /* Dark Muted Sage */
+    --secondary-foreground: 120 25% 80%; /* Lighter Sage */
+    --muted: 130 10% 15%;   /* Very Dark Grayish Green */
+    --muted-foreground: 120 20% 65%;  /* Medium Grayish Sage */
+    --accent: 100 30% 35%;  /* Medium-Dark Olive */
+    --accent-foreground: 100 40% 90%; /* Light Lime/Olive */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 130 15% 25%;  /* Dark Greenish Border */
+    --input: 130 15% 25%;
+    --ring: 140 55% 65%;  /* Brighter Emerald for Focus */
+
+    /* Forest Chart Colors - Dark Mode */
+    --chart-1: 140 50% 60%;
+    --chart-2: 90 35% 60%;
+    --chart-3: 160 25% 65%;
+    --chart-4: 70 40% 70%;
+    --chart-5: 120 30% 45%;
+
+    /* Sidebar - Forest Dark Mode */
+    --sidebar-background: 130 20% 10%;
+    --sidebar-foreground: 120 30% 88%;
+    --sidebar-primary: 140 55% 55%;
+    --sidebar-primary-foreground: 140 70% 10%;
+    --sidebar-accent: 100 30% 30%;
+    --sidebar-accent-foreground: 100 40% 85%;
+    --sidebar-border: 130 15% 22%;
+    --sidebar-ring: 140 55% 65%;
+  }
+
+  /* Desert Sunset Theme - Light Mode */
+  .theme-sunset {
+    --background: 30 100% 97%; /* Very Light Warm Peach */
+    --foreground: 25 70% 25%;  /* Deep Terracotta/Brown */
+    --card: 30 80% 99%;    /* Almost White with a hint of peach */
+    --card-foreground: 25 70% 25%;
+    --popover: 30 80% 99%;
+    --popover-foreground: 25 70% 25%;
+    --primary: 25 85% 58%;  /* Vibrant Burnt Orange */
+    --primary-foreground: 25 80% 98%; /* Very Light Orange/Cream */
+    --secondary: 35 70% 90%; /* Soft Light Orange/Yellow */
+    --secondary-foreground: 30 60% 40%; /* Medium Orange-Brown */
+    --muted: 40 50% 95%;   /* Very Pale Yellow/Orange */
+    --muted-foreground: 35 40% 60%;  /* Medium Grayish Orange */
+    --accent: 45 90% 75%;   /* Bright Warm Yellow */
+    --accent-foreground: 40 70% 30%;  /* Darker Yellow/Orange */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 50% 88%;   /* Light Orangish Border */
+    --input: 30 50% 88%;
+    --ring: 25 85% 65%;   /* Vibrant Orange for Focus */
+
+    /* Sunset Chart Colors */
+    --chart-1: 25 80% 60%; /* Burnt Orange */
+    --chart-2: 45 75% 65%; /* Golden Yellow */
+    --chart-3: 10 70% 55%; /* Terracotta Red */
+    --chart-4: 35 60% 70%; /* Peach */
+    --chart-5: 20 50% 50%; /* Dusky Brown */
+
+    /* Sidebar - Sunset Light Mode */
+    --sidebar-background: 30 90% 96%;
+    --sidebar-foreground: 25 70% 25%;
+    --sidebar-primary: 25 85% 58%;
+    --sidebar-primary-foreground: 25 80% 98%;
+    --sidebar-accent: 45 90% 80%;
+    --sidebar-accent-foreground: 25 70% 40%;
+    --sidebar-border: 30 50% 85%;
+    --sidebar-ring: 25 85% 65%;
+  }
+
+  /* Desert Sunset Theme - Dark Mode */
+  .dark .theme-sunset {
+    --background: 25 40% 10%;  /* Deep Reddish Brown */
+    --foreground: 30 60% 90%;  /* Light Warm Beige */
+    --card: 25 35% 15%;    /* Dark Brown */
+    --card-foreground: 30 60% 90%;
+    --popover: 25 40% 8%;     /* Very Dark Brown */
+    --popover-foreground: 30 60% 90%;
+    --primary: 30 75% 65%;  /* Lighter, Vibrant Orange */
+    --primary-foreground: 25 80% 15%; /* Darkest Brown for text on primary */
+    --secondary: 25 30% 25%;  /* Dark Muted Orange/Brown */
+    --secondary-foreground: 30 55% 85%; /* Lighter Warm Beige */
+    --muted: 25 25% 20%;    /* Darker Grayish Brown */
+    --muted-foreground: 30 35% 70%;  /* Medium Grayish Beige */
+    --accent: 40 60% 50%;   /* Noticeable Medium-Dark Gold/Orange */
+    --accent-foreground: 35 70% 92%;  /* Lightest Warm Yellow/Beige */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 25 30% 30%;   /* Dark Brownish Border */
+    --input: 25 30% 30%;
+    --ring: 30 75% 75%;   /* Brighter Orange for Focus */
+
+    /* Sunset Chart Colors - Dark Mode */
+    --chart-1: 25 70% 70%;
+    --chart-2: 45 65% 70%;
+    --chart-3: 10 60% 60%;
+    --chart-4: 35 50% 75%;
+    --chart-5: 20 40% 55%;
+
+    /* Sidebar - Sunset Dark Mode */
+    --sidebar-background: 25 35% 12%;
+    --sidebar-foreground: 30 60% 90%;
+    --sidebar-primary: 30 75% 65%;
+    --sidebar-primary-foreground: 25 80% 15%;
+    --sidebar-accent: 40 60% 45%;
+    --sidebar-accent-foreground: 35 70% 88%;
+    --sidebar-border: 25 30% 28%;
+    --sidebar-ring: 30 75% 75%;
+  }
+
 }
 
 @layer base {

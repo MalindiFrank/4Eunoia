@@ -16,16 +16,17 @@ import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanO
 import { processVoiceInput, type ProcessVoiceInput, type ProcessedVoiceOutput } from '@/ai/flows/process-voice-input';
 import { estimateBurnoutRisk, type EstimateBurnoutRiskInput, type EstimateBurnoutRiskOutput } from '@/ai/flows/estimate-burnout-risk';
 
-import { getDailyLogs, addUserLog } from '@/services/daily-log';
-import { getTasks, addUserTask } from '@/services/task';
-import { getCalendarEvents } from '@/services/calendar';
-import { getGoals } from '@/services/goal';
-import { getHabits } from '@/services/habit';
-import { addUserNote } from '@/services/note'; // Import addUserNote
+import { getDailyLogs, addUserLog, type LogEntry } from '@/services/daily-log';
+import { getTasks, addUserTask, type Task } from '@/services/task';
+import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
+import { getGoals, type Goal } from '@/services/goal';
+import { getHabits, type Habit } from '@/services/habit';
+import { addUserNote, type Note } from '@/services/note'; 
 import { formatISO, startOfDay, endOfDay, subDays, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils'; // Import settings key
 
-// Helper to format data for flows
+
 const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
     return items.map(item => {
         const newItem: Record<string, any> = { ...item };
@@ -33,7 +34,7 @@ const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys:
             if (item[key] && item[key] instanceof Date) {
                 newItem[key] = formatISO(item[key]);
             } else if (item[key] === undefined || item[key] === null) {
-                // newItem[key] = undefined; // Or handle as needed
+                // newItem[key] = undefined; 
             }
         });
         return newItem;
@@ -46,7 +47,6 @@ export default function Home() {
     const { dataMode } = useDataMode();
     const { toast } = useToast();
 
-    // Voice Input State
     const [isListening, setIsListening] = useState(false);
     const [interimTranscript, setInterimTranscript] = useState('');
     const [finalTranscript, setFinalTranscript] = useState('');
@@ -68,7 +68,7 @@ export default function Home() {
 
     useEffect(() => {
       if (typeof window !== 'undefined') {
-        const storedSettings = localStorage.getItem('4eunoia-app-settings');
+        const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
         if (storedSettings) {
           try {
             const parsed = JSON.parse(storedSettings);
@@ -77,7 +77,7 @@ export default function Home() {
                 ...prev,
                 aiPersona: parsed.preferences.aiPersona || prev.aiPersona,
                 aiInsightVerbosity: parsed.preferences.aiInsightVerbosity || prev.aiInsightVerbosity,
-                energyLevelPattern: parsed.preferences.energyPattern || prev.energyLevelPattern,
+                energyPattern: parsed.preferences.energyPattern || prev.energyPattern,
                 growthPace: parsed.preferences.growthPace || prev.growthPace,
                 preferredWorkTimes: parsed.preferences.preferredWorkTimes || prev.preferredWorkTimes,
               }));
@@ -107,11 +107,11 @@ export default function Home() {
         setIsLoadingBurnout(true);
         try {
             const endDate = new Date();
-            const startDate = subDays(endDate, 14);
+            const startDate = subDays(endDate, 14); // Analyze past 14 days for burnout risk
 
             const [logs, tasks, events] = await Promise.all([
                 getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
-                getTasks(dataMode),
+                getTasks(dataMode), // Fetch all tasks, flow will filter
                 getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startDate && ev.start <= endDate)),
             ]);
 
@@ -142,7 +142,7 @@ export default function Home() {
         setIsLoadingPlan(true);
         try {
             const today = new Date();
-            const startDateLogs = startOfDay(subDays(today, 2));
+            const startDateLogs = startOfDay(subDays(today, 2)); // Logs from past 2 days + target day
             const endDateLogs = endOfDay(today);
 
             const [logs, tasks, events, goals, habits] = await Promise.all([
@@ -167,7 +167,7 @@ export default function Home() {
             setDailyPlan(result);
         } catch (error) {
             console.error("Failed to generate daily plan:", error);
-            if (error instanceof Error && error.message.includes("503")) {
+            if (error instanceof Error && (error.message.includes("503") || error.message.toLowerCase().includes("overloaded") || error.message.toLowerCase().includes("service unavailable"))) {
                  toast({ title: "AI Service Unavailable", description: "Could not generate daily plan, the AI service is temporarily overloaded. Please try again later.", variant: "destructive", duration: 7000 });
             } else {
                  toast({ title: "Error", description: "Could not load daily plan suggestions.", variant: "destructive" });
@@ -222,6 +222,7 @@ export default function Home() {
 
             recognition.onend = () => {
                 setIsListening(false);
+                // Process finalTranscript here if needed, or rely on the useEffect below
             };
         } else {
             console.warn("Speech Recognition API not supported in this browser.");
@@ -235,12 +236,12 @@ export default function Home() {
     }, []);
 
     const handleVoiceInputCallback = useCallback(async (text: string) => {
-        if (!text || dataMode === 'mock') {
-             if (dataMode === 'mock') {
-                 toast({ title: "Voice Action Disabled", description: "Actions via voice are disabled in Mock Data Mode. Please 'Start My Journey'.", variant: "destructive"});
-             }
+        if (!text) return;
+        if (dataMode === 'mock') {
+            toast({ title: "Voice Action Disabled", description: "Actions via voice are disabled in Mock Data Mode. Please 'Start My Journey'.", variant: "destructive"});
             return;
         }
+
         toast({ title: "Processing voice input...", description: `Recognized: "${text}"`});
         try {
             const input: ProcessVoiceInput = {
@@ -262,9 +263,9 @@ export default function Home() {
                             addUserLog({
                                 date: logDate,
                                 activity: title,
-                                notes: description,
-                                diaryEntry: content,
-                                mood: mood as any, // Cast as Mood type might be needed if schema is strict
+                                notes: description, // Use 'description' for short notes
+                                diaryEntry: content, // Use 'content' for longer diary
+                                mood: mood as any, 
                                 focusLevel: focusLevel,
                             });
                             actionDescription = `Activity logged: "${title}".`;
@@ -288,10 +289,10 @@ export default function Home() {
                         }
                         break;
                     case 'create_note':
-                        if (title && (description || content)) {
+                        if (title && (content || description)) { // Check both content and description
                              addUserNote({
                                 title: title,
-                                content: content || description || '',
+                                content: content || description || '', // Prefer content, fallback to description
                             });
                             actionDescription = `Note created: "${title}".`;
                             actionTaken = true;
@@ -300,7 +301,6 @@ export default function Home() {
                         }
                         break;
                     default:
-                        // For 'general_query' or 'unclear', AI's responseText is already good.
                         break;
                 }
             }
@@ -325,7 +325,7 @@ export default function Home() {
     useEffect(() => {
       if (!isListening && finalTranscript.trim()) {
         handleVoiceInputCallback(finalTranscript.trim());
-        setFinalTranscript('');
+        setFinalTranscript(''); // Clear transcript after processing
       }
     }, [isListening, finalTranscript, handleVoiceInputCallback]);
 
@@ -355,7 +355,7 @@ export default function Home() {
                  <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
 
                 {isLoadingBurnout && neuroSettings.enabled && neuroSettings.focusShieldEnabled && (
-                    <Alert variant="default" className="bg-yellow-50 border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700">
+                    <Alert variant="default" className="bg-yellow-50 border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700 shadow-lg">
                         <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
                         <AlertTitle className="text-yellow-700 dark:text-yellow-300">Focus Shield</AlertTitle>
                         <AlertDescription className="text-yellow-600 dark:text-yellow-400">
@@ -364,7 +364,7 @@ export default function Home() {
                     </Alert>
                 )}
                 {showFocusShieldAlert && burnoutData && (
-                    <Alert variant="destructive" className="bg-yellow-50 border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700">
+                    <Alert variant="destructive" className="bg-yellow-50 border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700 shadow-lg">
                         <Lightbulb className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                         <AlertTitle className="text-yellow-700 dark:text-yellow-300">Focus Shield Activated ({burnoutData.riskLevel} Risk)</AlertTitle>
                         <AlertDescription className="text-yellow-600 dark:text-yellow-400">
@@ -392,7 +392,7 @@ export default function Home() {
                             <div className="space-y-3">
                                 <p className="text-sm font-semibold italic text-primary/90">{dailyPlan.planRationale}</p>
                                 {dailyPlan.warnings && dailyPlan.warnings.length > 0 && (
-                                     <Alert variant="destructive" className="py-2 px-3 text-xs">
+                                     <Alert variant="destructive" className="py-2 px-3 text-xs shadow-md">
                                         <AlertCircle className="h-3 w-3" />
                                         <AlertTitle className="text-xs font-medium">Plan Warnings</AlertTitle>
                                         <AlertDescription>
@@ -404,7 +404,7 @@ export default function Home() {
                                 )}
                                 <ul className="list-none space-y-2 pt-2">
                                      {dailyPlan.suggestedPlan.map((block, i) => (
-                                         <li key={`plan-${i}`} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 text-sm p-2 border-l-2 border-primary/40 bg-background/60 rounded-r-md">
+                                         <li key={`plan-${i}`} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 text-sm p-2 border-l-2 border-primary/40 bg-background/60 rounded-r-md shadow-sm">
                                              <span className="font-semibold w-full sm:w-28 flex-shrink-0 text-primary">
                                                  {block.startTime} {block.endTime ? `- ${block.endTime}` : ''}
                                              </span>
@@ -440,7 +440,7 @@ export default function Home() {
                   <DashboardCardLarge title="Insights" icon={Lightbulb} description="Get AI-powered personal insights." href="/insights" isShielded={showFocusShieldAlert} data-ai-hint="analytics chart" />
                   <DashboardCardLarge title="Visualizations" icon={PieChart} description="See charts and graphs of your data." href="/visualizations" isShielded={showFocusShieldAlert} data-ai-hint="data graph" />
 
-                  <Card className="bg-card hover:shadow-xl transition-shadow duration-300">
+                  <Card className="bg-card hover:shadow-xl transition-shadow duration-300 shadow-lg">
                      <CardHeader className="pb-3">
                          <CardTitle className="text-base font-semibold flex items-center gap-2">
                              <Mic className="h-5 w-5 text-primary"/>
@@ -448,7 +448,7 @@ export default function Home() {
                          </CardTitle>
                      </CardHeader>
                      <CardContent className="space-y-3">
-                         <Button onClick={toggleListen} variant={isListening ? "destructive" : "outline"} className="w-full">
+                         <Button onClick={toggleListen} variant={isListening ? "destructive" : "outline"} className="w-full shadow-md">
                              {isListening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />}
                              {isListening ? 'Listening...' : 'Start Voice Input'}
                          </Button>
@@ -476,7 +476,7 @@ function DashboardCard({ title, icon: Icon, description, href, isShielded, "data
   const cardContent = (
     <Card
       className={cn(
-        "hover:shadow-lg transition-shadow duration-300 h-full",
+        "hover:shadow-lg transition-shadow duration-300 h-full shadow-md",
         isShielded
           ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none pointer-events-none cursor-not-allowed"
           : "cursor-pointer hover:border-primary/30 bg-card"
@@ -495,7 +495,7 @@ function DashboardCard({ title, icon: Icon, description, href, isShielded, "data
   );
 
   if (isShielded) {
-    return <div className="block h-full">{cardContent}</div>; // Render as div, pointer-events handled by Card className
+    return <div className="block h-full">{cardContent}</div>;
   }
 
   return (
@@ -509,7 +509,7 @@ function DashboardCardLarge({ title, icon: Icon, description, href, isShielded, 
   const cardContent = (
     <Card
       className={cn(
-        "hover:shadow-xl transition-shadow duration-300 h-full",
+        "hover:shadow-xl transition-shadow duration-300 h-full shadow-lg", 
         isShielded
           ? "opacity-60 bg-muted/50 border-muted/30 hover:shadow-none pointer-events-none cursor-not-allowed"
           : "cursor-pointer hover:border-primary/40 bg-card"
@@ -545,4 +545,3 @@ const ImagePlaceholder: React.FC<{ src: string; alt: string; width: number; heig
   // eslint-disable-next-line @next/next/no-img-element
   <img src={src} alt={alt} width={width} height={height} className="rounded-md object-cover" {...props} />
 );
-

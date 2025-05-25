@@ -3,7 +3,7 @@
 
 export const SETTINGS_STORAGE_KEY = '4eunoia-app-settings';
 
-export type Theme = 'light' | 'dark' | 'system' | 'victoria'; // Added 'victoria'
+export type Theme = 'light' | 'dark' | 'system' | 'victoria' | 'sapphire' | 'forest' | 'sunset'; // Added new themes
 
 /**
  * Applies the specified theme to the document's root element.
@@ -12,7 +12,8 @@ export type Theme = 'light' | 'dark' | 'system' | 'victoria'; // Added 'victoria
 export const applyTheme = (theme: Theme) => {
   if (typeof window === 'undefined') return;
   const root = window.document.documentElement;
-  root.classList.remove('light', 'dark', 'theme-victoria'); // Ensure all theme classes are removed first
+  // Remove all possible theme classes
+  root.classList.remove('light', 'dark', 'theme-victoria', 'theme-sapphire', 'theme-forest', 'theme-sunset'); 
 
   if (theme === 'system') {
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -20,16 +21,17 @@ export const applyTheme = (theme: Theme) => {
     // console.log(`Applied system theme, resolved to: ${systemTheme}`);
     return;
   }
-  // For 'light', 'dark', or 'victoria'
-  if (theme === 'victoria') {
-    root.classList.add('theme-victoria');
-    // If victoria is chosen, we also need to set a base light/dark mode for non-themed components
-    // or ensure victoria theme provides all necessary fallbacks.
-    // For now, let's assume victoria implies a light variant unless .dark is also present
-    // If system is dark and victoria is chosen, apply .dark for components not covered by .theme-victoria
+  
+  // For specific themes like 'light', 'dark', 'victoria', 'sapphire', 'forest', 'sunset'
+  if (theme === 'victoria' || theme === 'sapphire' || theme === 'forest' || theme === 'sunset') {
+    root.classList.add(`theme-${theme}`);
+    // If system is dark and a specific vibrant theme is chosen,
+    // we need to ensure the .dark class is also present for components that might not be fully themed by the specific theme class.
+    // This is important if the specific theme's dark mode relies on being nested under .dark.
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        // This logic might need refinement: do we want .dark .theme-victoria or just .theme-victoria?
-        // For now, .theme-victoria in globals.css has its own dark mode definitions.
+        // For themes that have their own .dark .theme-X definitions,
+        // adding .dark here helps with general dark mode compatibility.
+        root.classList.add('dark');
     }
   } else {
     root.classList.add(theme); // 'light' or 'dark'
@@ -49,7 +51,8 @@ export const getInitialTheme = (): Theme => {
     const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (storedSettings) {
       const parsedSettings = JSON.parse(storedSettings);
-      if (parsedSettings?.preferences?.theme && ['light', 'dark', 'system', 'victoria'].includes(parsedSettings.preferences.theme)) {
+      const validThemes: Theme[] = ['light', 'dark', 'system', 'victoria', 'sapphire', 'forest', 'sunset'];
+      if (parsedSettings?.preferences?.theme && validThemes.includes(parsedSettings.preferences.theme)) {
         return parsedSettings.preferences.theme as Theme;
       }
     }

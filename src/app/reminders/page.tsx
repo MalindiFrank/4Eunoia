@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; // Removed addHours, addDays, subDays
+import { format, parseISO, setHours, setMinutes } from 'date-fns'; 
 import { Calendar as CalendarIcon, Edit, Plus, Trash2, Bell } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added Footer, Close
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,23 +20,22 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { Reminder } from '@/services/reminder'; // Import Reminder type
-import { getUpcomingReminders, addUserReminder, updateUserReminder, deleteUserReminder } from '@/services/reminder'; // Import service functions
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import type { Reminder } from '@/services/reminder'; 
+import { getUpcomingReminders, addUserReminder, updateUserReminder, deleteUserReminder, REMINDER_STORAGE_KEY } from '@/services/reminder'; 
+import { useDataMode } from '@/context/data-mode-context'; 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
 
 const reminderSchema = z.object({
   title: z.string().min(1, 'Reminder title cannot be empty.'),
   description: z.string().optional(),
   dateTime: z.date({
     required_error: 'A date and time is required for the reminder.',
-  }).min(new Date(), { message: "Reminder date/time cannot be in the past." }), // Add validation for past dates
+  }).min(new Date(new Date().getTime() - 60000), { message: "Reminder date/time cannot be in the past." }), // Allow a small buffer for submission
 });
 
 type ReminderFormValues = z.infer<typeof reminderSchema>;
 
-// Reminder Form Component
 const ReminderForm: FC<{
     onClose: () => void;
     initialData?: Reminder | null;
@@ -44,6 +43,16 @@ const ReminderForm: FC<{
 }> = ({ onClose, initialData, onSave }) => {
     const { dataMode } = useDataMode();
     const { toast } = useToast();
+    const [defaultDateTime, setDefaultDateTime] = useState<Date | undefined>(undefined);
+
+    useEffect(() => {
+        if (!initialData) {
+            const nextHour = new Date();
+            nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+            setDefaultDateTime(nextHour);
+        }
+    }, [initialData]);
+
 
     const form = useForm<ReminderFormValues>({
         resolver: zodResolver(reminderSchema),
@@ -54,9 +63,15 @@ const ReminderForm: FC<{
         } : {
             title: '',
             description: '',
-            dateTime: new Date(new Date().setHours(new Date().getHours() + 1, 0, 0, 0)), // Default to next hour
+            dateTime: undefined, 
         },
     });
+
+     useEffect(() => {
+        if (!form.getValues('dateTime') && !initialData && defaultDateTime) {
+            form.setValue('dateTime', defaultDateTime, { shouldValidate: true });
+        }
+    }, [form, initialData, defaultDateTime]);
 
     const onSubmit = (data: ReminderFormValues) => {
          if (dataMode === 'mock') {
@@ -94,13 +109,9 @@ const ReminderForm: FC<{
      const handleDateTimeChange = (date: Date | undefined, time: string) => {
         if (!date) return;
         const [hours, minutes] = time.split(':').map(Number);
-        const newDateTime = new Date(date);
+        let newDateTime = new Date(date);
         if (!isNaN(hours) && !isNaN(minutes)) {
-            newDateTime.setHours(hours, minutes, 0, 0);
-            // Basic past check (schema handles more robustly on submit)
-            if (newDateTime < new Date()) {
-                 toast({ title: "Past Time", description: "Reminder time cannot be in the past.", variant: "destructive" });
-            }
+            newDateTime = setHours(setMinutes(newDateTime, minutes), hours);
             form.setValue('dateTime', newDateTime, { shouldValidate: true });
         }
    };
@@ -148,19 +159,18 @@ const RemindersPage: FC = () => {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use data mode context
+  const { dataMode } = useDataMode(); 
 
-  // Load reminders based on dataMode
   useEffect(() => {
     const loadReminders = async () => {
       setIsLoading(true);
       try {
         const fetchedReminders = await getUpcomingReminders(dataMode);
-        setReminders(fetchedReminders); // Already sorted by service
+        setReminders(fetchedReminders); 
       } catch (error) {
         console.error("Failed to fetch reminders:", error);
         toast({ title: "Error", description: "Could not load reminders.", variant: "destructive"});
-         setReminders([]); // Clear on error
+         setReminders([]); 
       } finally {
         setIsLoading(false);
       }
@@ -187,7 +197,6 @@ const RemindersPage: FC = () => {
            } else {
                updated = [savedReminder, ...prev];
            }
-           // Re-filter past reminders (although saving should prevent past dates) and sort
            const now = new Date();
            return updated
                .filter(r => r.dateTime >= now)
@@ -207,9 +216,9 @@ const RemindersPage: FC = () => {
             if (success) {
                setReminders(prev => prev.filter(r => r.id !== reminderId));
                toast({ title: "Reminder Deleted", description: `Reminder "${reminderToDelete?.title}" deleted.`, variant: "default" });
-           } else {
+            } else {
                 throw new Error("Failed to find reminder to delete.");
-           }
+            }
        } catch (error) {
             console.error("Error deleting reminder:", error);
             toast({ title: "Error", description: "Could not delete reminder.", variant: "destructive"});
@@ -223,7 +232,7 @@ const RemindersPage: FC = () => {
         <h1 className="text-3xl font-bold">Reminders</h1>
          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
-             <Button onClick={() => openDialog()}>
+             <Button onClick={() => openDialog()} className="shadow-md">
                <Plus className="mr-2 h-4 w-4" /> Add Reminder
              </Button>
            </DialogTrigger>
@@ -240,7 +249,7 @@ const RemindersPage: FC = () => {
          </Dialog>
       </div>
 
-      <Card className="shadow-md">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Upcoming Reminders</CardTitle>
           <CardDescription>Stay on top of your upcoming reminders.</CardDescription>
@@ -258,7 +267,7 @@ const RemindersPage: FC = () => {
             ) : (
               reminders.map((reminder, index) => (
                 <React.Fragment key={reminder.id}>
-                  <div className="flex items-start justify-between py-3 px-2 rounded-lg hover:bg-accent group transition-colors"> {/* Added group */}
+                  <div className="flex items-start justify-between py-3 px-2 rounded-lg hover:bg-accent group transition-colors shadow-sm"> 
                     <div className="flex items-start gap-3 flex-grow overflow-hidden">
                        <Bell className="h-5 w-5 mt-1 text-primary flex-shrink-0" />
                       <div className="grid gap-0.5 flex-grow">
@@ -266,16 +275,16 @@ const RemindersPage: FC = () => {
                           {reminder.title}
                         </p>
                          <p className="text-xs text-muted-foreground">
-                           {format(reminder.dateTime, 'PPP p')} {/* Use imported Date object */}
+                           {format(reminder.dateTime, 'PPP p')} 
                          </p>
                         {reminder.description && (
-                          <p className="text-xs text-muted-foreground mt-1 break-words"> {/* Added break-words */}
+                          <p className="text-xs text-muted-foreground mt-1 break-words"> 
                             {reminder.description}
                           </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"> {/* Show on hover */}
+                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"> 
                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(reminder)} aria-label={`Edit reminder "${reminder.title}"`}>
                           <Edit className="h-4 w-4" />
                           <span className="sr-only">Edit Reminder</span>

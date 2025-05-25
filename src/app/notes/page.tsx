@@ -5,8 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; // Removed subDays
-import { Edit, Plus, Trash2, FileText } from 'lucide-react'; // Removed GripVertical
+import { format, parseISO } from 'date-fns'; 
+import { Edit, Plus, Trash2, FileText } from 'lucide-react'; 
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,15 +15,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-// import { Separator } from '@/components/ui/separator'; // Separator removed from list view
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { getNotes, addUserNote, updateUserNote, deleteUserNote, type Note } from '@/services/note'; // Import from new service file
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-
-// Define the Note interface (if not already defined elsewhere) - Now imported from service
+import { useDataMode } from '@/context/data-mode-context'; 
+import { getNotes, addUserNote, updateUserNote, deleteUserNote, type Note, NOTES_STORAGE_KEY } from '@/services/note'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
 
 const noteSchema = z.object({
   title: z.string().min(1, 'Note title cannot be empty.'),
@@ -103,13 +100,12 @@ const NoteForm: FC<{
 
 const NotesPage: FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Use loading state
+  const [isLoading, setIsLoading] = useState(true); 
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use data mode context
+  const { dataMode } = useDataMode(); 
 
-  // Load notes based on dataMode
   useEffect(() => {
     const loadNotes = async () => {
         setIsLoading(true);
@@ -119,7 +115,7 @@ const NotesPage: FC = () => {
         } catch (error) {
              console.error("Failed to load notes:", error);
              toast({ title: "Error", description: "Could not load notes.", variant: "destructive"});
-             setNotes([]); // Clear on error
+             setNotes([]); 
         } finally {
             setIsLoading(false);
         }
@@ -178,7 +174,7 @@ const NotesPage: FC = () => {
         <h1 className="text-3xl font-bold">Notes</h1>
         <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => openNoteDialog()}>
+            <Button onClick={() => openNoteDialog()} className="shadow-md">
               <Plus className="mr-2 h-4 w-4" /> New Note
             </Button>
           </DialogTrigger>
@@ -195,7 +191,7 @@ const NotesPage: FC = () => {
         </Dialog>
       </div>
 
-      <Card className="shadow-md">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Your Notes</CardTitle>
           <CardDescription>Manage and organize your notes.</CardDescription>
@@ -215,15 +211,15 @@ const NotesPage: FC = () => {
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors group"
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors group shadow-sm"
                   >
                      <div
-                        role="button" // Make it clear it's clickable
-                        tabIndex={0} // Make it focusable
-                        className="flex items-center gap-3 overflow-hidden flex-grow cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring rounded-sm" // Added focus styles
+                        role="button" 
+                        tabIndex={0} 
+                        className="flex items-center gap-3 overflow-hidden flex-grow cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring rounded-sm" 
                         onClick={() => openNoteDialog(note)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openNoteDialog(note); }} // Allow opening with keyboard
-                        aria-label={`Open note: ${note.title}`} // Accessibility
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openNoteDialog(note); }} 
+                        aria-label={`Open note: ${note.title}`} 
                     >
                         <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                         <div className="flex-grow overflow-hidden">
@@ -235,7 +231,7 @@ const NotesPage: FC = () => {
                             </p>
                         </div>
                      </div>
-                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"> {/* Show on focus-within too */}
+                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"> 
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openNoteDialog(note)} aria-label={`Edit note "${note.title}"`}>
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit Note</span>

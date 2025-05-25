@@ -5,14 +5,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; // Removed addDays, subDays
+import { format, parseISO } from 'date-fns'; 
 import { Calendar as CalendarIcon, Check, Edit, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added Footer, Close
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,11 +22,11 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { Task } from '@/services/task'; // Import Task type
-import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task'; // Import service functions
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; // Added AlertDialog
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import type { Task } from '@/services/task'; 
+import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus, TASK_STORAGE_KEY } from '@/services/task'; 
+import { useDataMode } from '@/context/data-mode-context'; 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
 
 // Task Schema
 const taskSchema = z.object({
@@ -70,12 +70,11 @@ const TaskForm: FC<{
             return;
         }
 
-        const taskData: Omit<Task, 'id' | 'createdAt'> = data; // Exclude id and createdAt
+        const taskData: Omit<Task, 'id' | 'createdAt'> = data; 
 
         try {
             let savedTask: Task | undefined;
             if (initialData?.id) {
-                 // Pass the existing task merged with form data
                 savedTask = updateUserTask({ ...initialData, ...taskData });
                  if (savedTask) {
                     toast({ title: "Task Updated", description: `Task "${data.title}" updated.` });
@@ -120,9 +119,8 @@ const TasksPage: FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use data mode context
+  const { dataMode } = useDataMode(); 
 
-  // Load tasks based on dataMode
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true);
@@ -132,7 +130,7 @@ const TasksPage: FC = () => {
       } catch (error) {
         console.error("Failed to load tasks:", error);
         toast({ title: "Error", description: "Could not load tasks.", variant: "destructive" });
-         setTasks([]); // Clear on error
+         setTasks([]); 
       } finally {
         setIsLoading(false);
       }
@@ -160,7 +158,6 @@ const TasksPage: FC = () => {
                  return [savedTask, ...prev];
              }
         });
-        // No need to sort here if relying on sortedTasks memo
         closeDialog();
     };
 
@@ -208,19 +205,17 @@ const TasksPage: FC = () => {
     };
 
 
-  // Memoized sorted tasks
    const sortedTasks = useMemo(() => {
      return [...tasks].sort((a, b) => {
        const statusOrder = { 'Pending': 0, 'In Progress': 1, 'Completed': 2 };
        if (statusOrder[a.status] !== statusOrder[b.status]) {
          return statusOrder[a.status] - statusOrder[b.status];
        }
-       const dateA = a.dueDate?.getTime() ?? Infinity; // Treat no due date as lowest priority (far future)
+       const dateA = a.dueDate?.getTime() ?? Infinity; 
        const dateB = b.dueDate?.getTime() ?? Infinity;
         if (dateA !== dateB) {
-            return dateA - dateB; // Sort by due date ascending
+            return dateA - dateB; 
         }
-        // If due dates are same (or both missing), sort by creation date descending (newer first)
         const createdA = a.createdAt?.getTime() ?? 0;
         const createdB = b.createdAt?.getTime() ?? 0;
         return createdB - createdA;
@@ -234,7 +229,7 @@ const TasksPage: FC = () => {
         <h1 className="text-3xl font-bold">Tasks</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
-             <Button onClick={() => openDialog()}>
+             <Button onClick={() => openDialog()} className="shadow-md">
                <Plus className="mr-2 h-4 w-4" /> Add Task
              </Button>
            </DialogTrigger>
@@ -251,7 +246,7 @@ const TasksPage: FC = () => {
          </Dialog>
       </div>
 
-        <Card className="shadow-md">
+        <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle>Your Tasks</CardTitle>
                 <CardDescription>Manage your upcoming and completed tasks.</CardDescription>
@@ -269,29 +264,28 @@ const TasksPage: FC = () => {
                     ) : (
                         sortedTasks.map((task, index) => (
                             <React.Fragment key={task.id}>
-                                <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-accent group">
-                                    <div className="flex items-start gap-3 flex-grow overflow-hidden"> {/* Changed items-center to items-start */}
+                                <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-accent group shadow-sm">
+                                    <div className="flex items-start gap-3 flex-grow overflow-hidden"> 
                                         <Checkbox
                                             id={`task-${task.id}`}
                                             checked={task.status === 'Completed'}
                                             onCheckedChange={() => handleToggleTaskStatus(task.id)}
-                                            className="mt-1 flex-shrink-0" // Align checkbox
+                                            className="mt-1 flex-shrink-0" 
                                             disabled={dataMode === 'mock'}
-                                            aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`} // Accessibility improvement
+                                            aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`} 
                                         />
                                         <div className="grid gap-0.5 flex-grow">
                                             <label
-                                                htmlFor={`task-${task.id}`} // Ensures label clicks toggle checkbox
+                                                htmlFor={`task-${task.id}`} 
                                                 className={cn(
                                                     "text-sm font-medium leading-tight cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
                                                     task.status === 'Completed' && 'line-through text-muted-foreground'
                                                 )}
-                                                // Removed onClick here, htmlFor handles it
                                             >
                                                 {task.title}
                                             </label>
                                             {task.description && (
-                                                <p className={cn("text-xs text-muted-foreground break-words", task.status === 'Completed' && 'line-through')}> {/* Added break-words */}
+                                                <p className={cn("text-xs text-muted-foreground break-words", task.status === 'Completed' && 'line-through')}> 
                                                     {task.description}
                                                 </p>
                                             )}

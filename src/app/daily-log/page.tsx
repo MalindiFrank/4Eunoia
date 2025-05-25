@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Calendar as CalendarIcon, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,11 +22,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useDataMode } from '@/context/data-mode-context';
-import { getDailyLogs, addUserLog, deleteUserLog, type LogEntry, type Mood } from '@/services/daily-log'; // Removed updateUserLog temporarily
+import { getDailyLogs, addUserLog, deleteUserLog, updateUserLog, type LogEntry, type Mood, DAILY_LOG_STORAGE_KEY } from '@/services/daily-log'; 
 import { Skeleton } from '@/components/ui/skeleton';
-import { Slider } from "@/components/ui/slider"; // Import Slider
+import { Slider } from "@/components/ui/slider"; 
 
-// --- Types and Schemas ---
 const moodOptions = ['😊 Happy', '😌 Calm', '😕 Neutral', '😟 Anxious', '😢 Sad', '😠 Stressed', '⚡ Productive', '😴 Tired', '❓ Other'] as const;
 
 const logEntrySchema = z.object({
@@ -35,21 +34,24 @@ const logEntrySchema = z.object({
   }),
   activity: z.string().min(1, 'Activity description cannot be empty.'),
   mood: z.enum(moodOptions).optional(),
-  focusLevel: z.number().min(1).max(5).optional(), // Added focusLevel schema
+  focusLevel: z.number().min(1).max(5).optional(), 
   notes: z.string().optional(),
   diaryEntry: z.string().optional(),
 });
 
 type LogEntryFormValues = z.infer<typeof logEntrySchema>;
 
-// --- Component ---
 const DailyLogPage: FC = () => {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { dataMode } = useDataMode();
+  const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
 
-  // Load logs based on dataMode
+  useEffect(() => {
+    setDefaultDate(new Date());
+  }, []);
+
   useEffect(() => {
     const loadLogs = async () => {
         setIsLoading(true);
@@ -59,7 +61,7 @@ const DailyLogPage: FC = () => {
         } catch (error) {
              console.error("Failed to load daily logs:", error);
              toast({ title: "Error", description: "Could not load log entries.", variant: "destructive"});
-             setLogEntries([]); // Clear on error
+             setLogEntries([]); 
         } finally {
             setIsLoading(false);
         }
@@ -70,14 +72,20 @@ const DailyLogPage: FC = () => {
   const form = useForm<LogEntryFormValues>({
     resolver: zodResolver(logEntrySchema),
     defaultValues: {
-      date: new Date(),
+      date: undefined, // Initialize as undefined
       activity: '',
       mood: undefined,
-      focusLevel: undefined, // Default focus level
+      focusLevel: undefined, 
       notes: '',
       diaryEntry: '',
     },
   });
+
+   useEffect(() => {
+        if (!form.getValues('date') && defaultDate) {
+            form.setValue('date', defaultDate, { shouldValidate: true });
+        }
+    }, [form, defaultDate]);
 
   const onSubmit = (data: LogEntryFormValues) => {
      if (dataMode === 'mock') {
@@ -86,7 +94,6 @@ const DailyLogPage: FC = () => {
      }
 
     try {
-        // Pass focusLevel from form data
         const newEntry = addUserLog({
             date: data.date,
             activity: data.activity,
@@ -97,12 +104,11 @@ const DailyLogPage: FC = () => {
         });
         setLogEntries(prevLogs => [newEntry, ...prevLogs].sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        form.reset({ date: new Date(), activity: '', mood: undefined, focusLevel: undefined, notes: '', diaryEntry: '' }); // Reset form
+        form.reset({ date: new Date(), activity: '', mood: undefined, focusLevel: undefined, notes: '', diaryEntry: '' }); 
         toast({
             title: "Log Entry Added",
             description: "Your daily log has been updated.",
         });
-        console.log('New Log Entry:', newEntry);
     } catch (error) {
          console.error("Error adding log entry:", error);
          toast({ title: "Error", description: "Could not save log entry.", variant: "destructive"});
@@ -133,10 +139,9 @@ const DailyLogPage: FC = () => {
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold">Daily Log</h1>
-             {/* Add button can be here or inside the card */}
        </div>
 
-      <Card className="mb-8 shadow-md">
+      <Card className="mb-8 shadow-lg">
         <CardHeader>
           <CardTitle>Add New Log Entry</CardTitle>
           <CardDescription>Record your activities, mood, notes, and diary thoughts for the day.</CardDescription>
@@ -219,7 +224,6 @@ const DailyLogPage: FC = () => {
                 )}
               />
 
-                {/* Focus Level Slider */}
                 <FormField
                     control={form.control}
                     name="focusLevel"
@@ -228,14 +232,14 @@ const DailyLogPage: FC = () => {
                         <FormLabel>Focus Level during Activity (Optional): {field.value ? `${field.value}/5` : 'Not set'}</FormLabel>
                         <FormControl>
                             <Slider
-                                defaultValue={[3]} // Default visual position if no value
-                                value={field.value ? [field.value] : undefined} // Controlled value
-                                onValueChange={(value) => field.onChange(value[0])} // Update form state
+                                defaultValue={[3]} 
+                                value={field.value ? [field.value] : undefined} 
+                                onValueChange={(value) => field.onChange(value[0])} 
                                 max={5}
                                 min={1}
                                 step={1}
                                 className="w-full"
-                                aria-label="Focus level" // Accessibility
+                                aria-label="Focus level" 
                             />
                         </FormControl>
                          <FormDescription>Rate your focus: 1 (Distracted) to 5 (Flow State).</FormDescription>
@@ -272,7 +276,7 @@ const DailyLogPage: FC = () => {
                 )}
               />
 
-              <Button type="submit" className="w-full md:w-auto" disabled={dataMode === 'mock'}>
+              <Button type="submit" className="w-full md:w-auto shadow-md" disabled={dataMode === 'mock'}>
                 <Plus className="mr-2 h-4 w-4" /> Add Log Entry
               </Button>
             </form>
@@ -280,7 +284,7 @@ const DailyLogPage: FC = () => {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
+      <Card className="shadow-lg">
          <CardHeader>
            <CardTitle>Past Entries</CardTitle>
            <CardDescription>Review your previous log entries.</CardDescription>
@@ -300,12 +304,11 @@ const DailyLogPage: FC = () => {
              ) : (
                logEntries.map((entry, index) => (
                  <React.Fragment key={entry.id}>
-                   <div className="mb-4 p-3 rounded-lg group hover:bg-accent transition-colors relative">
+                   <div className="mb-4 p-3 rounded-lg group hover:bg-accent transition-colors relative shadow-sm">
                      <div className="flex justify-between items-center mb-1">
                         <h3 className="font-semibold text-lg">{format(entry.date, 'PPP')}</h3>
                         <div className="flex items-center gap-2">
                             {entry.mood && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary">{entry.mood}</span>}
-                             {/* Display Focus Level */}
                              {entry.focusLevel && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">Focus: {entry.focusLevel}/5</span>}
                         </div>
                      </div>

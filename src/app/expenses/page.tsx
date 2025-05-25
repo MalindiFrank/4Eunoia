@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense } from '@/services/expense'; 
-import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense } from '@/services/expense'; 
+import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense, EXPENSE_STORAGE_KEY } from '@/services/expense'; 
 import { useDataMode } from '@/context/data-mode-context'; 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
@@ -49,6 +49,13 @@ const ExpenseForm: FC<{
 }> = ({ onClose, initialData, onSave }) => {
     const { dataMode } = useDataMode();
     const { toast } = useToast();
+    const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
+
+    useEffect(() => {
+      if (!initialData) {
+        setDefaultDate(new Date());
+      }
+    }, [initialData]);
 
     const form = useForm<ExpenseFormValues>({
         resolver: zodResolver(expenseSchema),
@@ -60,10 +67,17 @@ const ExpenseForm: FC<{
         } : {
             description: '',
             amount: 0,
-            date: new Date(),
+            date: undefined, // Initialize as undefined
             category: '',
         },
     });
+    
+    useEffect(() => {
+        if (!form.getValues('date') && !initialData && defaultDate) {
+            form.setValue('date', defaultDate, { shouldValidate: true });
+        }
+    }, [form, initialData, defaultDate]);
+
 
     const onSubmit = (data: ExpenseFormValues) => {
         if (dataMode === 'mock') {
@@ -230,7 +244,7 @@ const ExpensesPage: FC = () => {
         <h1 className="text-3xl font-bold">Expenses</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
-             <Button onClick={() => openDialog()} aria-label="Add new expense">
+             <Button onClick={() => openDialog()} aria-label="Add new expense" className="shadow-md">
                <Plus className="mr-2 h-4 w-4" /> Add Expense
              </Button>
            </DialogTrigger>
@@ -248,7 +262,7 @@ const ExpensesPage: FC = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-         <Card>
+         <Card className="shadow-lg">
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                  <CardTitle className="text-sm font-medium">Total Expenses</CardTitle> 
                  <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -258,7 +272,7 @@ const ExpensesPage: FC = () => {
                  <p className="text-xs text-muted-foreground">Across all recorded entries</p>
              </CardContent>
          </Card>
-         <Card className="opacity-50 cursor-not-allowed">
+         <Card className="opacity-50 cursor-not-allowed shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Monthly Average</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -268,7 +282,7 @@ const ExpensesPage: FC = () => {
                 <p className="text-xs text-muted-foreground">Calculation needs history</p>
             </CardContent>
         </Card>
-         <Card className="opacity-50 cursor-not-allowed">
+         <Card className="opacity-50 cursor-not-allowed shadow-lg">
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                  <CardTitle className="text-sm font-medium">Top Category</CardTitle>
                  <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -281,7 +295,7 @@ const ExpensesPage: FC = () => {
       </div>
 
 
-       <Card className="mb-8 shadow-md">
+       <Card className="mb-8 shadow-lg">
          <CardHeader>
            <CardTitle>Expenses by Category</CardTitle>
             <CardDescription>Visualize your spending distribution.</CardDescription>
@@ -313,14 +327,14 @@ const ExpensesPage: FC = () => {
        </Card>
 
 
-      <Card className="shadow-md">
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Expense History</CardTitle>
           <CardDescription>Review your past transactions.</CardDescription>
         </CardHeader>
         <CardContent>
-           <ScrollArea className="h-[400px] w-full overflow-x-auto"> {/* Added overflow-x-auto */}
-             <Table className="min-w-full"> {/* Added min-w-full */}
+           <ScrollArea className="h-[400px] w-full overflow-x-auto"> 
+             <Table className="min-w-full"> 
                <TableHeader>
                  <TableRow>
                    <TableHead className="w-[100px]">Date</TableHead>
@@ -387,4 +401,3 @@ const ExpensesPage: FC = () => {
 };
 
 export default ExpensesPage;
-

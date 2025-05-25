@@ -1,4 +1,3 @@
-
 // src/app/settings/page.tsx
 'use client';
 
@@ -94,7 +93,8 @@ const SettingsPage: FC = () => {
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          const loadedTheme = parsedSettings?.preferences?.theme && ['light', 'dark', 'system', 'victoria'].includes(parsedSettings.preferences.theme)
+          const validThemes: Theme[] = ['light', 'dark', 'system', 'victoria', 'sapphire', 'forest', 'sunset'];
+          const loadedTheme = parsedSettings?.preferences?.theme && validThemes.includes(parsedSettings.preferences.theme)
             ? parsedSettings.preferences.theme
             : getInitialTheme();
 
@@ -198,7 +198,7 @@ const SettingsPage: FC = () => {
         <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
              <Skeleton className="h-10 w-1/2 mb-8" />
              {[...Array(5)].map((_, i) => (
-                 <Card key={i}>
+                 <Card key={i} className="shadow-lg">
                      <CardHeader><Skeleton className="h-6 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
                      <CardContent className="space-y-4">
                          <Skeleton className="h-8 w-full" />
@@ -217,7 +217,7 @@ const SettingsPage: FC = () => {
         <Settings className="h-8 w-8 text-primary" /> Application Settings
       </h1>
 
-      <Card>
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" /> Preferences</CardTitle>
           <CardDescription>Customize the look, feel, and AI behavior of the application.</CardDescription>
@@ -234,6 +234,9 @@ const SettingsPage: FC = () => {
                 <SelectItem value="dark">Dark</SelectItem>
                 <SelectItem value="system">System Default</SelectItem>
                 <SelectItem value="victoria">Victoria (Pink)</SelectItem>
+                <SelectItem value="sapphire">Sapphire Sky (Blue)</SelectItem>
+                <SelectItem value="forest">Forest Canopy (Green)</SelectItem>
+                <SelectItem value="sunset">Desert Sunset (Orange)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -304,7 +307,7 @@ const SettingsPage: FC = () => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
           <CardDescription>Manage how and when you receive notifications.</CardDescription>
@@ -329,7 +332,7 @@ const SettingsPage: FC = () => {
         </CardContent>
       </Card>
 
-       <Card>
+       <Card className="shadow-lg">
          <CardHeader>
            <CardTitle className="flex items-center gap-2"><LinkIcon className="h-5 w-5" /> Integrations</CardTitle>
            <CardDescription>Connect 4Eunoia with other services (features coming soon).</CardDescription>
@@ -352,7 +355,7 @@ const SettingsPage: FC = () => {
          </CardContent>
        </Card>
 
-      <Card>
+      <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Brain className="h-5 w-5" /> Neurodivergent Mode</CardTitle>
           <CardDescription>Customize features for ADHD, anxiety, or burnout sensitivity.</CardDescription>
@@ -397,7 +400,7 @@ const SettingsPage: FC = () => {
         </CardContent>
       </Card>
 
-      <Card className="border-destructive">
+      <Card className="border-destructive shadow-lg">
          <CardHeader>
              <CardTitle className="flex items-center gap-2 text-destructive"><Trash className="h-5 w-5" /> Reset Application</CardTitle>
              <CardDescription className="text-destructive/90">This action will permanently delete all your saved data (tasks, logs, expenses, etc.) and reset the app to its initial state using mock data. Your settings will also be reset.</CardDescription>
@@ -426,7 +429,7 @@ const SettingsPage: FC = () => {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={saveSettings} aria-label="Save all settings">Save All Settings</Button>
+        <Button onClick={saveSettings} aria-label="Save all settings" className="shadow-md">Save All Settings</Button>
       </div>
     </div>
   );
