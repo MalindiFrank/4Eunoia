@@ -2,9 +2,9 @@
 // src/app/layout.tsx
 'use client';
 
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import React, { useEffect } from 'react';
+// import type { Metadata } from 'next'; // Metadata type can be used if you plan static metadata
+import { Geist, Geist_Mono } from 'next/font/google'; // Corrected: Import directly
+import React, { useEffect, useState } from 'react'; // Added useState
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
@@ -13,20 +13,25 @@ import { Toaster } from '@/components/ui/toaster';
 import { DataModeProvider } from '@/context/data-mode-context';
 import { DataModeSwitcher } from '@/components/data-mode-switcher';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { getInitialTheme, applyTheme } from '@/lib/theme-utils';
+import { getInitialTheme, applyTheme, type Theme } from '@/lib/theme-utils'; // Ensure Theme type is imported
 import { Button } from '@/components/ui/button';
-import { PanelLeft, Menu } from 'lucide-react';
-import { OnboardingGuide } from '@/components/onboarding-guide'; // Import the OnboardingGuide
+import { Menu } from 'lucide-react'; // PanelLeft was not used, Menu is more standard for mobile toggle
+import { OnboardingGuide } from '@/components/onboarding-guide';
 
-const geistSans = Geist({
+const geistSans = Geist({ // Use direct import
   variable: '--font-geist-sans',
   subsets: ['latin'],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = Geist_Mono({ // Use direct import
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
+
+// export const metadata: Metadata = { // Example of static metadata
+//   title: '4Eunoia - Your Personal OS',
+//   description: 'Track your productivity and personal development.',
+// };
 
 // Layout component that uses the sidebar context
 function AppLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +51,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </Button>
       )}
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pt-16 md:pt-4">
+      <main className="flex-1 overflow-y-auto p-4 pt-16 md:p-6 md:pt-4 lg:p-8 lg:pt-4">
         <DataModeSwitcher />
         <div className="mt-4">
           {children}
@@ -62,23 +67,31 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true); // Set mounted to true only on the client
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return; // Only run after client has mounted
+
     const initialTheme = getInitialTheme();
     applyTheme(initialTheme);
+    // console.log("Initial theme applied in layout:", initialTheme);
+
+    document.title = '4Eunoia - Your Personal OS'; // Set document title here
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
-      if (getInitialTheme() === 'system') {
-        applyTheme('system');
+      const currentStoredTheme = getInitialTheme(); // Re-fetch from localStorage
+      if (currentStoredTheme === 'system') {
+        applyTheme('system'); // Re-apply system theme if system preference changes
       }
     };
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  useEffect(() => {
-    document.title = '4Eunoia - Your Personal OS';
-  }, []);
+  }, [isMounted]); // Re-run if isMounted changes
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -93,7 +106,7 @@ export default function RootLayout({
            <DataModeProvider>
              <SidebarProvider>
                 <AppLayout>{children}</AppLayout>
-                <OnboardingGuide /> {/* Add the OnboardingGuide here */}
+                <OnboardingGuide />
              </SidebarProvider>
            </DataModeProvider>
          </TooltipProvider>
