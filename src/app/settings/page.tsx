@@ -1,3 +1,4 @@
+
 // src/app/settings/page.tsx
 'use client';
 
@@ -13,9 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { useDataMode } from '@/context/data-mode-context';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { applyTheme, getInitialTheme, SETTINGS_STORAGE_KEY, type Theme } from '@/lib/theme-utils';
 import { Input } from '@/components/ui/input';
@@ -29,11 +27,11 @@ type PreferredWorkTimes = 'Morning' | 'Afternoon' | 'Evening' | 'Flexible';
 
 interface UserPreferences {
   theme: Theme;
-  defaultView: string; // Example: might be used for default page after login
+  defaultView: string; 
   growthPace: GrowthPace;
   aiPersona: AIPersona;
   aiInsightVerbosity: AIInsightVerbosity;
-  energyPattern: string; // Free text for energy pattern
+  energyPattern: string; 
   preferredWorkTimes: PreferredWorkTimes;
 }
 
@@ -54,15 +52,14 @@ interface NeurodivergentSettings {
   focusModeTimer: 'pomodoro' | 'custom';
   taskChunking: boolean;
   lowStimulationUI: boolean;
-  focusShieldEnabled: boolean; // For Digital Dopamine Manager
+  focusShieldEnabled: boolean; 
 }
 
 const SettingsPage: FC = () => {
   const { toast } = useToast();
-  const { resetToMockMode } = useDataMode();
 
   const [preferences, setPreferences] = useState<UserPreferences>({
-    theme: getInitialTheme(),
+    theme: 'light', // Default to light
     defaultView: '/',
     growthPace: 'Moderate',
     aiPersona: 'Supportive Coach',
@@ -93,10 +90,10 @@ const SettingsPage: FC = () => {
       if (storedSettings) {
         try {
           const parsedSettings = JSON.parse(storedSettings);
-          const validThemes: Theme[] = ['light', 'dark', 'system', 'victoria', 'sapphire', 'forest', 'sunset'];
+          const validThemes: Theme[] = ['light', 'dark', 'system'];
           const loadedTheme = parsedSettings?.preferences?.theme && validThemes.includes(parsedSettings.preferences.theme)
             ? parsedSettings.preferences.theme
-            : getInitialTheme();
+            : getInitialTheme(); // Use getInitialTheme to ensure a valid default
 
           setPreferences(prev => ({
             ...prev,
@@ -114,57 +111,62 @@ const SettingsPage: FC = () => {
              ...(parsedSettings.neurodivergent || {}),
              focusShieldEnabled: parsedSettings.neurodivergent?.focusShieldEnabled || false,
             }));
+          applyTheme(loadedTheme); // Apply loaded theme
         } catch (e) {
           console.error("Error loading settings from localStorage:", e);
           toast({ title: "Error", description: "Could not load saved settings.", variant: "destructive" });
+          applyTheme(getInitialTheme()); // Apply default theme on error
         }
+      } else {
+        applyTheme(getInitialTheme()); // Apply default if no settings stored
       }
       setIsLoading(false);
     }
   }, [toast]);
 
-   useEffect(() => {
-     if (!isLoading) {
-        applyTheme(preferences.theme);
-     }
-   }, [preferences.theme, isLoading]);
-
-  const saveSettings = () => {
-     if (typeof window === 'undefined') return;
-     const allSettings = {
-         preferences,
-         notifications,
-         integrations,
-         neurodivergent,
-     };
+  const saveSpecificSetting = (key: string, value: any) => {
+    if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(allSettings));
-        applyTheme(preferences.theme);
-        toast({ title: "Settings Saved", description: "Your preferences have been updated." });
+        const currentSettings = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');
+        const updatedSettings = { ...currentSettings, [key]: value };
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updatedSettings));
+        toast({ title: "Setting Saved", description: "Your preference has been updated." });
     } catch (e) {
-        console.error("Error saving settings to localStorage:", e);
-        toast({ title: "Error", description: "Could not save settings.", variant: "destructive" });
+        console.error("Error saving setting:", e);
+        toast({ title: "Error", description: "Could not save setting.", variant: "destructive" });
     }
   };
 
+
   const handlePreferenceChange = <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
-      setPreferences(prev => ({ ...prev, [key]: value }));
+      const newPreferences = { ...preferences, [key]: value };
+      setPreferences(newPreferences);
+      if (key === 'theme') {
+          applyTheme(value as Theme);
+      }
+      saveSpecificSetting('preferences', newPreferences);
   };
 
   const handleNotificationChange = <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => {
-      setNotifications(prev => ({ ...prev, [key]: value }));
+      const newNotifications = { ...notifications, [key]: value };
+      setNotifications(newNotifications);
+      saveSpecificSetting('notifications', newNotifications);
   };
 
    const handleIntegrationChange = <K extends keyof IntegrationSettings>(key: K, value: IntegrationSettings[K]) => {
-        setIntegrations(prev => ({ ...prev, [key]: value }));
-        if (value) { // Only toast if enabling, as it's a placeholder
+        const newIntegrations = { ...integrations, [key]: value };
+        setIntegrations(newIntegrations);
+        saveSpecificSetting('integrations', newIntegrations);
+        if (value) { 
           const integrationName = key === 'googleCalendarSync' ? 'Google Calendar Sync' : 'Slack Integration';
           toast({ title: `${integrationName} (Coming Soon)`, description: `Connect your ${integrationName.split(' ')[0]} (feature in development).`, variant: "default"});
         }
    };
 
    const handleNeurodivergentChange = <K extends keyof NeurodivergentSettings>(key: K, value: NeurodivergentSettings[K]) => {
-        setNeurodivergent(prev => ({ ...prev, [key]: value }));
+        const newNeurodivergent = { ...neurodivergent, [key]: value };
+        setNeurodivergent(newNeurodivergent);
+        saveSpecificSetting('neurodivergent', newNeurodivergent);
         if (key === 'lowStimulationUI') {
             document.documentElement.classList.toggle('filter', value);
             document.documentElement.classList.toggle('grayscale', value);
@@ -172,26 +174,6 @@ const SettingsPage: FC = () => {
         }
    };
 
-   const handleResetApp = () => {
-        const defaultTheme = 'system' as Theme;
-        setPreferences({
-          theme: defaultTheme, defaultView: '/', growthPace: 'Moderate',
-          aiPersona: 'Supportive Coach', aiInsightVerbosity: 'Detailed Analysis', energyPattern: 'Steady throughout day',
-          preferredWorkTimes: 'Flexible',
-        });
-        setNotifications({ taskReminders: true, eventAlerts: true, habitNudges: true, insightNotifications: true });
-        setIntegrations({ googleCalendarSync: false, slackIntegration: false });
-        setNeurodivergent({ enabled: false, focusModeTimer: 'pomodoro', taskChunking: false, lowStimulationUI: false, focusShieldEnabled: false });
-
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem(SETTINGS_STORAGE_KEY);
-            // Remove low stimulation UI classes if they were applied
-            document.documentElement.classList.remove('filter', 'grayscale', 'contrast-75');
-        }
-        applyTheme(defaultTheme); // Apply default theme immediately
-        resetToMockMode(); // This function in context will handle reload
-        toast({ title: "Application Reset", description: "All data and settings have been cleared. The app has been reset to mock data mode.", duration: 5000 });
-   }
 
   if (isLoading) {
       return (
@@ -206,7 +188,6 @@ const SettingsPage: FC = () => {
                      </CardContent>
                  </Card>
              ))}
-             <Skeleton className="h-10 w-32 ml-auto" />
         </div>
       );
   }
@@ -233,10 +214,6 @@ const SettingsPage: FC = () => {
                 <SelectItem value="light">Light</SelectItem>
                 <SelectItem value="dark">Dark</SelectItem>
                 <SelectItem value="system">System Default</SelectItem>
-                <SelectItem value="victoria">Victoria (Pink)</SelectItem>
-                <SelectItem value="sapphire">Sapphire Sky (Blue)</SelectItem>
-                <SelectItem value="forest">Forest Canopy (Green)</SelectItem>
-                <SelectItem value="sunset">Desert Sunset (Orange)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -399,38 +376,6 @@ const SettingsPage: FC = () => {
             )}
         </CardContent>
       </Card>
-
-      <Card className="border-destructive shadow-lg">
-         <CardHeader>
-             <CardTitle className="flex items-center gap-2 text-destructive"><Trash className="h-5 w-5" /> Reset Application</CardTitle>
-             <CardDescription className="text-destructive/90">This action will permanently delete all your saved data (tasks, logs, expenses, etc.) and reset the app to its initial state using mock data. Your settings will also be reset.</CardDescription>
-         </CardHeader>
-         <CardContent>
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button variant="destructive" aria-label="Clear all data and reset application"><Trash className="mr-2 h-4 w-4" /> Clear All My Data & Reset</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. All your personal data stored in this browser will be deleted permanently. The application will switch back to using mock data. Settings will also be reset.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleResetApp} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>
-                            Yes, Delete Everything
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-         </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={saveSettings} aria-label="Save all settings" className="shadow-md">Save All Settings</Button>
-      </div>
     </div>
   );
 };

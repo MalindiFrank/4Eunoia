@@ -1,18 +1,19 @@
+
 'use client';
 
 import type { FC } from 'react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Bar, BarChart, Pie, PieChart, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, Line, LineChart } from 'recharts';
-import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns'; // Removed addDays, subDays
-import { Loader2, BarChartBig, PieChart as PieIcon, CalendarDays } from 'lucide-react'; // Removed specific icons for data types
+import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns'; 
+import { Loader2, BarChartBig, PieChart as PieIcon, CalendarDays } from 'lucide-react'; 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDataMode } from '@/context/data-mode-context'; // Import useDataMode
+// useDataMode is no longer needed for display text based on mode
+// import { useDataMode } from '@/context/data-mode-context'; 
 
-// Import service functions
 import { getDailyLogs, type LogEntry } from '@/services/daily-log';
 import { getTasks, type Task } from '@/services/task';
 import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
@@ -20,7 +21,6 @@ import { getExpenses, type Expense } from '@/services/expense';
 import { getNotes, type Note } from '@/services/note';
 
 
-// --- Chart Configs ---
 const taskStatusConfig = {
   tasks: { label: "Tasks" },
   Pending: { label: "Pending", color: "hsl(var(--chart-2))" },
@@ -28,7 +28,7 @@ const taskStatusConfig = {
   Completed: { label: "Completed", color: "hsl(var(--chart-1))" },
 } satisfies ChartConfig;
 
-const baseExpensesConfig = { // Base config for known categories
+const baseExpensesConfig = { 
     amount: { label: "Amount ($)", color: "hsl(var(--primary))" },
     Food: { label: "Food", color: "hsl(var(--chart-1))" },
     Transport: { label: "Transport", color: "hsl(var(--chart-2))" },
@@ -55,19 +55,18 @@ const VisualizationsPage: FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); // Use data mode context
+  // const { dataMode } = useDataMode(); // dataMode no longer needed for this page
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-          // Fetch all data types using the current dataMode
         const [logData, taskData, eventData, expenseData, noteData] = await Promise.all([
-          getDailyLogs(dataMode),
-          getTasks(dataMode),
-          getCalendarEvents(dataMode), // Let the service handle mock/user
-          getExpenses(dataMode),
-          getNotes(dataMode),
+          getDailyLogs(), // dataMode parameter removed
+          getTasks(), // dataMode parameter removed
+          getCalendarEvents(), // dataMode parameter removed
+          getExpenses(), // dataMode parameter removed
+          getNotes(), // dataMode parameter removed
         ]);
         setDailyLogs(logData);
         setTasks(taskData);
@@ -81,7 +80,6 @@ const VisualizationsPage: FC = () => {
           description: "Could not load all data needed for visualizations.",
           variant: "destructive",
         });
-         // Clear data on error
          setDailyLogs([]);
          setTasks([]);
          setCalendarEvents([]);
@@ -92,16 +90,15 @@ const VisualizationsPage: FC = () => {
       }
     };
     loadData();
-  }, [dataMode, toast]); // Reload when dataMode changes
+  }, [toast]); // Removed dataMode from dependencies
 
-  // --- Data Processing for Charts ---
   const taskStatusData = useMemo(() => {
     const counts = tasks.reduce((acc, task) => {
       acc[task.status] = (acc[task.status] || 0) + 1;
       return acc;
     }, {} as Record<Task['status'], number>);
     const statuses: Task['status'][] = ['Pending', 'In Progress', 'Completed'];
-    return statuses.map(status => ({ status, count: counts[status] || 0 })).filter(item => item.count > 0); // Filter out zero counts for pie chart
+    return statuses.map(status => ({ status, count: counts[status] || 0 })).filter(item => item.count > 0); 
   }, [tasks]);
 
    const expensesByCategoryData = useMemo(() => {
@@ -116,8 +113,8 @@ const VisualizationsPage: FC = () => {
 
   const activityFrequencyData = useMemo(() => {
      const today = new Date();
-     const start = startOfWeek(today, { weekStartsOn: 1 }); // Monday
-     const end = endOfWeek(today, { weekStartsOn: 1 }); // Sunday
+     const start = startOfWeek(today, { weekStartsOn: 1 }); 
+     const end = endOfWeek(today, { weekStartsOn: 1 }); 
      const weekDays = eachDayOfInterval({ start, end });
 
       const counts: Record<string, { date: string; logs: number; events: number; notes: number }> = {};
@@ -132,7 +129,6 @@ const VisualizationsPage: FC = () => {
              if (counts[formattedDate]) counts[formattedDate].logs += 1;
          }
      });
-     // Filter calendar events for the current week for this chart
      const weekEvents = calendarEvents.filter(event => isWithinInterval(event.start, {start, end}));
       weekEvents.forEach(event => {
          const formattedDate = format(event.start, 'MMM d');
@@ -146,17 +142,15 @@ const VisualizationsPage: FC = () => {
       });
 
      return Object.values(counts);
-   }, [dailyLogs, calendarEvents, notes]); // Include calendarEvents here
+   }, [dailyLogs, calendarEvents, notes]); 
 
-   // Dynamic Expenses Chart Config
    const expensesChartConfig = useMemo(() => {
         const config: ChartConfig = { ...baseExpensesConfig };
         expensesByCategoryData.forEach((item, index) => {
             if (!config[item.category]) {
-                // Assign a fallback color if not predefined
                 config[item.category] = {
                     label: item.category,
-                    color: `hsl(var(--chart-${(index % 5) + 1}))` // Cycle through 5 chart colors
+                    color: `hsl(var(--chart-${(index % 5) + 1}))` 
                 };
             }
         });
@@ -184,11 +178,10 @@ const VisualizationsPage: FC = () => {
 
       <div className="grid gap-6 md:grid-cols-2">
 
-        {/* Task Status Distribution (Pie Chart) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><PieIcon className="h-5 w-5" /> Task Status Distribution</CardTitle>
-            <CardDescription>Overview of task statuses ({dataMode === 'mock' ? 'Mock Data' : 'Your Data'}).</CardDescription>
+            <CardDescription>Overview of task statuses.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] w-full flex items-center justify-center">
             {tasks.length > 0 && taskStatusData.length > 0 ? (
@@ -214,11 +207,10 @@ const VisualizationsPage: FC = () => {
         </Card>
 
 
-        {/* Expenses by Category (Bar Chart) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChartBig className="h-5 w-5" /> Expenses by Category</CardTitle>
-            <CardDescription>Spending distribution ({dataMode === 'mock' ? 'Mock Data' : 'Your Data'}).</CardDescription>
+            <CardDescription>Spending distribution.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] w-full">
             {expensesByCategoryData.length > 0 ? (
@@ -245,11 +237,10 @@ const VisualizationsPage: FC = () => {
           </CardContent>
         </Card>
 
-        {/* Activity Frequency This Week (Line Chart) */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> Activity Frequency (This Week)</CardTitle>
-            <CardDescription>Logs, Events, and Notes per day this week ({dataMode === 'mock' ? 'Mock Data' : 'Your Data'}).</CardDescription>
+            <CardDescription>Logs, Events, and Notes per day this week.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] w-full">
              {activityFrequencyData.some(d => d.logs > 0 || d.events > 0 || d.notes > 0) ? (
@@ -274,9 +265,6 @@ const VisualizationsPage: FC = () => {
             )}
           </CardContent>
         </Card>
-
-         {/* Add more charts here */}
-
       </div>
     </div>
   );

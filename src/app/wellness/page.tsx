@@ -1,9 +1,10 @@
+
 'use client';
 
 import type { FC } from 'react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Smile, BookOpen, Headphones, Brain, Wind, Sun, Loader2, AlertCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation'; // Import for navigation
+import { useRouter } from 'next/navigation'; 
 import { formatISO, subDays, startOfDay, endOfDay } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDataMode } from '@/context/data-mode-context';
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context';
 import { addGratitudeLog, getGratitudeLogs, addReframingLog, getReframingLogs, type GratitudeLog, type ReframingLog } from '@/services/wellness';
 import { estimateBurnoutRisk, type EstimateBurnoutRiskInput, type EstimateBurnoutRiskOutput } from '@/ai/flows/estimate-burnout-risk';
 import { getDailyLogs, type LogEntry } from '@/services/daily-log';
@@ -33,7 +35,7 @@ interface MoodLog {
 const WellnessPage: FC = () => {
   const { toast } = useToast();
   const router = useRouter();
-  const { dataMode } = useDataMode();
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   const [currentMood, setCurrentMood] = useState<string>('');
   const [moodNotes, setMoodNotes] = useState<string>('');
@@ -52,12 +54,12 @@ const WellnessPage: FC = () => {
     setIsLoadingBurnout(true);
     try {
         const endDate = new Date();
-        const startDate = subDays(endDate, 7); // Analyze past 7 days
+        const startDate = subDays(endDate, 7); 
 
         const [logs, tasks, events] = await Promise.all([
-            getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
-            getTasks(dataMode), // Fetch all tasks, flow will filter by due date relative to period
-            getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startDate && ev.start <= endDate)),
+            getDailyLogs().then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
+            getTasks(), 
+            getCalendarEvents().then(e => e.filter(ev => ev.start >= startDate && ev.start <= endDate)),
         ]);
 
         const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate']): any[] => {
@@ -88,7 +90,7 @@ const WellnessPage: FC = () => {
     } finally {
         setIsLoadingBurnout(false);
     }
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
   useEffect(() => {
     fetchBurnoutRisk();
@@ -100,7 +102,6 @@ const WellnessPage: FC = () => {
         toast({ title: "Select Mood", description: "Please select your current mood.", variant: "destructive" });
         return;
     }
-    // TODO: Implement saving mood log to a service (e.g., dailyLogService or a new wellnessService)
     console.log('Mood Logged:', { mood: currentMood, notes: moodNotes, timestamp: new Date() });
     toast({ title: "Mood Logged", description: `Logged feeling ${currentMood}. (Storage not implemented yet)` });
     setCurrentMood('');
@@ -112,7 +113,6 @@ const WellnessPage: FC = () => {
           toast({ title: "Empty Entry", description: "Journal entry cannot be empty.", variant: "destructive" });
           return;
       }
-      // TODO: Save journalEntry with timestamp to a service
       console.log('Journal Saved:', journalEntry);
       toast({ title: "Journal Entry Saved", description: "Your thoughts have been recorded. (Storage not implemented yet)" });
       setJournalEntry('');
@@ -132,7 +132,7 @@ const WellnessPage: FC = () => {
       console.log(`Stopping focus ritual with ${activeRitualSound} sound.`);
       toast({ title: "Focus Ritual Stopped", description: `${activeRitualSound} soundscape stopped.` });
       setActiveRitualSound(null);
-      setFocusSound(''); // Reset selection
+      setFocusSound(''); 
   };
 
   const getJournalPrompt = (): string => {
@@ -154,10 +154,6 @@ const WellnessPage: FC = () => {
         toast({ title: "Empty Gratitude", description: "Please list at least one thing.", variant: "destructive" });
         return;
     }
-    if (dataMode === 'mock') {
-        toast({ title: "Read-only Mode", description: "Cannot save data in mock mode.", variant: "destructive" });
-        return;
-    }
     addGratitudeLog({ text: gratitudeText, timestamp: new Date() });
     toast({ title: "Gratitude Saved", description: "Your gratitude has been recorded." });
     setGratitudeText('');
@@ -168,10 +164,6 @@ const WellnessPage: FC = () => {
         toast({ title: "Incomplete Reframing", description: "Please fill in both negative thought and positive reframing.", variant: "destructive" });
         return;
     }
-    if (dataMode === 'mock') {
-        toast({ title: "Read-only Mode", description: "Cannot save data in mock mode.", variant: "destructive" });
-        return;
-    }
     addReframingLog({ negativeThought, positiveReframing, timestamp: new Date() });
     toast({ title: "Reframing Logged", description: "Your reframing exercise has been saved." });
     setNegativeThought('');
@@ -179,7 +171,6 @@ const WellnessPage: FC = () => {
   };
 
   const navigateToReflectionCoach = () => {
-      // Navigate to insights page and set a query param or state to trigger the reflection coach
       router.push('/insights?tool=reflection');
   };
 
@@ -198,7 +189,6 @@ const WellnessPage: FC = () => {
           <TabsTrigger value="exercises">Exercises</TabsTrigger>
         </TabsList>
 
-        {/* Mood Tracking Tab */}
         <TabsContent value="mood" className="mt-6">
           <Card>
             <CardHeader>
@@ -270,7 +260,6 @@ const WellnessPage: FC = () => {
            </Card>
         </TabsContent>
 
-        {/* Journaling Tab */}
         <TabsContent value="journal" className="mt-6">
           <Card>
             <CardHeader>
@@ -307,7 +296,6 @@ const WellnessPage: FC = () => {
            </Card>
         </TabsContent>
 
-        {/* Focus Rituals Tab */}
         <TabsContent value="focus" className="mt-6">
           <Card>
             <CardHeader>
@@ -335,7 +323,6 @@ const WellnessPage: FC = () => {
                 <div className="p-4 border rounded-lg bg-primary/10 text-center">
                     <p className="text-lg font-semibold text-primary">Focus Ritual Active</p>
                     <p className="text-muted-foreground mb-3">Playing: {activeRitualSound.charAt(0).toUpperCase() + activeRitualSound.slice(1)}</p>
-                    {/* Basic Timer Placeholder - non-functional */}
                     <p className="text-2xl font-mono">24:59</p>
                     <Button onClick={stopFocusRitual} variant="destructive" className="mt-3">Stop Ritual</Button>
                 </div>
@@ -345,7 +332,6 @@ const WellnessPage: FC = () => {
           </Card>
         </TabsContent>
 
-        {/* Exercises Tab */}
         <TabsContent value="exercises" className="mt-6">
           <Card>
             <CardHeader>
@@ -357,7 +343,7 @@ const WellnessPage: FC = () => {
                 <h3 className="font-semibold mb-2">Gratitude Practice</h3>
                 <p className="text-sm text-muted-foreground mb-3">List 3 things you are grateful for today.</p>
                 <Textarea placeholder="1. ..." rows={3} value={gratitudeText} onChange={(e) => setGratitudeText(e.target.value)} />
-                <Button size="sm" className="mt-2" onClick={handleSaveGratitude} disabled={!gratitudeText.trim() || dataMode === 'mock'}>Save Gratitude</Button>
+                <Button size="sm" className="mt-2" onClick={handleSaveGratitude} disabled={!gratitudeText.trim()}>Save Gratitude</Button>
               </div>
               <div className="p-4 border rounded-lg">
                 <h3 className="font-semibold mb-2">Cognitive Reframing</h3>
@@ -365,7 +351,7 @@ const WellnessPage: FC = () => {
                  <Input placeholder="e.g., I'll never finish this project" value={negativeThought} onChange={(e) => setNegativeThought(e.target.value)} />
                  <p className="text-sm text-muted-foreground mt-3 mb-1">Reframe it positively:</p>
                  <Input placeholder="e.g., I can break it down and tackle one part." value={positiveReframing} onChange={(e) => setPositiveReframing(e.target.value)} />
-                <Button size="sm" className="mt-2" onClick={handleLogReframing} disabled={!negativeThought.trim() || !positiveReframing.trim() || dataMode === 'mock'}>Log Reframing</Button>
+                <Button size="sm" className="mt-2" onClick={handleLogReframing} disabled={!negativeThought.trim() || !positiveReframing.trim()}>Log Reframing</Button>
               </div>
                <p className="text-center text-muted-foreground text-sm pt-4">More exercises coming soon!</p>
             </CardContent>

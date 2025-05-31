@@ -1,7 +1,9 @@
+
 'use client';
 
 import { parseISO } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
 export type GoalStatus = 'Not Started' | 'In Progress' | 'Achieved' | 'On Hold';
 
@@ -15,11 +17,9 @@ export interface Goal {
   updatedAt: Date;
 }
 
-// Local storage key
 export const GOALS_STORAGE_KEY = 'prodev-goals';
 const dateFields: (keyof Goal)[] = ['targetDate', 'createdAt', 'updatedAt'];
 
-// Function to load goals from localStorage
 const loadUserGoals = (): Goal[] => {
   if (typeof window === 'undefined') return [];
   const storedData = localStorage.getItem(GOALS_STORAGE_KEY);
@@ -43,7 +43,6 @@ const loadUserGoals = (): Goal[] => {
   return [];
 };
 
-// Function to save goals to localStorage
 export const saveUserGoals = (goals: Goal[]) => {
   if (typeof window === 'undefined') return;
   try {
@@ -63,22 +62,11 @@ export const saveUserGoals = (goals: Goal[]) => {
   }
 };
 
-// Function to fetch goals based on data mode
-export async function getGoals(dataMode: 'mock' | 'user'): Promise<Goal[]> {
-  if (dataMode === 'user') {
-    return loadUserGoals();
-  } else {
-    const mockDataRaw = await loadMockData<any>('goals');
-    return mockDataRaw.map(goal => ({
-      ...goal,
-      targetDate: goal.targetDate ? parseISO(goal.targetDate) : undefined,
-      createdAt: parseISO(goal.createdAt),
-      updatedAt: parseISO(goal.updatedAt),
-    })).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getGoals(dataMode?: 'mock' | 'user'): Promise<Goal[]> {
+  return loadUserGoals();
 }
 
-// Function to add a new user goal
 export const addUserGoal = (newGoalData: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>): Goal => {
     const userGoals = loadUserGoals();
     const now = new Date();
@@ -93,7 +81,6 @@ export const addUserGoal = (newGoalData: Omit<Goal, 'id' | 'createdAt' | 'update
     return newGoal;
 }
 
-// Function to update a user goal
 export const updateUserGoal = (updatedGoalData: Partial<Goal> & { id: string }): Goal | undefined => {
     const userGoals = loadUserGoals();
     let updatedGoal: Goal | undefined = undefined;
@@ -112,7 +99,6 @@ export const updateUserGoal = (updatedGoalData: Partial<Goal> & { id: string }):
     return updatedGoal;
 }
 
-// Function to delete a user goal
 export const deleteUserGoal = (goalId: string): boolean => {
     const userGoals = loadUserGoals();
     const updatedGoals = userGoals.filter(goal => goal.id !== goalId);

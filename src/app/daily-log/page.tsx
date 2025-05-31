@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -21,8 +22,9 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useDataMode } from '@/context/data-mode-context';
-import { getDailyLogs, addUserLog, deleteUserLog, updateUserLog, type LogEntry, type Mood, DAILY_LOG_STORAGE_KEY } from '@/services/daily-log'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context';
+import { getDailyLogs, addUserLog, deleteUserLog, updateUserLog, type LogEntry, type Mood } from '@/services/daily-log'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from "@/components/ui/slider"; 
 
@@ -45,7 +47,7 @@ const DailyLogPage: FC = () => {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { dataMode } = useDataMode();
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
   const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ const DailyLogPage: FC = () => {
     const loadLogs = async () => {
         setIsLoading(true);
         try {
-            const logs = await getDailyLogs(dataMode);
+            const logs = await getDailyLogs(); // dataMode parameter removed
             setLogEntries(logs);
         } catch (error) {
              console.error("Failed to load daily logs:", error);
@@ -67,12 +69,12 @@ const DailyLogPage: FC = () => {
         }
     };
     loadLogs();
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
   const form = useForm<LogEntryFormValues>({
     resolver: zodResolver(logEntrySchema),
     defaultValues: {
-      date: undefined, // Initialize as undefined
+      date: undefined, 
       activity: '',
       mood: undefined,
       focusLevel: undefined, 
@@ -88,11 +90,6 @@ const DailyLogPage: FC = () => {
     }, [form, defaultDate]);
 
   const onSubmit = (data: LogEntryFormValues) => {
-     if (dataMode === 'mock') {
-        toast({ title: "Read-only Mode", description: "Cannot add log entries in mock data mode.", variant: "destructive"});
-        return;
-     }
-
     try {
         const newEntry = addUserLog({
             date: data.date,
@@ -116,10 +113,6 @@ const DailyLogPage: FC = () => {
   };
 
    const handleDeleteLog = (logId: string) => {
-       if (dataMode === 'mock') {
-           toast({ title: "Read-only Mode", description: "Cannot delete log entries in mock data mode.", variant: "destructive"});
-           return;
-       }
        const logToDelete = logEntries.find(l => l.id === logId);
        try {
            const success = deleteUserLog(logId);
@@ -276,7 +269,7 @@ const DailyLogPage: FC = () => {
                 )}
               />
 
-              <Button type="submit" className="w-full md:w-auto shadow-md" disabled={dataMode === 'mock'}>
+              <Button type="submit" className="w-full md:w-auto shadow-md">
                 <Plus className="mr-2 h-4 w-4" /> Add Log Entry
               </Button>
             </form>
@@ -299,7 +292,7 @@ const DailyLogPage: FC = () => {
                  </div>
              ) : logEntries.length === 0 ? (
                <p className="text-center text-muted-foreground pt-10">
-                  {dataMode === 'mock' ? 'No mock entries loaded.' : 'No entries yet. Add your first log above!'}
+                  No entries yet. Add your first log above!
                 </p>
              ) : (
                logEntries.map((entry, index) => (
@@ -325,8 +318,7 @@ const DailyLogPage: FC = () => {
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{entry.diaryEntry}</p>
                          </>
                      )}
-                      {dataMode === 'user' && (
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                              <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete log entry from ${format(entry.date, 'PPP')}`}>
@@ -350,7 +342,6 @@ const DailyLogPage: FC = () => {
                                 </AlertDialogContent>
                             </AlertDialog>
                         </div>
-                      )}
                    </div>
                    {index < logEntries.length - 1 && <Separator className="my-4" />}
                  </React.Fragment>

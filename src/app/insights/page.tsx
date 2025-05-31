@@ -27,7 +27,6 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
-// --- Import AI Flows ---
 import {
   analyzeProductivityPatterns,
   type AnalyzeProductivityPatternsInput,
@@ -69,7 +68,6 @@ import { generateDailyPlan, type GenerateDailyPlanInput, type GenerateDailyPlanO
 import { analyzeAttentionPatterns, type AnalyzeAttentionPatternsInput, type AnalyzeAttentionPatternsOutput } from '@/ai/flows/analyze-attention-patterns';
 
 
-// --- Import Services ---
 import { getTasks, type Task } from '@/services/task';
 import { getDailyLogs, type LogEntry } from '@/services/daily-log';
 import { getExpenses, type Expense } from '@/services/expense';
@@ -77,17 +75,16 @@ import { getNotes, type Note } from '@/services/note';
 import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
 import { getGoals, type Goal } from '@/services/goal';
 import { getHabits, type Habit } from '@/services/habit';
-import { useDataMode } from '@/context/data-mode-context';
+// useDataMode is no longer needed for display text based on mode
+// import { useDataMode } from '@/context/data-mode-context';
 
 
-// --- Types ---
 type DisplayTask = AnalyzeTaskCompletionOutput['overdueTasks'][number];
 
 type InsightType = 'productivity' | 'diarySummary' | 'expenseTrends' | 'taskCompletion' | 'sentimentAnalysis' | 'lifeBalance' | 'burnoutRisk' | 'attentionPatterns';
 type AIServiceType = InsightType | 'reflection' | 'dailySuggestion' | 'dailyPlan';
 
 
-// --- Form Schema ---
 const insightsRequestSchema = z.object({
   insightType: z.enum(['productivity', 'diarySummary', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailySuggestion', 'dailyPlan', 'attentionPatterns']),
   startDate: z.date().optional(),
@@ -209,7 +206,7 @@ const InsightsPageClient: FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean | AIServiceType>(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode();
+  // const { dataMode } = useDataMode(); // No longer needed for this page's display logic
   
   const [aiPreferences, setAiPreferences] = useState<UserPreferences>({
     aiPersona: 'Supportive Coach',
@@ -232,7 +229,7 @@ const InsightsPageClient: FC = () => {
               ...prev,
               aiPersona: parsed.preferences.aiPersona || prev.aiPersona,
               aiInsightVerbosity: parsed.preferences.aiInsightVerbosity || prev.aiInsightVerbosity,
-              energyLevelPattern: parsed.preferences.energyPattern || prev.energyLevelPattern,
+              energyPattern: parsed.preferences.energyPattern || prev.energyLevelPattern,
               growthPace: parsed.preferences.growthPace || prev.growthPace,
               preferredWorkTimes: parsed.preferences.preferredWorkTimes || prev.preferredWorkTimes,
             }));
@@ -268,11 +265,11 @@ const InsightsPageClient: FC = () => {
              const todayEnd = endOfDay(now);
 
              const [logs, tasks, events, habits, goals] = await Promise.all([
-                getDailyLogs(dataMode).then(d => d.filter(l => l.date >= yesterday)),
-                getTasks(dataMode).then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrow))),
-                getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= todayStart && ev.start <= todayEnd)),
-                getHabits(dataMode),
-                getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
+                getDailyLogs().then(d => d.filter(l => l.date >= yesterday)),
+                getTasks().then(t => t.filter(task => task.status !== 'Completed' && (!task.dueDate || task.dueDate <= tomorrow))),
+                getCalendarEvents().then(e => e.filter(ev => ev.start >= todayStart && ev.start <= todayEnd)),
+                getHabits(),
+                getGoals().then(g => g.filter(goal => goal.status === 'In Progress')),
              ]);
 
              const input: GenerateDailySuggestionsInput = {
@@ -303,7 +300,7 @@ const InsightsPageClient: FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [dataMode, toast, aiPreferences]);
+    }, [toast, aiPreferences]);
 
     useEffect(() => {
         fetchDailySuggestions();
@@ -318,7 +315,6 @@ const InsightsPageClient: FC = () => {
      setSentimentAnalysis(null);
      setLifeBalance(null);
      setBurnoutRisk(null);
-     // Do not clear reflectionState if selectedInsightType is 'reflection' to allow conversation continuation
      if (selectedInsightType !== 'reflection') {
        setReflectionState({ conversation: { questions: [], responses: [] }, output: null });
      }
@@ -339,11 +335,10 @@ const InsightsPageClient: FC = () => {
        let endDate = 'endDate' in data && data.endDate instanceof Date && isValidDate(data.endDate) ? data.endDate : new Date();
        
        if (insightType === 'reflection') {
-           // Ensure reflection always uses a consistent past week if not explicitly set by toolParam
-           if (!toolParam || toolParam !== 'reflection') { // Only default if not from toolParam navigation
+           if (!toolParam || toolParam !== 'reflection') { 
                 const today = new Date();
-                startDate = startOfWeek(subDays(today, 7), { weekStartsOn: 1 }); // Previous week, Monday
-                endDate = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });     // Previous week, Sunday
+                startDate = startOfWeek(subDays(today, 7), { weekStartsOn: 1 }); 
+                endDate = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });     
                 form.setValue('startDate', startDate);
                 form.setValue('endDate', endDate);
            }
@@ -366,13 +361,13 @@ const InsightsPageClient: FC = () => {
         const requiresHabits = ['lifeBalance', 'reflection', 'dailyPlan'].includes(insightType);
 
         const fetchDataPromises: Promise<any>[] = [
-            requiresLogs ? getDailyLogs(dataMode) : Promise.resolve([]),
-            requiresTasks ? getTasks(dataMode) : Promise.resolve([]),
-            requiresEvents ? getCalendarEvents(dataMode) : Promise.resolve([]),
-            requiresExpenses ? getExpenses(dataMode) : Promise.resolve([]),
-            requiresNotes ? getNotes(dataMode) : Promise.resolve([]),
-            requiresGoals ? getGoals(dataMode) : Promise.resolve([]),
-            requiresHabits ? getHabits(dataMode) : Promise.resolve([]),
+            requiresLogs ? getDailyLogs() : Promise.resolve([]),
+            requiresTasks ? getTasks() : Promise.resolve([]),
+            requiresEvents ? getCalendarEvents() : Promise.resolve([]),
+            requiresExpenses ? getExpenses() : Promise.resolve([]),
+            requiresNotes ? getNotes() : Promise.resolve([]),
+            requiresGoals ? getGoals() : Promise.resolve([]),
+            requiresHabits ? getHabits() : Promise.resolve([]),
         ];
 
         const [allLogs, allTasks, allEvents, allExpenses, allNotes, allGoals, allHabits] = await Promise.all(fetchDataPromises);
@@ -390,7 +385,7 @@ const InsightsPageClient: FC = () => {
              const due = task.dueDate;
              const isCreatedInRange = created instanceof Date && isValidDate(created) && isWithinInterval(created, dateRangeFilter);
              const isDueInRange = due instanceof Date && isValidDate(due) && isWithinInterval(due, dateRangeFilter);
-             return isCreatedInRange || isDueInRange || task.status !== 'Completed'; // Consider all non-completed or those within range
+             return isCreatedInRange || isDueInRange || task.status !== 'Completed'; 
          }) : [];
          const eventsInRange = requiresEvents ? allEvents.filter(filterByDate) : [];
          const expensesInRange = requiresExpenses ? allExpenses.filter(filterByDate) : [];
@@ -480,7 +475,6 @@ const InsightsPageClient: FC = () => {
                 break;
 
               case 'reflection':
-                  // Data for reflection should be for the specified period
                   const reflectionInput: ReflectOnWeekInput = {
                      ...dateInput,
                      logs: formatArrayForFlow(logsInRange, ['date']),
@@ -488,8 +482,8 @@ const InsightsPageClient: FC = () => {
                      goals: formatArrayForFlow(goalsInRange, ['createdAt', 'updatedAt', 'targetDate']),
                      habits: formatArrayForFlow(habitsInRange, ['createdAt', 'updatedAt', 'lastCompleted']),
                       previousReflection: reflectionState.output ? {
-                          questionsAsked: [...reflectionState.conversation.questions, reflectionState.output.coachPrompt].slice(-5), // Keep last 5 questions
-                          userResponses: [...reflectionState.conversation.responses, reflectionUserInput].slice(-5), // Keep last 5 responses
+                          questionsAsked: [...reflectionState.conversation.questions, reflectionState.output.coachPrompt].slice(-5), 
+                          userResponses: [...reflectionState.conversation.responses, reflectionUserInput].slice(-5), 
                           aiSummary: reflectionState.output.observation,
                       } : undefined,
                       userResponse: reflectionUserInput || undefined,
@@ -503,7 +497,7 @@ const InsightsPageClient: FC = () => {
                      },
                      output: reflectionResult,
                  }));
-                 setReflectionUserInput(''); // Clear input after sending
+                 setReflectionUserInput(''); 
                  break;
 
              case 'dailySuggestion':
@@ -511,8 +505,8 @@ const InsightsPageClient: FC = () => {
                  break;
 
              case 'dailyPlan':
-                const targetDate = startDate; // For daily plan, startDate is the target date
-                const planContextStart = startOfDay(subDays(targetDate, 2)); // Logs from past 2 days + target day
+                const targetDate = startDate; 
+                const planContextStart = startOfDay(subDays(targetDate, 2)); 
                 const planContextEnd = endOfDay(targetDate);
                 const targetDayStart = startOfDay(targetDate);
                 const targetDayEnd = endOfDay(targetDate);
@@ -573,7 +567,7 @@ const InsightsPageClient: FC = () => {
      } finally {
        setIsLoading(false);
      }
-   }, [toast, dataMode, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences, form, toolParam]);
+   }, [toast, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences, form, toolParam]);
 
 
    useEffect(() => {
@@ -584,7 +578,7 @@ const InsightsPageClient: FC = () => {
             let effectiveEndDate = now;
 
             if (toolParam === 'reflection') {
-                effectiveStartDate = startOfWeek(subDays(now, 7), { weekStartsOn: 1 }); // Previous full week
+                effectiveStartDate = startOfWeek(subDays(now, 7), { weekStartsOn: 1 }); 
                 effectiveEndDate = endOfWeek(subDays(now, 7), { weekStartsOn: 1 });
             } else if (toolParam === 'dailyPlan') {
                 effectiveStartDate = startOfDay(now);
@@ -610,7 +604,6 @@ const InsightsPageClient: FC = () => {
     const handleReflectionResponseSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!reflectionUserInput.trim() || isLoading === 'reflection') return;
-        // Fetch current form values for dates to pass to onSubmit
         const currentFormValues = form.getValues();
         onSubmit({ 
             insightType: 'reflection', 
@@ -716,7 +709,7 @@ const InsightsPageClient: FC = () => {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Generate Specific Insights</CardTitle>
-          <CardDescription>Select the type of insight and parameters to analyze your data ({dataMode === 'mock' ? 'using Mock Data' : 'using Your Data'}). AI responses will reflect your preferences from Settings.</CardDescription>
+          <CardDescription>Select the type of insight and parameters to analyze your data. AI responses will reflect your preferences from Settings.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -739,10 +732,9 @@ const InsightsPageClient: FC = () => {
                              form.setValue('endDate', now, { shouldValidate: true });
                          } else if (value === 'diarySummary') {
                              form.setValue('frequency', 'weekly');
-                             form.setValue('startDate', startOfWeek(now), { shouldValidate: true }); // Current week default
+                             form.setValue('startDate', startOfWeek(now), { shouldValidate: true }); 
                              form.setValue('endDate', endOfWeek(now), { shouldValidate: true });
                          } else if (value === 'reflection') {
-                            // Default to previous full week for reflection
                              form.setValue('startDate', startOfWeek(subDays(now, 7),{weekStartsOn: 1}), { shouldValidate: true });
                              form.setValue('endDate', endOfWeek(subDays(now, 7),{weekStartsOn: 1}), { shouldValidate: true });
                          } else if (value === 'dailyPlan') {
@@ -1132,4 +1124,3 @@ const InsightsPage: FC = () => {
 };
 
 export default InsightsPage;
-    

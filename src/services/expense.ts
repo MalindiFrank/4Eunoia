@@ -1,14 +1,12 @@
+
 'use client';
 
 import { parseISO } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
-// Local storage key
 export const EXPENSE_STORAGE_KEY = 'prodev-expenses';
 
-/**
- * Represents an expense.
- */
 export interface Expense {
   id: string;
   description: string;
@@ -17,7 +15,6 @@ export interface Expense {
   category: string;
 }
 
-// Function to load expenses from localStorage
 const loadUserExpenses = (): Expense[] => {
   if (typeof window === 'undefined') return [];
   const storedExpenses = localStorage.getItem(EXPENSE_STORAGE_KEY);
@@ -36,7 +33,6 @@ const loadUserExpenses = (): Expense[] => {
   return [];
 };
 
-// Function to save expenses to localStorage
 export const saveUserExpenses = (expenses: Expense[]) => {
    if (typeof window === 'undefined') return;
   try {
@@ -50,21 +46,11 @@ export const saveUserExpenses = (expenses: Expense[]) => {
   }
 };
 
-// Function to fetch expenses based on data mode
-export async function getExpenses(dataMode: 'mock' | 'user'): Promise<Expense[]> {
-  if (dataMode === 'user') {
-    return loadUserExpenses();
-  } else {
-    const mockExpensesRaw = await loadMockData<any>('expenses');
-     return mockExpensesRaw.map(expense => ({
-        ...expense,
-        date: parseISO(expense.date),
-        amount: Number(expense.amount) || 0, // Ensure amount is number
-    })).sort((a, b) => b.date.getTime() - a.date.getTime());
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getExpenses(dataMode?: 'mock' | 'user'): Promise<Expense[]> {
+  return loadUserExpenses();
 }
 
-// Function to add a new user expense
 export const addUserExpense = (newExpenseData: Omit<Expense, 'id'>): Expense => {
     const userExpenses = loadUserExpenses();
     const newExpense: Expense = {
@@ -76,7 +62,6 @@ export const addUserExpense = (newExpenseData: Omit<Expense, 'id'>): Expense => 
     return newExpense;
 }
 
-// Function to update a user expense
 export const updateUserExpense = (updatedExpense: Expense): Expense | undefined => {
     if (!updatedExpense.id) return undefined;
     const userExpenses = loadUserExpenses();
@@ -96,7 +81,6 @@ export const updateUserExpense = (updatedExpense: Expense): Expense | undefined 
     return undefined;
 }
 
-// Function to delete a user expense
 export const deleteUserExpense = (expenseId: string): boolean => {
     const userExpenses = loadUserExpenses();
     const updatedExpenses = userExpenses.filter(expense => expense.id !== expenseId);

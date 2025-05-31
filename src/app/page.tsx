@@ -7,7 +7,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Activity, Calendar, ListChecks, CreditCard, Lightbulb, PieChart, Settings, Smile, StickyNote, Target, BrainCircuit, Loader2, Mic, XCircle, CheckCircle, Eye, Map, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
-import { useDataMode } from '@/context/data-mode-context';
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,7 @@ import { getHabits, type Habit } from '@/services/habit';
 import { addUserNote, type Note } from '@/services/note'; 
 import { formatISO, startOfDay, endOfDay, subDays, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils'; // Import settings key
+import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils'; 
 
 
 const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys: (keyof T)[] = ['date', 'createdAt', 'updatedAt', 'start', 'end', 'dueDate', 'lastCompleted', 'targetDate']): any[] => {
@@ -44,7 +45,6 @@ const formatForFlow = <T extends Record<string, any>>(items: T[] = [], dateKeys:
 export default function Home() {
     const [dailyPlan, setDailyPlan] = useState<GenerateDailyPlanOutput | null>(null);
     const [isLoadingPlan, setIsLoadingPlan] = useState(true);
-    const { dataMode } = useDataMode();
     const { toast } = useToast();
 
     const [isListening, setIsListening] = useState(false);
@@ -107,12 +107,12 @@ export default function Home() {
         setIsLoadingBurnout(true);
         try {
             const endDate = new Date();
-            const startDate = subDays(endDate, 14); // Analyze past 14 days for burnout risk
+            const startDate = subDays(endDate, 14); 
 
             const [logs, tasks, events] = await Promise.all([
-                getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
-                getTasks(dataMode), // Fetch all tasks, flow will filter
-                getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startDate && ev.start <= endDate)),
+                getDailyLogs().then(d => d.filter(l => l.date >= startDate && l.date <= endDate)),
+                getTasks(), 
+                getCalendarEvents().then(e => e.filter(ev => ev.start >= startDate && ev.start <= endDate)),
             ]);
 
             const input: EstimateBurnoutRiskInput = {
@@ -131,7 +131,7 @@ export default function Home() {
         } finally {
             setIsLoadingBurnout(false);
         }
-    }, [dataMode, toast, neuroSettings.enabled, neuroSettings.focusShieldEnabled]);
+    }, [toast, neuroSettings.enabled, neuroSettings.focusShieldEnabled]);
 
     useEffect(() => {
         fetchBurnoutRisk();
@@ -142,15 +142,15 @@ export default function Home() {
         setIsLoadingPlan(true);
         try {
             const today = new Date();
-            const startDateLogs = startOfDay(subDays(today, 2)); // Logs from past 2 days + target day
+            const startDateLogs = startOfDay(subDays(today, 2)); 
             const endDateLogs = endOfDay(today);
 
             const [logs, tasks, events, goals, habits] = await Promise.all([
-                getDailyLogs(dataMode).then(d => d.filter(l => l.date >= startDateLogs && l.date <= endDateLogs)),
-                getTasks(dataMode).then(t => t.filter(task => (task.dueDate && task.dueDate >= startOfDay(today) && task.dueDate <= endOfDay(today)) || task.status !== 'Completed')),
-                getCalendarEvents(dataMode).then(e => e.filter(ev => ev.start >= startOfDay(today) && ev.start <= endOfDay(today))),
-                getGoals(dataMode).then(g => g.filter(goal => goal.status === 'In Progress')),
-                getHabits(dataMode),
+                getDailyLogs().then(d => d.filter(l => l.date >= startDateLogs && l.date <= endDateLogs)),
+                getTasks().then(t => t.filter(task => (task.dueDate && task.dueDate >= startOfDay(today) && task.dueDate <= endOfDay(today)) || task.status !== 'Completed')),
+                getCalendarEvents().then(e => e.filter(ev => ev.start >= startOfDay(today) && ev.start <= endOfDay(today))),
+                getGoals().then(g => g.filter(goal => goal.status === 'In Progress')),
+                getHabits(),
             ]);
 
             const planInput: GenerateDailyPlanInput = {
@@ -176,7 +176,7 @@ export default function Home() {
         } finally {
             setIsLoadingPlan(false);
         }
-    }, [dataMode, toast, aiPreferences]);
+    }, [toast, aiPreferences]);
 
     useEffect(() => {
         fetchDailyPlan();
@@ -222,7 +222,6 @@ export default function Home() {
 
             recognition.onend = () => {
                 setIsListening(false);
-                // Process finalTranscript here if needed, or rely on the useEffect below
             };
         } else {
             console.warn("Speech Recognition API not supported in this browser.");
@@ -237,11 +236,7 @@ export default function Home() {
 
     const handleVoiceInputCallback = useCallback(async (text: string) => {
         if (!text) return;
-        if (dataMode === 'mock') {
-            toast({ title: "Voice Action Disabled", description: "Actions via voice are disabled in Mock Data Mode. Please 'Start My Journey'.", variant: "destructive"});
-            return;
-        }
-
+        
         toast({ title: "Processing voice input...", description: `Recognized: "${text}"`});
         try {
             const input: ProcessVoiceInput = {
@@ -263,8 +258,8 @@ export default function Home() {
                             addUserLog({
                                 date: logDate,
                                 activity: title,
-                                notes: description, // Use 'description' for short notes
-                                diaryEntry: content, // Use 'content' for longer diary
+                                notes: description, 
+                                diaryEntry: content, 
                                 mood: mood as any, 
                                 focusLevel: focusLevel,
                             });
@@ -289,10 +284,10 @@ export default function Home() {
                         }
                         break;
                     case 'create_note':
-                        if (title && (content || description)) { // Check both content and description
+                        if (title && (content || description)) { 
                              addUserNote({
                                 title: title,
-                                content: content || description || '', // Prefer content, fallback to description
+                                content: content || description || '', 
                             });
                             actionDescription = `Note created: "${title}".`;
                             actionTaken = true;
@@ -319,13 +314,13 @@ export default function Home() {
             }
             toast({ title: "AI Processing Error", description: errDesc, variant: "destructive" });
         }
-    }, [toast, dataMode]);
+    }, [toast]);
 
 
     useEffect(() => {
       if (!isListening && finalTranscript.trim()) {
         handleVoiceInputCallback(finalTranscript.trim());
-        setFinalTranscript(''); // Clear transcript after processing
+        setFinalTranscript(''); 
       }
     }, [isListening, finalTranscript, handleVoiceInputCallback]);
 
@@ -540,7 +535,6 @@ function DashboardCardLarge({ title, icon: Icon, description, href, isShielded, 
   );
 }
 
-// Placeholder for an image, replace with next/image if used
 const ImagePlaceholder: React.FC<{ src: string; alt: string; width: number; height: number, 'data-ai-hint'?: string }> = ({ src, alt, width, height, ...props }) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img src={src} alt={alt} width={width} height={height} className="rounded-md object-cover" {...props} />

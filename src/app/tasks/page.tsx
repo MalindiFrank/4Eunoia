@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -23,12 +24,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import type { Task } from '@/services/task'; 
-import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus, TASK_STORAGE_KEY } from '@/services/task'; 
-import { useDataMode } from '@/context/data-mode-context'; 
+import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context'; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 
-// Task Schema
 const taskSchema = z.object({
   title: z.string().min(1, 'Task title cannot be empty.'),
   description: z.string().optional(),
@@ -39,13 +40,11 @@ const taskSchema = z.object({
 type TaskFormValues = z.infer<typeof taskSchema>;
 
 
-// Task Form Component
 const TaskForm: FC<{
     onClose: () => void;
     initialData?: Task | null;
     onSave: (task: Task) => void;
 }> = ({ onClose, initialData, onSave }) => {
-    const { dataMode } = useDataMode();
     const { toast } = useToast();
 
     const form = useForm<TaskFormValues>({
@@ -64,12 +63,6 @@ const TaskForm: FC<{
     });
 
     const onSubmit = (data: TaskFormValues) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot add or edit tasks in mock data mode.", variant: "destructive"});
-            onClose();
-            return;
-        }
-
         const taskData: Omit<Task, 'id' | 'createdAt'> = data; 
 
         try {
@@ -105,7 +98,7 @@ const TaskForm: FC<{
                 <FormField control={form.control} name="status" render={({ field }) => ( <FormItem> <FormLabel>Status</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Select status" /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value="Pending">Pending</SelectItem> <SelectItem value="In Progress">In Progress</SelectItem> <SelectItem value="Completed">Completed</SelectItem> </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Task' : 'Add Task'}</Button>
+                    <Button type="submit">{initialData ? 'Update Task' : 'Add Task'}</Button>
                 </DialogFooter>
             </form>
         </Form>
@@ -119,13 +112,13 @@ const TasksPage: FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true);
       try {
-        const loadedTasks = await getTasks(dataMode);
+        const loadedTasks = await getTasks(); // dataMode parameter removed
         setTasks(loadedTasks);
       } catch (error) {
         console.error("Failed to load tasks:", error);
@@ -136,7 +129,7 @@ const TasksPage: FC = () => {
       }
     };
     loadTasks();
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
 
    const openDialog = (task: Task | null = null) => {
@@ -162,10 +155,6 @@ const TasksPage: FC = () => {
     };
 
     const handleDeleteTask = (taskId: string) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot delete tasks in mock data mode.", variant: "destructive"});
-            return;
-        }
        const taskToDelete = tasks.find(t => t.id === taskId);
        try {
            const success = deleteUserTask(taskId);
@@ -182,10 +171,6 @@ const TasksPage: FC = () => {
    };
 
     const handleToggleTaskStatus = (taskId: string) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot change task status in mock data mode.", variant: "destructive"});
-            return;
-        }
         try {
             const updatedTask = toggleUserTaskStatus(taskId);
             if (updatedTask) {
@@ -259,7 +244,7 @@ const TasksPage: FC = () => {
                          </div>
                     ) : sortedTasks.length === 0 ? (
                         <p className="text-center text-muted-foreground pt-10">
-                           {dataMode === 'mock' ? 'No mock tasks loaded.' : 'No tasks yet. Add your first task!'}
+                           No tasks yet. Add your first task!
                         </p>
                     ) : (
                         sortedTasks.map((task, index) => (
@@ -271,7 +256,6 @@ const TasksPage: FC = () => {
                                             checked={task.status === 'Completed'}
                                             onCheckedChange={() => handleToggleTaskStatus(task.id)}
                                             className="mt-1 flex-shrink-0" 
-                                            disabled={dataMode === 'mock'}
                                             aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`} 
                                         />
                                         <div className="grid gap-0.5 flex-grow">

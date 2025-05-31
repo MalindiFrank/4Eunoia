@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -19,8 +20,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import type { CalendarEvent } from '@/services/calendar';
-import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent, CALENDAR_EVENTS_STORAGE_KEY } from '@/services/calendar';
-import { useDataMode } from '@/context/data-mode-context';
+import { getCalendarEvents, addUserEvent, updateUserEvent, deleteUserEvent } from '@/services/calendar';
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -28,7 +30,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 
 
-// Event Form Schema
 const eventSchema = z.object({
   title: z.string().min(1, 'Event title cannot be empty.'),
   startDateTime: z.date({ required_error: 'Start date and time are required.' }),
@@ -49,7 +50,7 @@ const EventForm: FC<{
     onSave: (event: CalendarEvent) => void; 
 }> = ({ onClose, initialData, selectedDate, onSave }) => {
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
   const [defaultStartDateTime, setDefaultStartDateTime] = useState<Date | undefined>(undefined);
   const [defaultEndDateTime, setDefaultEndDateTime] = useState<Date | undefined>(undefined);
 
@@ -82,12 +83,6 @@ const EventForm: FC<{
   }, [form, initialData, defaultStartDateTime, defaultEndDateTime]);
 
   const onSubmit = (data: EventFormValues) => {
-     if (dataMode === 'mock') {
-         toast({ title: "Read-only Mode", description: "Cannot add or edit events in mock data mode.", variant: "destructive"});
-         onClose();
-         return;
-     }
-
     const eventData: Omit<CalendarEvent, 'id'> = {
         title: data.title,
         start: data.startDateTime,
@@ -228,7 +223,7 @@ const EventForm: FC<{
 
         <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-            <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Event' : 'Add Event'}</Button>
+            <Button type="submit">{initialData ? 'Update Event' : 'Add Event'}</Button>
         </DialogFooter>
         </form>
     </Form>
@@ -244,7 +239,7 @@ const CalendarPage: FC = () => {
    const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null); 
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(monthStart);
@@ -255,7 +250,7 @@ const CalendarPage: FC = () => {
     const loadEvents = async () => {
       try {
         setIsLoading(true);
-        const fetchedEvents = await getCalendarEvents(dataMode); 
+        const fetchedEvents = await getCalendarEvents(); // dataMode parameter removed
         const filteredEvents = fetchedEvents.filter(event =>
             (event.start >= startDate && event.start <= endDate) ||
             (event.end >= startDate && event.end <= endDate) ||
@@ -275,7 +270,7 @@ const CalendarPage: FC = () => {
       }
     };
     loadEvents();
-  }, [dataMode, currentMonth, toast, startDate, endDate]); 
+  }, [currentMonth, toast, startDate, endDate]); // Removed dataMode from dependencies
 
   const daysInMonth = eachDayOfInterval({ start: startDate, end: endDate });
 
@@ -302,10 +297,6 @@ const CalendarPage: FC = () => {
    };
 
     const handleDeleteEvent = (eventId: string) => {
-         if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot delete events in mock data mode.", variant: "destructive"});
-            return;
-         }
         try {
              const success = deleteUserEvent(eventId);
              if (success) {
@@ -414,7 +405,7 @@ const CalendarPage: FC = () => {
                    aria-label={`Event: ${event.title} at ${format(event.start, 'p')}. Click to edit.`} 
                 >
                    <span className="font-medium">{format(event.start, 'p')}</span> {event.title}
-                    {dataMode === 'user' && event.id && ( 
+                    {event.id && ( 
                          <div className="absolute top-0 right-0 flex opacity-0 group-hover/event:opacity-100 group-focus-within/event:opacity-100 transition-opacity"> 
                              <Button variant="ghost" size="icon" className="h-5 w-5 text-primary-foreground/70 hover:text-primary-foreground" onClick={(e) => { e.stopPropagation(); openEventDialog(day, event); }} aria-label={`Edit event "${event.title}"`}>
                                  <Edit className="h-3 w-3" />

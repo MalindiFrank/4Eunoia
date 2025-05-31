@@ -1,14 +1,12 @@
+
 'use client';
 
 import { parseISO } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
-// Local storage key
 export const REMINDER_STORAGE_KEY = 'prodev-reminders';
 
-/**
- * Represents a reminder.
- */
 export interface Reminder {
   id: string;
   title: string;
@@ -16,7 +14,6 @@ export interface Reminder {
   description?: string;
 }
 
-// Function to load reminders from localStorage
 const loadUserReminders = (): Reminder[] => {
   if (typeof window === 'undefined') return [];
   const storedReminders = localStorage.getItem(REMINDER_STORAGE_KEY);
@@ -26,7 +23,6 @@ const loadUserReminders = (): Reminder[] => {
         ...reminder,
         dateTime: parseISO(reminder.dateTime),
       }));
-       // Filter out past reminders and sort
        const now = new Date();
         return parsedReminders
             .filter((r: Reminder) => r.dateTime >= now)
@@ -39,7 +35,6 @@ const loadUserReminders = (): Reminder[] => {
   return [];
 };
 
-// Function to save reminders to localStorage
 export const saveUserReminders = (reminders: Reminder[]) => {
    if (typeof window === 'undefined') return;
   try {
@@ -53,34 +48,14 @@ export const saveUserReminders = (reminders: Reminder[]) => {
   }
 };
 
-
-// Function to fetch upcoming reminders based on data mode
-export async function getUpcomingReminders(dataMode: 'mock' | 'user'): Promise<Reminder[]> {
-  if (dataMode === 'user') {
-    // Load and filter from localStorage
-    return loadUserReminders(); // Already filters past
-  } else {
-     // Load mock data and filter past
-     const mockRemindersRaw = await loadMockData<any>('reminders');
-     const now = new Date();
-     return mockRemindersRaw
-       .map(reminder => ({
-         ...reminder,
-         dateTime: parseISO(reminder.dateTime),
-       }))
-       .filter(r => r.dateTime >= now) // Filter past mock reminders
-       .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getUpcomingReminders(dataMode?: 'mock' | 'user'): Promise<Reminder[]> {
+  return loadUserReminders();
 }
 
-// Function to add a new user reminder
 export const addUserReminder = (newReminderData: Omit<Reminder, 'id'>): Reminder => {
-    // Fetch *all* reminders from storage, not just upcoming, to avoid losing past ones
     if (typeof window === 'undefined') {
-        // Handle server-side or return an error/empty object
         console.error("Cannot add reminder outside client environment.");
-        // This is a temporary fix, ideally this function shouldn't be called server-side
-        // or should handle it gracefully.
         return { ...newReminderData, id: 'error-invalid-context', dateTime: new Date() };
     }
     const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
@@ -102,12 +77,9 @@ export const addUserReminder = (newReminderData: Omit<Reminder, 'id'>): Reminder
     return newReminder;
 }
 
-
-// Function to update a user reminder
 export const updateUserReminder = (updatedReminder: Reminder): Reminder | undefined => {
      if (!updatedReminder.id) return undefined;
-     // Fetch *all* reminders from storage
-      if (typeof window === 'undefined') return undefined; // Add guard
+      if (typeof window === 'undefined') return undefined; 
      const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
      let allUserReminders: Reminder[] = [];
      if (storedRemindersRaw) {
@@ -135,10 +107,8 @@ export const updateUserReminder = (updatedReminder: Reminder): Reminder | undefi
      return undefined;
 }
 
-// Function to delete a user reminder
 export const deleteUserReminder = (reminderId: string): boolean => {
-    // Fetch *all* reminders from storage
-     if (typeof window === 'undefined') return false; // Add guard
+     if (typeof window === 'undefined') return false; 
     const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
     let allUserReminders: Reminder[] = [];
     if (storedRemindersRaw) {

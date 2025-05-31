@@ -1,7 +1,9 @@
+
 'use client';
 
 import { parseISO, startOfDay } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
 export type HabitFrequency = 'Daily' | 'Weekly' | 'Monthly' | 'Specific Days';
 
@@ -17,11 +19,9 @@ export interface Habit {
   updatedAt: Date;
 }
 
-// Local storage key
 export const HABITS_STORAGE_KEY = 'prodev-habits';
 const dateFields: (keyof Habit)[] = ['lastCompleted', 'createdAt', 'updatedAt'];
 
-// Function to load habits from localStorage
 const loadUserHabits = (): Habit[] => {
   if (typeof window === 'undefined') return [];
   const storedData = localStorage.getItem(HABITS_STORAGE_KEY);
@@ -45,7 +45,6 @@ const loadUserHabits = (): Habit[] => {
   return [];
 };
 
-// Function to save habits to localStorage
 export const saveUserHabits = (habits: Habit[]) => {
   if (typeof window === 'undefined') return;
   try {
@@ -65,22 +64,11 @@ export const saveUserHabits = (habits: Habit[]) => {
   }
 };
 
-// Function to fetch habits based on data mode
-export async function getHabits(dataMode: 'mock' | 'user'): Promise<Habit[]> {
-  if (dataMode === 'user') {
-    return loadUserHabits();
-  } else {
-    const mockDataRaw = await loadMockData<any>('habits');
-    return mockDataRaw.map(habit => ({
-      ...habit,
-      lastCompleted: habit.lastCompleted ? parseISO(habit.lastCompleted) : undefined,
-      createdAt: parseISO(habit.createdAt),
-      updatedAt: parseISO(habit.updatedAt),
-    })).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getHabits(dataMode?: 'mock' | 'user'): Promise<Habit[]> {
+  return loadUserHabits();
 }
 
-// Function to add a new user habit
 export const addUserHabit = (newHabitData: Omit<Habit, 'id' | 'streak' | 'createdAt' | 'updatedAt'>): Habit => {
     const userHabits = loadUserHabits();
     const now = new Date();
@@ -96,14 +84,12 @@ export const addUserHabit = (newHabitData: Omit<Habit, 'id' | 'streak' | 'create
     return newHabit;
 }
 
-// Function to update a user habit
 export const updateUserHabit = (updatedHabitData: Partial<Habit> & { id: string }): Habit | undefined => {
     const userHabits = loadUserHabits();
     let updatedHabit: Habit | undefined = undefined;
     const now = new Date();
     const updatedHabits = userHabits.map(habit => {
         if (habit.id === updatedHabitData.id) {
-            // Ensure streak and lastCompleted aren't accidentally overwritten if not provided
             updatedHabit = { ...habit, ...updatedHabitData, updatedAt: now };
             return updatedHabit;
         }
@@ -116,7 +102,6 @@ export const updateUserHabit = (updatedHabitData: Partial<Habit> & { id: string 
     return updatedHabit;
 }
 
-// Function to delete a user habit
 export const deleteUserHabit = (habitId: string): boolean => {
     const userHabits = loadUserHabits();
     const updatedHabits = userHabits.filter(habit => habit.id !== habitId);
@@ -127,7 +112,6 @@ export const deleteUserHabit = (habitId: string): boolean => {
     return false;
 }
 
-// Function to mark a habit as complete (simplified version)
 export const markUserHabitComplete = (habitId: string): Habit | null => {
     const userHabits = loadUserHabits();
     const today = startOfDay(new Date());
@@ -136,7 +120,6 @@ export const markUserHabitComplete = (habitId: string): Habit | null => {
 
     const updatedHabits = userHabits.map(h => {
         if (h.id === habitId) {
-            // Crude check: only update if not completed today already
             if (!h.lastCompleted || startOfDay(h.lastCompleted) < today) {
                 habitUpdated = true;
                  completedHabit = { ...h, streak: (h.streak || 0) + 1, lastCompleted: new Date(), updatedAt: new Date() };
@@ -148,7 +131,7 @@ export const markUserHabitComplete = (habitId: string): Habit | null => {
 
     if (habitUpdated) {
         saveUserHabits(updatedHabits);
-        return completedHabit; // Return the updated habit
+        return completedHabit; 
     }
-    return null; // Return null if it wasn't updated (already completed today)
+    return null; 
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -18,8 +19,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useDataMode } from '@/context/data-mode-context'; 
-import { getNotes, addUserNote, updateUserNote, deleteUserNote, type Note, NOTES_STORAGE_KEY } from '@/services/note'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context'; 
+import { getNotes, addUserNote, updateUserNote, deleteUserNote, type Note } from '@/services/note'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 
 const noteSchema = z.object({
@@ -30,13 +32,11 @@ const noteSchema = z.object({
 type NoteFormValues = z.infer<typeof noteSchema>;
 
 
-// Note Form Component
 const NoteForm: FC<{
     onClose: () => void;
     initialData?: Note | null;
     onSave: (note: Note) => void;
 }> = ({ onClose, initialData, onSave }) => {
-     const { dataMode } = useDataMode();
      const { toast } = useToast();
 
      const form = useForm<NoteFormValues>({
@@ -51,12 +51,6 @@ const NoteForm: FC<{
      });
 
     const onSubmit = (data: NoteFormValues) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot add or edit notes in mock data mode.", variant: "destructive"});
-            onClose();
-            return;
-        }
-
         const noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> = data;
 
         try {
@@ -90,7 +84,7 @@ const NoteForm: FC<{
                 <FormField control={form.control} name="content" render={({ field }) => ( <FormItem> <FormLabel>Content</FormLabel> <FormControl> <Textarea placeholder="Start writing your note..." rows={10} {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Note' : 'Create Note'}</Button>
+                    <Button type="submit">{initialData ? 'Update Note' : 'Create Note'}</Button>
                 </DialogFooter>
             </form>
         </Form>
@@ -104,13 +98,13 @@ const NotesPage: FC = () => {
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   useEffect(() => {
     const loadNotes = async () => {
         setIsLoading(true);
         try {
-            const loadedNotes = await getNotes(dataMode);
+            const loadedNotes = await getNotes(); // dataMode parameter removed
             setNotes(loadedNotes);
         } catch (error) {
              console.error("Failed to load notes:", error);
@@ -121,7 +115,7 @@ const NotesPage: FC = () => {
         }
     };
     loadNotes();
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
   const openNoteDialog = (note: Note | null = null) => {
     setEditingNote(note);
@@ -148,10 +142,6 @@ const NotesPage: FC = () => {
    };
 
    const deleteNote = (noteId: string) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot delete notes in mock data mode.", variant: "destructive"});
-            return;
-        }
        const noteToDelete = notes.find(n => n.id === noteId);
        try {
             const success = deleteUserNote(noteId);
@@ -204,7 +194,7 @@ const NotesPage: FC = () => {
                  </div>
             ) : notes.length === 0 ? (
               <p className="text-center text-muted-foreground pt-10">
-                 {dataMode === 'mock' ? 'No mock notes loaded.' : 'No notes yet. Create your first note!'}
+                 No notes yet. Create your first note!
               </p>
             ) : (
               <div className="space-y-3">

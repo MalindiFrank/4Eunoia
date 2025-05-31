@@ -1,7 +1,9 @@
+
 'use client';
 
 import { parseISO } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
 export interface Note {
   id: string;
@@ -11,11 +13,9 @@ export interface Note {
   updatedAt: Date;
 }
 
-// Local storage key
 export const NOTES_STORAGE_KEY = 'prodev-notes';
 const dateFields: (keyof Note)[] = ['createdAt', 'updatedAt'];
 
-// Function to load notes from localStorage
 const loadUserNotes = (): Note[] => {
   if (typeof window === 'undefined') return [];
   const storedData = localStorage.getItem(NOTES_STORAGE_KEY);
@@ -39,7 +39,6 @@ const loadUserNotes = (): Note[] => {
   return [];
 };
 
-// Function to save notes to localStorage
 export const saveUserNotes = (notes: Note[]) => {
   if (typeof window === 'undefined') return;
   try {
@@ -59,21 +58,11 @@ export const saveUserNotes = (notes: Note[]) => {
   }
 };
 
-// Function to fetch notes based on data mode
-export async function getNotes(dataMode: 'mock' | 'user'): Promise<Note[]> {
-  if (dataMode === 'user') {
-    return loadUserNotes();
-  } else {
-    const mockDataRaw = await loadMockData<any>('notes');
-    return mockDataRaw.map(note => ({
-      ...note,
-      createdAt: parseISO(note.createdAt),
-      updatedAt: parseISO(note.updatedAt),
-    })).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getNotes(dataMode?: 'mock' | 'user'): Promise<Note[]> {
+  return loadUserNotes();
 }
 
-// Function to add a new user note
 export const addUserNote = (newNoteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Note => {
     const userNotes = loadUserNotes();
     const now = new Date();
@@ -88,7 +77,6 @@ export const addUserNote = (newNoteData: Omit<Note, 'id' | 'createdAt' | 'update
     return newNote;
 }
 
-// Function to update a user note
 export const updateUserNote = (updatedNoteData: Partial<Note> & { id: string }): Note | undefined => {
     const userNotes = loadUserNotes();
     let updatedNote: Note | undefined = undefined;
@@ -107,7 +95,6 @@ export const updateUserNote = (updatedNoteData: Partial<Note> & { id: string }):
     return updatedNote;
 }
 
-// Function to delete a user note
 export const deleteUserNote = (noteId: string): boolean => {
     const userNotes = loadUserNotes();
     const updatedNotes = userNotes.filter(note => note.id !== noteId);

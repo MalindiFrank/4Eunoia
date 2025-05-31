@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -22,13 +23,13 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense } from '@/services/expense'; 
-import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense, EXPENSE_STORAGE_KEY } from '@/services/expense'; 
-import { useDataMode } from '@/context/data-mode-context'; 
+import { getExpenses, addUserExpense, updateUserExpense, deleteUserExpense } from '@/services/expense'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context'; 
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 
-// Expense Schema
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description cannot be empty.'),
   amount: z.coerce.number().positive('Amount must be a positive number.'),
@@ -47,7 +48,6 @@ const ExpenseForm: FC<{
     initialData?: Expense | null;
     onSave: (expense: Expense) => void;
 }> = ({ onClose, initialData, onSave }) => {
-    const { dataMode } = useDataMode();
     const { toast } = useToast();
     const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
 
@@ -67,7 +67,7 @@ const ExpenseForm: FC<{
         } : {
             description: '',
             amount: 0,
-            date: undefined, // Initialize as undefined
+            date: undefined, 
             category: '',
         },
     });
@@ -80,12 +80,6 @@ const ExpenseForm: FC<{
 
 
     const onSubmit = (data: ExpenseFormValues) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot add or edit expenses in mock data mode.", variant: "destructive"});
-            onClose();
-            return;
-        }
-
         const expenseData: Omit<Expense, 'id'> = data;
 
         try {
@@ -121,7 +115,7 @@ const ExpenseForm: FC<{
                  <FormField control={form.control} name="category" render={({ field }) => ( <FormItem> <FormLabel htmlFor="expense-category-trigger">Category</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger id="expense-category-trigger" aria-label="Select expense category"> <SelectValue placeholder="Select a category" /> </SelectTrigger> </FormControl> <SelectContent> {expenseCategories.map(category => ( <SelectItem key={category} value={category}>{category}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
                  <DialogFooter>
                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                     <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Expense' : 'Add Expense'}</Button>
+                     <Button type="submit">{initialData ? 'Update Expense' : 'Add Expense'}</Button>
                  </DialogFooter>
              </form>
          </Form>
@@ -135,14 +129,14 @@ const ExpensesPage: FC = () => {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
 
   useEffect(() => {
     const loadExpenses = async () => {
       setIsLoading(true);
       try {
-        const loadedExpenses = await getExpenses(dataMode);
+        const loadedExpenses = await getExpenses(); // dataMode parameter removed
         setExpenses(loadedExpenses);
       } catch (error) {
         console.error("Failed to load expenses:", error);
@@ -153,7 +147,7 @@ const ExpensesPage: FC = () => {
       }
     };
     loadExpenses();
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
   const openDialog = (expense: Expense | null = null) => {
      setEditingExpense(expense);
@@ -180,10 +174,6 @@ const ExpensesPage: FC = () => {
     };
 
     const handleDeleteExpense = (expenseId: string) => {
-         if (dataMode === 'mock') {
-             toast({ title: "Read-only Mode", description: "Cannot delete expenses in mock data mode.", variant: "destructive"});
-             return;
-         }
          try {
              const success = deleteUserExpense(expenseId);
              if (success) {
@@ -358,7 +348,7 @@ const ExpensesPage: FC = () => {
                  ) : expenses.length === 0 ? (
                    <TableRow>
                      <TableCell colSpan={5} className="h-24 text-center">
-                         {dataMode === 'mock' ? 'No mock expense data loaded.' : 'No expenses recorded yet.'}
+                        No expenses recorded yet.
                      </TableCell>
                    </TableRow>
                  ) : (

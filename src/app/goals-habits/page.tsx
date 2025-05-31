@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -21,9 +22,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useDataMode } from '@/context/data-mode-context'; 
-import { getGoals, addUserGoal, updateUserGoal, deleteUserGoal, type Goal, type GoalStatus, GOALS_STORAGE_KEY } from '@/services/goal'; 
-import { getHabits, addUserHabit, updateUserHabit, deleteUserHabit, markUserHabitComplete, type Habit, type HabitFrequency, HABITS_STORAGE_KEY } from '@/services/habit'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context'; 
+import { getGoals, addUserGoal, updateUserGoal, deleteUserGoal, type Goal, type GoalStatus } from '@/services/goal'; 
+import { getHabits, addUserHabit, updateUserHabit, deleteUserHabit, markUserHabitComplete, type Habit, type HabitFrequency } from '@/services/habit'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils';
 
@@ -57,7 +59,7 @@ const GoalsHabitsPage: FC = () => {
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
   const [isLoadingHabits, setIsLoadingHabits] = useState(true);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   useEffect(() => {
     const loadData = async () => {
@@ -65,8 +67,8 @@ const GoalsHabitsPage: FC = () => {
       setIsLoadingHabits(true);
       try {
         const [loadedGoals, loadedHabits] = await Promise.all([
-          getGoals(dataMode),
-          getHabits(dataMode),
+          getGoals(), // dataMode parameter removed
+          getHabits(), // dataMode parameter removed
         ]);
         setGoals(loadedGoals);
         setHabits(loadedHabits);
@@ -94,7 +96,7 @@ const GoalsHabitsPage: FC = () => {
             } catch (e) { console.error("Error parsing settings for growth pace:", e); }
         }
     }
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
    useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -135,11 +137,6 @@ const GoalsHabitsPage: FC = () => {
   };
 
   const onGoalSubmit = (data: GoalFormValues) => {
-      if (dataMode === 'mock') {
-          toast({ title: "Read-only Mode", description: "Cannot add or edit goals in mock data mode.", variant: "destructive"});
-          closeGoalDialog();
-          return;
-      }
     try {
         let savedGoal: Goal | undefined;
         if (editingGoal) {
@@ -164,10 +161,6 @@ const GoalsHabitsPage: FC = () => {
   };
 
   const deleteGoal = (goalId: string) => {
-     if (dataMode === 'mock') {
-        toast({ title: "Read-only Mode", description: "Cannot delete goals in mock data mode.", variant: "destructive"});
-        return;
-     }
     const goalToDelete = goals.find(g => g.id === goalId);
      try {
          const success = deleteUserGoal(goalId);
@@ -200,11 +193,6 @@ const GoalsHabitsPage: FC = () => {
    };
 
    const onHabitSubmit = (data: HabitFormValues) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot add or edit habits in mock data mode.", variant: "destructive"});
-            closeHabitDialog();
-            return;
-        }
         try {
              let savedHabit: Habit | undefined;
              if (editingHabit) {
@@ -229,10 +217,6 @@ const GoalsHabitsPage: FC = () => {
    };
 
    const deleteHabit = (habitId: string) => {
-        if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot delete habits in mock data mode.", variant: "destructive"});
-            return;
-        }
      const habitToDelete = habits.find(h => h.id === habitId);
      try {
          const success = deleteUserHabit(habitId);
@@ -249,10 +233,6 @@ const GoalsHabitsPage: FC = () => {
    };
 
    const markHabitCompleteHandler = (habitId: string) => {
-         if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot complete habits in mock data mode.", variant: "destructive"});
-            return;
-         }
          try {
              const updatedHabit = markUserHabitComplete(habitId);
              if (updatedHabit) {
@@ -322,7 +302,7 @@ const GoalsHabitsPage: FC = () => {
                                  <FormField control={goalForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Not Started">Not Started</SelectItem><SelectItem value="In Progress">In Progress</SelectItem><SelectItem value="Achieved">Achieved</SelectItem><SelectItem value="On Hold">On Hold</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                                  <DialogFooter>
                                      <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                     <Button type="submit" disabled={dataMode === 'mock'}>{editingGoal ? 'Update Goal' : 'Create Goal'}</Button>
+                                     <Button type="submit">{editingGoal ? 'Update Goal' : 'Create Goal'}</Button>
                                  </DialogFooter>
                             </form>
                         </Form>
@@ -337,7 +317,7 @@ const GoalsHabitsPage: FC = () => {
                          </div>
                     ) : goals.length === 0 ? (
                          <p className="text-center text-muted-foreground py-10">
-                             {dataMode === 'mock' ? 'No mock goals loaded.' : 'No goals defined yet. Add your first goal!'}
+                             No goals defined yet. Add your first goal!
                          </p>
                     ) : (
                          <div className="space-y-3">
@@ -392,7 +372,7 @@ const GoalsHabitsPage: FC = () => {
                                 <FormField control={habitForm.control} name="frequency" render={({ field }) => (<FormItem><FormLabel>Frequency</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Daily">Daily</SelectItem><SelectItem value="Weekly">Weekly</SelectItem><SelectItem value="Monthly">Monthly</SelectItem><SelectItem value="Specific Days">Specific Days</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                                 <DialogFooter>
                                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                    <Button type="submit" disabled={dataMode === 'mock'}>{editingHabit ? 'Update Habit' : 'Create Habit'}</Button>
+                                    <Button type="submit">{editingHabit ? 'Update Habit' : 'Create Habit'}</Button>
                                 </DialogFooter>
                             </form>
                         </Form>
@@ -407,7 +387,7 @@ const GoalsHabitsPage: FC = () => {
                          </div>
                      ) : habits.length === 0 ? (
                          <p className="text-center text-muted-foreground py-10">
-                            {dataMode === 'mock' ? 'No mock habits loaded.' : 'No habits defined yet. Add your first habit!'}
+                            No habits defined yet. Add your first habit!
                          </p>
                      ) : (
                         <div className="space-y-3">
@@ -429,7 +409,7 @@ const GoalsHabitsPage: FC = () => {
                                                  size="icon"
                                                  className="h-7 w-7 shadow-sm"
                                                  onClick={() => markHabitCompleteHandler(habit.id)}
-                                                 disabled={isCompletedToday || dataMode === 'mock'}
+                                                 disabled={isCompletedToday}
                                                  aria-label={isCompletedToday ? `Habit "${habit.title}" completed today` : `Mark habit "${habit.title}" as complete`}
                                              >
                                                 <Check className="h-4 w-4" />

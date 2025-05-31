@@ -1,24 +1,21 @@
+
 'use client';
 
 import { parseISO } from 'date-fns';
-import { loadMockData } from '@/lib/data-loader';
+// loadMockData is no longer needed
+// import { loadMockData } from '@/lib/data-loader';
 
-// Local storage key
 export const TASK_STORAGE_KEY = 'prodev-tasks';
 
-/**
- * Represents a task.
- */
 export interface Task {
   id: string;
   title: string;
   description?: string;
   dueDate?: Date;
   status: 'Pending' | 'In Progress' | 'Completed';
-  createdAt?: Date; // Added createdAt
+  createdAt?: Date; 
 }
 
-// Function to load tasks from localStorage
 const loadUserTasks = (): Task[] => {
   if (typeof window === 'undefined') return [];
   const storedTasks = localStorage.getItem(TASK_STORAGE_KEY);
@@ -37,7 +34,6 @@ const loadUserTasks = (): Task[] => {
   return [];
 };
 
-// Function to save tasks to localStorage
 export const saveUserTasks = (tasks: Task[]) => {
    if (typeof window === 'undefined') return;
   try {
@@ -52,35 +48,23 @@ export const saveUserTasks = (tasks: Task[]) => {
   }
 };
 
-
-// Function to fetch tasks based on data mode
-export async function getTasks(dataMode: 'mock' | 'user'): Promise<Task[]> {
-  if (dataMode === 'user') {
-    return loadUserTasks();
-  } else {
-    const mockTasksRaw = await loadMockData<any>('tasks');
-    return mockTasksRaw.map(task => ({
-        ...task,
-        dueDate: task.dueDate ? parseISO(task.dueDate) : undefined,
-        createdAt: task.createdAt ? parseISO(task.createdAt) : undefined, // Parse createdAt if present
-    }));
-  }
+// dataMode parameter is now ignored, always loads from user storage
+export async function getTasks(dataMode?: 'mock' | 'user'): Promise<Task[]> {
+  return loadUserTasks();
 }
 
-// Function to add a new user task
 export const addUserTask = (newTaskData: Omit<Task, 'id' | 'createdAt'>): Task => {
     const userTasks = loadUserTasks();
     const newTask: Task = {
         ...newTaskData,
         id: crypto.randomUUID(),
-        createdAt: new Date(), // Set creation date
+        createdAt: new Date(), 
     };
-    const updatedTasks = [newTask, ...userTasks]; // Prepend new task
+    const updatedTasks = [newTask, ...userTasks]; 
     saveUserTasks(updatedTasks);
     return newTask;
 }
 
-// Function to update a user task
 export const updateUserTask = (updatedTask: Task): Task | undefined => {
     if (!updatedTask.id) return undefined;
     const userTasks = loadUserTasks();
@@ -88,19 +72,18 @@ export const updateUserTask = (updatedTask: Task): Task | undefined => {
     const updatedTasks = userTasks.map(task => {
         if (task.id === updatedTask.id) {
             found = true;
-            return { ...task, ...updatedTask }; // Merge updates, keep original createdAt if not provided
+            return { ...task, ...updatedTask }; 
         }
         return task;
     });
 
     if (found) {
         saveUserTasks(updatedTasks);
-        return updatedTask; // Return the merged task data
+        return updatedTask; 
     }
     return undefined;
 }
 
-// Function to delete a user task
 export const deleteUserTask = (taskId: string): boolean => {
     const userTasks = loadUserTasks();
     const updatedTasks = userTasks.filter(task => task.id !== taskId);
@@ -111,7 +94,6 @@ export const deleteUserTask = (taskId: string): boolean => {
     return false;
 }
 
-// Function to toggle task status
 export const toggleUserTaskStatus = (taskId: string): Task | undefined => {
     const userTasks = loadUserTasks();
     let updatedTask: Task | undefined;

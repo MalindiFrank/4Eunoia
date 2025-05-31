@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { FC } from 'react';
@@ -21,8 +22,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import type { Reminder } from '@/services/reminder'; 
-import { getUpcomingReminders, addUserReminder, updateUserReminder, deleteUserReminder, REMINDER_STORAGE_KEY } from '@/services/reminder'; 
-import { useDataMode } from '@/context/data-mode-context'; 
+import { getUpcomingReminders, addUserReminder, updateUserReminder, deleteUserReminder } from '@/services/reminder'; 
+// useDataMode is no longer needed for checking mock mode here
+// import { useDataMode } from '@/context/data-mode-context'; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 
@@ -31,7 +33,7 @@ const reminderSchema = z.object({
   description: z.string().optional(),
   dateTime: z.date({
     required_error: 'A date and time is required for the reminder.',
-  }).min(new Date(new Date().getTime() - 60000), { message: "Reminder date/time cannot be in the past." }), // Allow a small buffer for submission
+  }).min(new Date(new Date().getTime() - 60000), { message: "Reminder date/time cannot be in the past." }), 
 });
 
 type ReminderFormValues = z.infer<typeof reminderSchema>;
@@ -41,7 +43,6 @@ const ReminderForm: FC<{
     initialData?: Reminder | null;
     onSave: (reminder: Reminder) => void;
 }> = ({ onClose, initialData, onSave }) => {
-    const { dataMode } = useDataMode();
     const { toast } = useToast();
     const [defaultDateTime, setDefaultDateTime] = useState<Date | undefined>(undefined);
 
@@ -74,12 +75,6 @@ const ReminderForm: FC<{
     }, [form, initialData, defaultDateTime]);
 
     const onSubmit = (data: ReminderFormValues) => {
-         if (dataMode === 'mock') {
-            toast({ title: "Read-only Mode", description: "Cannot add or edit reminders in mock data mode.", variant: "destructive"});
-            onClose();
-            return;
-         }
-
         const reminderData: Omit<Reminder, 'id'> = data;
 
         try {
@@ -145,7 +140,7 @@ const ReminderForm: FC<{
                 )}/>
                 <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                    <Button type="submit" disabled={dataMode === 'mock'}>{initialData ? 'Update Reminder' : 'Add Reminder'}</Button>
+                    <Button type="submit">{initialData ? 'Update Reminder' : 'Add Reminder'}</Button>
                 </DialogFooter>
             </form>
         </Form>
@@ -159,13 +154,13 @@ const RemindersPage: FC = () => {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { dataMode } = useDataMode(); 
+  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   useEffect(() => {
     const loadReminders = async () => {
       setIsLoading(true);
       try {
-        const fetchedReminders = await getUpcomingReminders(dataMode);
+        const fetchedReminders = await getUpcomingReminders(); // dataMode parameter removed
         setReminders(fetchedReminders); 
       } catch (error) {
         console.error("Failed to fetch reminders:", error);
@@ -176,7 +171,7 @@ const RemindersPage: FC = () => {
       }
     };
     loadReminders();
-  }, [dataMode, toast]);
+  }, [toast]); // Removed dataMode from dependencies
 
   const openDialog = (reminder: Reminder | null = null) => {
     setEditingReminder(reminder);
@@ -206,10 +201,6 @@ const RemindersPage: FC = () => {
    };
 
    const handleDeleteReminder = (reminderId: string) => {
-        if (dataMode === 'mock') {
-           toast({ title: "Read-only Mode", description: "Cannot delete reminders in mock data mode.", variant: "destructive"});
-           return;
-        }
        const reminderToDelete = reminders.find(r => r.id === reminderId);
        try {
            const success = deleteUserReminder(reminderId);
@@ -262,7 +253,7 @@ const RemindersPage: FC = () => {
                 </div>
             ) : reminders.length === 0 ? (
               <p className="text-center text-muted-foreground pt-10">
-                 {dataMode === 'mock' ? 'No mock reminders loaded.' : 'No upcoming reminders. Add one above!'}
+                 No upcoming reminders. Add one above!
               </p>
             ) : (
               reminders.map((reminder, index) => (
