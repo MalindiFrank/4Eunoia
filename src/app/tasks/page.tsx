@@ -6,14 +6,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { format, parseISO } from 'date-fns'; 
+import { format, parseISO } from 'date-fns';
 import { Calendar as CalendarIcon, Check, Edit, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -23,12 +23,10 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { Task } from '@/services/task'; 
-import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task'; 
-// useDataMode is no longer needed for checking mock mode here
-// import { useDataMode } from '@/context/data-mode-context'; 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'; 
-import { Skeleton } from '@/components/ui/skeleton'; 
+import type { Task } from '@/services/task';
+import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Task title cannot be empty.'),
@@ -63,7 +61,7 @@ const TaskForm: FC<{
     });
 
     const onSubmit = (data: TaskFormValues) => {
-        const taskData: Omit<Task, 'id' | 'createdAt'> = data; 
+        const taskData: Omit<Task, 'id' | 'createdAt'> = data;
 
         try {
             let savedTask: Task | undefined;
@@ -92,7 +90,26 @@ const TaskForm: FC<{
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-                <FormField control={form.control} name="title" render={({ field }) => ( <FormItem> <FormLabel>Title</FormLabel> <FormControl> <Input placeholder="Task title" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        {/* Using raw input for testing the Slot error */}
+                        <input
+                          placeholder="Task title"
+                          {...field} // Spread field props (value, onChange, onBlur, name, ref)
+                          className={cn(
+                            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          )}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField control={form.control} name="description" render={({ field }) => ( <FormItem> <FormLabel>Description (Optional)</FormLabel> <FormControl> <Textarea placeholder="Add more details about the task" {...field} /> </FormControl> <FormMessage /> </FormItem> )}/>
                 <FormField control={form.control} name="dueDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Due Date (Optional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={'outline'} className={cn( 'w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground' )}> {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
                 <FormField control={form.control} name="status" render={({ field }) => ( <FormItem> <FormLabel>Status</FormLabel> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Select status" /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value="Pending">Pending</SelectItem> <SelectItem value="In Progress">In Progress</SelectItem> <SelectItem value="Completed">Completed</SelectItem> </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
@@ -112,24 +129,23 @@ const TasksPage: FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  // const { dataMode } = useDataMode(); // No longer needed for mock/user checks here
 
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true);
       try {
-        const loadedTasks = await getTasks(); // dataMode parameter removed
+        const loadedTasks = await getTasks();
         setTasks(loadedTasks);
       } catch (error) {
         console.error("Failed to load tasks:", error);
         toast({ title: "Error", description: "Could not load tasks.", variant: "destructive" });
-         setTasks([]); 
+         setTasks([]);
       } finally {
         setIsLoading(false);
       }
     };
     loadTasks();
-  }, [toast]); // Removed dataMode from dependencies
+  }, [toast]);
 
 
    const openDialog = (task: Task | null = null) => {
@@ -196,10 +212,10 @@ const TasksPage: FC = () => {
        if (statusOrder[a.status] !== statusOrder[b.status]) {
          return statusOrder[a.status] - statusOrder[b.status];
        }
-       const dateA = a.dueDate?.getTime() ?? Infinity; 
+       const dateA = a.dueDate?.getTime() ?? Infinity;
        const dateB = b.dueDate?.getTime() ?? Infinity;
         if (dateA !== dateB) {
-            return dateA - dateB; 
+            return dateA - dateB;
         }
         const createdA = a.createdAt?.getTime() ?? 0;
         const createdB = b.createdAt?.getTime() ?? 0;
@@ -250,17 +266,17 @@ const TasksPage: FC = () => {
                         sortedTasks.map((task, index) => (
                             <React.Fragment key={task.id}>
                                 <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-accent group shadow-sm">
-                                    <div className="flex items-start gap-3 flex-grow overflow-hidden"> 
+                                    <div className="flex items-start gap-3 flex-grow overflow-hidden">
                                         <Checkbox
                                             id={`task-${task.id}`}
                                             checked={task.status === 'Completed'}
                                             onCheckedChange={() => handleToggleTaskStatus(task.id)}
-                                            className="mt-1 flex-shrink-0" 
-                                            aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`} 
+                                            className="mt-1 flex-shrink-0"
+                                            aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`}
                                         />
                                         <div className="grid gap-0.5 flex-grow">
                                             <label
-                                                htmlFor={`task-${task.id}`} 
+                                                htmlFor={`task-${task.id}`}
                                                 className={cn(
                                                     "text-sm font-medium leading-tight cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
                                                     task.status === 'Completed' && 'line-through text-muted-foreground'
@@ -269,7 +285,7 @@ const TasksPage: FC = () => {
                                                 {task.title}
                                             </label>
                                             {task.description && (
-                                                <p className={cn("text-xs text-muted-foreground break-words", task.status === 'Completed' && 'line-through')}> 
+                                                <p className={cn("text-xs text-muted-foreground break-words", task.status === 'Completed' && 'line-through')}>
                                                     {task.description}
                                                 </p>
                                             )}
