@@ -12,7 +12,7 @@ import { DataModeProvider } from '@/context/data-mode-context';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { getInitialTheme, applyTheme, type Theme } from '@/lib/theme-utils';
 import { OnboardingGuide } from '@/components/onboarding-guide';
-import { AppClientLayout } from '@/components/app-client-layout'; // New import
+import { AppClientLayout } from '@/components/app-client-layout'; // Ensure this is imported
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -23,6 +23,9 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
+
+// The AppLayout function that was previously defined here (and caused the error) is now removed.
+// All its logic is in src/components/app-client-layout.tsx
 
 export default function RootLayout({
   children,
@@ -53,7 +56,6 @@ export default function RootLayout({
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [isMounted]);
 
-  // Render a minimal layout or nothing until mounted to avoid hydration errors with localStorage/theme
   if (!isMounted) {
     return (
       <html lang="en" suppressHydrationWarning>
@@ -65,7 +67,7 @@ export default function RootLayout({
           geistSans.variable,
           geistMono.variable
         )}>
-          {/* You could put a global loading spinner here if desired */}
+          {/* Optional global loading spinner */}
         </body>
       </html>
     );
@@ -83,7 +85,7 @@ export default function RootLayout({
          <TooltipProvider>
            <DataModeProvider>
              <SidebarProvider>
-                <AppClientLayout>{children}</AppClientLayout>
+                <AppClientLayout>{children}</AppClientLayout> {/* Use the imported AppClientLayout */}
              </SidebarProvider>
            </DataModeProvider>
          </TooltipProvider>
