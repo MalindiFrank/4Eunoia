@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, formatISO, parseISO, subDays, startOfWeek, endOfWeek, startOfDay, endOfDay, isWithinInterval, isValid as isValidDate } from 'date-fns';
-import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye, SlidersHorizontal, Send } from 'lucide-react';
+import { Lightbulb, BrainCircuit, Calendar as CalendarIcon, Activity, BarChartHorizontalBig, Wallet, ListTodo, AlertCircle, Smile, Scale, Flame, Zap, Loader2, Map, Mic, Eye, SlidersHorizontal, Send, UserCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -75,8 +75,8 @@ import { getNotes, type Note } from '@/services/note';
 import { getCalendarEvents, type CalendarEvent } from '@/services/calendar';
 import { getGoals, type Goal } from '@/services/goal';
 import { getHabits, type Habit } from '@/services/habit';
-// useDataMode is no longer needed for display text based on mode
-// import { useDataMode } from '@/context/data-mode-context';
+import { useAuth } from '@/context/auth-context';
+import { SETTINGS_STORAGE_KEY } from '@/lib/theme-utils';
 
 
 type DisplayTask = AnalyzeTaskCompletionOutput['overdueTasks'][number];
@@ -206,7 +206,7 @@ const InsightsPageClient: FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean | AIServiceType>(false);
   const { toast } = useToast();
-  // const { dataMode } = useDataMode(); // No longer needed for this page's display logic
+  const { user, isLoading: authLoading } = useAuth();
   
   const [aiPreferences, setAiPreferences] = useState<UserPreferences>({
     aiPersona: 'Supportive Coach',
@@ -220,7 +220,7 @@ const InsightsPageClient: FC = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedSettings = localStorage.getItem('4eunoia-app-settings');
+      const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
       if (storedSettings) {
         try {
           const parsed = JSON.parse(storedSettings);
@@ -229,7 +229,7 @@ const InsightsPageClient: FC = () => {
               ...prev,
               aiPersona: parsed.preferences.aiPersona || prev.aiPersona,
               aiInsightVerbosity: parsed.preferences.aiInsightVerbosity || prev.aiInsightVerbosity,
-              energyPattern: parsed.preferences.energyPattern || prev.energyLevelPattern,
+              energyLevelPattern: parsed.preferences.energyPattern || prev.energyLevelPattern, // Corrected key
               growthPace: parsed.preferences.growthPace || prev.growthPace,
               preferredWorkTimes: parsed.preferences.preferredWorkTimes || prev.preferredWorkTimes,
             }));
@@ -300,11 +300,13 @@ const InsightsPageClient: FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [toast, aiPreferences]);
+    }, [toast, aiPreferences, user]); // Added user to dependency array
 
     useEffect(() => {
-        fetchDailySuggestions();
-    }, [fetchDailySuggestions]);
+         if (!authLoading) {
+            fetchDailySuggestions();
+        }
+    }, [fetchDailySuggestions, authLoading]);
 
 
    const clearResults = useCallback(() => {
@@ -567,11 +569,11 @@ const InsightsPageClient: FC = () => {
      } finally {
        setIsLoading(false);
      }
-   }, [toast, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences, form, toolParam]);
+   }, [toast, reflectionState, reflectionUserInput, clearResults, fetchDailySuggestions, aiPreferences, form, toolParam, user]); // Added user to dependency array
 
 
    useEffect(() => {
-        if (toolParam) {
+        if (toolParam && !authLoading) { // Ensure auth state is resolved before processing toolParam
             form.setValue('insightType', toolParam);
             const now = new Date();
             let effectiveStartDate = subDays(now, 7);
@@ -598,7 +600,7 @@ const InsightsPageClient: FC = () => {
             }
             router.replace('/insights', { scroll: false });
         }
-    }, [toolParam, form, router, onSubmit, fetchDailySuggestions]);
+    }, [toolParam, form, router, onSubmit, fetchDailySuggestions, authLoading]);
 
 
     const handleReflectionResponseSubmit = (e: React.FormEvent) => {
@@ -664,10 +666,19 @@ const InsightsPageClient: FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Lightbulb className="h-8 w-8 text-primary" /> AI Insights & Coaching
         </h1>
+         <Alert variant="default" className="w-full sm:w-auto text-xs p-2 bg-accent/50 border-accent">
+             <UserCircle className="h-3 w-3" />
+             <AlertTitle className="text-xs font-semibold">
+                 {authLoading ? "Loading..." : user ? "Cloud Data" : "Local Data"}
+             </AlertTitle>
+             <AlertDescription>
+                 {authLoading ? "Checking auth..." : user ? "Insights from synced data." : "Insights from local data."}
+             </AlertDescription>
+         </Alert>
       </div>
 
         <Card className="shadow-md bg-primary/10 border-primary/20">
@@ -678,7 +689,7 @@ const InsightsPageClient: FC = () => {
                  <CardDescription>Context-aware suggestions for your day, influenced by your AI preferences.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading === 'dailySuggestion' && !dailySuggestions ? (
+                {isLoading === 'dailySuggestion' && !dailySuggestions || authLoading && !dailySuggestions ? (
                     <div className="space-y-3">
                         <Skeleton className="h-5 w-3/4 rounded-md"/>
                         <Skeleton className="h-5 w-1/2 rounded-md"/>
@@ -699,8 +710,8 @@ const InsightsPageClient: FC = () => {
                 ) : (
                      <p className="text-sm text-muted-foreground">No suggestions available right now.</p>
                  )}
-                 <Button variant="ghost" size="sm" onClick={() => onSubmit({ insightType: 'dailySuggestion'})} disabled={isLoading === 'dailySuggestion'} className="mt-3 text-xs h-7">
-                     {isLoading === 'dailySuggestion' ? <Loader2 className="mr-2 h-3 w-3 animate-spin"/> : null} Refresh Suggestions
+                 <Button variant="ghost" size="sm" onClick={() => onSubmit({ insightType: 'dailySuggestion'})} disabled={isLoading === 'dailySuggestion' || authLoading} className="mt-3 text-xs h-7">
+                     {(isLoading === 'dailySuggestion' || authLoading) ? <Loader2 className="mr-2 h-3 w-3 animate-spin"/> : null} Refresh Suggestions
                  </Button>
             </CardContent>
         </Card>
@@ -771,9 +782,9 @@ const InsightsPageClient: FC = () => {
                  {['productivity', 'expenseTrends', 'taskCompletion', 'sentimentAnalysis', 'lifeBalance', 'burnoutRisk', 'reflection', 'dailyPlan', 'diarySummary', 'attentionPatterns'].includes(selectedInsightType) && renderDateRangePicker()}
 
                 {!['reflection', 'dailySuggestion'].includes(selectedInsightType) && (
-                     <Button type="submit" disabled={!!isLoading || (isLoading !== false && isLoading !== selectedInsightType)}>
-                         {isLoading === selectedInsightType ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                         {isLoading === selectedInsightType ? 'Generating...' : 'Generate Insights'}
+                     <Button type="submit" disabled={!!isLoading || (isLoading !== false && isLoading !== selectedInsightType) || authLoading}>
+                         {(isLoading === selectedInsightType || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                         {(isLoading === selectedInsightType || authLoading) ? 'Generating...' : 'Generate Insights'}
                      </Button>
                  )}
                  {form.formState.errors.root && (<p className="text-sm font-medium text-destructive">{form.formState.errors.root.message}</p>)}
@@ -902,9 +913,9 @@ const InsightsPageClient: FC = () => {
                       <CardDescription>Reflect on your week {form.getValues("startDate") instanceof Date && form.getValues("endDate") instanceof Date && `from ${format(form.getValues("startDate")!, 'PPP')} to ${format(form.getValues("endDate")!, 'PPP')}`}.</CardDescription>
                  </CardHeader>
                  <CardContent className="space-y-4">
-                    {(isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && !reflectionState.output) && (
-                        <Button onClick={() => onSubmit({ insightType: 'reflection', startDate: form.getValues('startDate'), endDate: form.getValues('endDate')})} disabled={isLoading === 'reflection'}>
-                             {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                    {(isLoading === 'reflection' && reflectionState.conversation.questions.length === 0 && !reflectionState.output) || authLoading && reflectionState.conversation.questions.length === 0 && (
+                        <Button onClick={() => onSubmit({ insightType: 'reflection', startDate: form.getValues('startDate'), endDate: form.getValues('endDate')})} disabled={isLoading === 'reflection' || authLoading}>
+                             {(isLoading === 'reflection' || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <BrainCircuit className="mr-2 h-4 w-4" />}
                              Start Reflection
                         </Button>
                      )}
@@ -943,12 +954,12 @@ const InsightsPageClient: FC = () => {
                                 value={reflectionUserInput}
                                 onChange={(e) => setReflectionUserInput(e.target.value)}
                                 rows={3}
-                                disabled={isLoading === 'reflection'}
+                                disabled={isLoading === 'reflection' || authLoading}
                                 aria-label="Your reflection response"
                                 className="bg-background"
                              />
-                             <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim()} className="bg-purple-600 hover:bg-purple-700 text-purple-50">
-                                {isLoading === 'reflection' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />} Send Response
+                             <Button type="submit" disabled={isLoading === 'reflection' || !reflectionUserInput.trim() || authLoading} className="bg-purple-600 hover:bg-purple-700 text-purple-50">
+                                {(isLoading === 'reflection' || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />} Send Response
                              </Button>
                          </form>
                      )}

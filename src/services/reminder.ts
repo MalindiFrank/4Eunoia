@@ -1,9 +1,9 @@
 
 'use client';
 
-import { parseISO } from 'date-fns';
-// loadMockData is no longer needed
-// import { loadMockData } from '@/lib/data-loader';
+import { parseISO, isValid } from 'date-fns';
+import { auth, db } from '@/lib/firebase';
+import { ref, get, set, push, child, remove, query, orderByChild, startAt } from 'firebase/database';
 
 export const REMINDER_STORAGE_KEY = 'prodev-reminders';
 
@@ -14,7 +14,20 @@ export interface Reminder {
   description?: string;
 }
 
-const loadUserReminders = (): Reminder[] => {
+const firebaseDataToRemindersArray = (data: any): Reminder[] => {
+  if (!data) return [];
+  const now = new Date().toISOString();
+  return Object.entries(data)
+    .map(([id, reminderData]: [string, any]) => ({
+      id,
+      ...(reminderData as Omit<Reminder, 'id' | 'dateTime'>),
+      dateTime: parseISO(reminderData.dateTime),
+    }))
+    .filter(r => r.dateTime.toISOString() >= now) // Filter for upcoming
+    .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
+};
+
+const loadUserRemindersFromLocalStorage = (): Reminder[] => {
   if (typeof window === 'undefined') return [];
   const storedReminders = localStorage.getItem(REMINDER_STORAGE_KEY);
   if (storedReminders) {
@@ -35,7 +48,7 @@ const loadUserReminders = (): Reminder[] => {
   return [];
 };
 
-export const saveUserReminders = (reminders: Reminder[]) => {
+const saveUserRemindersToLocalStorage = (reminders: Reminder[]) => {
    if (typeof window === 'undefined') return;
   try {
     const remindersToStore = reminders.map(reminder => ({
@@ -48,82 +61,119 @@ export const saveUserReminders = (reminders: Reminder[]) => {
   }
 };
 
-// dataMode parameter is now ignored, always loads from user storage
-export async function getUpcomingReminders(dataMode?: 'mock' | 'user'): Promise<Reminder[]> {
-  return loadUserReminders();
+export async function getUpcomingReminders(): Promise<Reminder[]> {
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    try {
+      const remindersBaseRef = ref(db, `users/${currentUser.uid}/reminders`);
+      // Query for reminders with dateTime >= now
+      const nowISO = new Date().toISOString();
+      const upcomingQuery = query(remindersBaseRef, orderByChild('dateTime'), startAt(nowISO));
+      const snapshot = await get(upcomingQuery);
+
+      if (snapshot.exists()) {
+        // Firebase orderByChild returns an object, needs conversion and client-side sort if order isn't guaranteed perfectly
+        return firebaseDataToRemindersArray(snapshot.val());
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching upcoming reminders from Firebase:", error);
+      throw error;
+    }
+  } else {
+    return loadUserRemindersFromLocalStorage();
+  }
 }
 
-export const addUserReminder = (newReminderData: Omit<Reminder, 'id'>): Reminder => {
-    if (typeof window === 'undefined') {
-        console.error("Cannot add reminder outside client environment.");
-        return { ...newReminderData, id: 'error-invalid-context', dateTime: new Date() };
+export const addUserReminder = async (newReminderData: Omit<Reminder, 'id'>): Promise<Reminder> => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        const remindersRef = ref(db, `users/${currentUser.uid}/reminders`);
+        const newReminderRef = push(remindersRef);
+        const newReminder: Reminder = {
+            ...newReminderData,
+            id: newReminderRef.key!,
+        };
+        const dataToSave = {
+            title: newReminderData.title,
+            dateTime: newReminderData.dateTime.toISOString(),
+            description: newReminderData.description,
+        };
+        await set(newReminderRef, dataToSave);
+        return newReminder;
+    } else {
+        // For localStorage, we load all, add, then save all to maintain sort and filter logic in one place.
+        const allUserReminders = loadUserRemindersFromLocalStorage(); // This already filters and sorts
+        const newLocalReminder: Reminder = {
+            ...newReminderData,
+            id: crypto.randomUUID(),
+        };
+        const updatedReminders = [...allUserReminders, newLocalReminder]
+            .filter(r => r.dateTime >= new Date())
+            .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
+        saveUserRemindersToLocalStorage(updatedReminders);
+        return newLocalReminder;
     }
-    const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
-    let allUserReminders: Reminder[] = [];
-    if (storedRemindersRaw) {
-        try {
-            allUserReminders = JSON.parse(storedRemindersRaw).map((r: any) => ({ ...r, dateTime: parseISO(r.dateTime) }));
-        } catch (e) {
-            console.error("Error parsing all reminders:", e);
-        }
-    }
+};
 
-    const newReminder: Reminder = {
-        ...newReminderData,
-        id: crypto.randomUUID(),
+export const updateUserReminder = async (updatedReminderData: Reminder): Promise<Reminder | undefined> => {
+    if (!updatedReminderData.id) return undefined;
+    const currentUser = auth.currentUser;
+    const dataToSave = {
+        title: updatedReminderData.title,
+        dateTime: updatedReminderData.dateTime.toISOString(),
+        description: updatedReminderData.description,
     };
-    const updatedReminders = [...allUserReminders, newReminder].sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
-    saveUserReminders(updatedReminders);
-    return newReminder;
-}
 
-export const updateUserReminder = (updatedReminder: Reminder): Reminder | undefined => {
-     if (!updatedReminder.id) return undefined;
-      if (typeof window === 'undefined') return undefined; 
-     const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
-     let allUserReminders: Reminder[] = [];
-     if (storedRemindersRaw) {
-         try {
-             allUserReminders = JSON.parse(storedRemindersRaw).map((r: any) => ({ ...r, dateTime: parseISO(r.dateTime) }));
-         } catch (e) {
-             console.error("Error parsing all reminders:", e);
-             return undefined;
-         }
-     }
+    if (currentUser) {
+        const reminderRef = ref(db, `users/${currentUser.uid}/reminders/${updatedReminderData.id}`);
+        await set(reminderRef, dataToSave);
+        return updatedReminderData;
+    } else {
+        const userReminders = loadUserRemindersFromLocalStorage();
+        let found = false;
+        const updatedReminders = userReminders.map(reminder => {
+            if (reminder.id === updatedReminderData.id) {
+                found = true;
+                return updatedReminderData;
+            }
+            return reminder;
+        }).filter(r => r.dateTime >= new Date())
+          .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
 
-     let found = false;
-     const updatedReminders = allUserReminders.map(reminder => {
-         if (reminder.id === updatedReminder.id) {
-             found = true;
-             return updatedReminder;
-         }
-         return reminder;
-     }).sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
-
-     if (found) {
-         saveUserReminders(updatedReminders);
-         return updatedReminder;
-     }
-     return undefined;
-}
-
-export const deleteUserReminder = (reminderId: string): boolean => {
-     if (typeof window === 'undefined') return false; 
-    const storedRemindersRaw = localStorage.getItem(REMINDER_STORAGE_KEY);
-    let allUserReminders: Reminder[] = [];
-    if (storedRemindersRaw) {
-         try {
-            allUserReminders = JSON.parse(storedRemindersRaw).map((r: any) => ({ ...r, dateTime: parseISO(r.dateTime) }));
-         } catch (e) {
-            console.error("Error parsing all reminders:", e);
-            return false;
-         }
+        if (found) {
+            saveUserRemindersToLocalStorage(updatedReminders);
+            return updatedReminderData;
+        }
+        return undefined;
     }
+};
 
-    const updatedReminders = allUserReminders.filter(reminder => reminder.id !== reminderId);
-    if (updatedReminders.length < allUserReminders.length) {
-        saveUserReminders(updatedReminders);
+export const deleteUserReminder = async (reminderId: string): Promise<boolean> => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        const reminderRef = ref(db, `users/${currentUser.uid}/reminders/${reminderId}`);
+        await remove(reminderRef);
         return true;
+    } else {
+        const userReminders = loadUserRemindersFromLocalStorage();
+        const updatedReminders = userReminders.filter(reminder => reminder.id !== reminderId);
+        // No need to re-filter/sort as loadUserReminders already does it.
+        // We just check if an item was actually removed.
+        if (updatedReminders.length < userReminders.length) {
+            saveUserRemindersToLocalStorage(updatedReminders);
+            return true;
+        }
+        // If lengths are same, it means the item wasn't in the "upcoming" list from localStorage
+        // or it didn't exist. To be fully robust for general delete:
+        const allStoredReminders = JSON.parse(localStorage.getItem(REMINDER_STORAGE_KEY) || '[]').map((r: any) => ({...r, dateTime: parseISO(r.dateTime)}));
+        const trulyUpdated = allStoredReminders.filter((r: Reminder) => r.id !== reminderId);
+        if (trulyUpdated.length < allStoredReminders.length) {
+            saveUserRemindersToLocalStorage(trulyUpdated);
+            return true;
+        }
+        return false;
     }
-    return false;
-}
+};
+
+export { saveUserRemindersToLocalStorage as saveUserReminders };

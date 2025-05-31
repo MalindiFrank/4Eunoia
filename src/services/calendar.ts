@@ -1,9 +1,9 @@
 
-'use client'; 
+'use client';
 
-import { parseISO } from 'date-fns';
-// loadMockData is no longer needed
-// import { loadMockData } from '@/lib/data-loader'; 
+import { parseISO, isValid } from 'date-fns';
+import { auth, db } from '@/lib/firebase';
+import { ref, get, set, push, child, remove } from 'firebase/database';
 
 export const CALENDAR_EVENTS_STORAGE_KEY = 'prodev-calendar-events';
 
@@ -12,10 +12,20 @@ export interface CalendarEvent {
   start: Date;
   end: Date;
   description?: string;
-  id?: string;
+  id?: string; // id is optional for new events, but required for existing ones in Firebase
 }
 
-const loadUserEvents = (): CalendarEvent[] => {
+const firebaseDataToEventsArray = (data: any): CalendarEvent[] => {
+  if (!data) return [];
+  return Object.entries(data).map(([id, eventData]: [string, any]) => ({
+    id,
+    ...(eventData as Omit<CalendarEvent, 'id' | 'start' | 'end'>),
+    start: parseISO(eventData.start),
+    end: parseISO(eventData.end),
+  })).sort((a,b) => a.start.getTime() - b.start.getTime());
+};
+
+const loadUserEventsFromLocalStorage = (): CalendarEvent[] => {
   if (typeof window === 'undefined') return [];
   const storedEvents = localStorage.getItem(CALENDAR_EVENTS_STORAGE_KEY);
   if (storedEvents) {
@@ -24,7 +34,7 @@ const loadUserEvents = (): CalendarEvent[] => {
         ...event,
         start: parseISO(event.start),
         end: parseISO(event.end),
-      }));
+      })).sort((a,b) => a.start.getTime() - b.start.getTime());
     } catch (e) {
       console.error("Error parsing calendar events from localStorage:", e);
       return [];
@@ -33,7 +43,7 @@ const loadUserEvents = (): CalendarEvent[] => {
   return [];
 };
 
-export const saveUserEvents = (events: CalendarEvent[]) => {
+const saveUserEventsToLocalStorage = (events: CalendarEvent[]) => {
    if (typeof window === 'undefined') return;
   try {
     const eventsToStore = events.map(event => ({
@@ -47,47 +57,103 @@ export const saveUserEvents = (events: CalendarEvent[]) => {
   }
 };
 
-// dataMode parameter is now ignored, always loads from user storage
-export async function getCalendarEvents(dataMode?: 'mock' | 'user'): Promise<CalendarEvent[]> {
-  return loadUserEvents();
+export async function getCalendarEvents(): Promise<CalendarEvent[]> {
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    try {
+      const eventsRef = ref(db, `users/${currentUser.uid}/calendarEvents`);
+      const snapshot = await get(eventsRef);
+      if (snapshot.exists()) {
+        return firebaseDataToEventsArray(snapshot.val());
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching calendar events from Firebase:", error);
+      throw error;
+    }
+  } else {
+    return loadUserEventsFromLocalStorage();
+  }
 }
 
-export const addUserEvent = (newEventData: Omit<CalendarEvent, 'id'>): CalendarEvent => {
-    const userEvents = loadUserEvents();
-    const newEvent: CalendarEvent = {
-        ...newEventData,
-        id: crypto.randomUUID(), 
+export const addUserEvent = async (newEventData: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        const eventsRef = ref(db, `users/${currentUser.uid}/calendarEvents`);
+        const newEventRef = push(eventsRef);
+        const newEvent: CalendarEvent = {
+            ...newEventData,
+            id: newEventRef.key!,
+        };
+        const dataToSave = {
+            title: newEventData.title,
+            start: newEventData.start.toISOString(),
+            end: newEventData.end.toISOString(),
+            description: newEventData.description,
+        };
+        await set(newEventRef, dataToSave);
+        return newEvent;
+    } else {
+        const userEvents = loadUserEventsFromLocalStorage();
+        const newLocalEvent: CalendarEvent = {
+            ...newEventData,
+            id: crypto.randomUUID(),
+        };
+        const updatedEvents = [...userEvents, newLocalEvent].sort((a, b) => a.start.getTime() - b.start.getTime());
+        saveUserEventsToLocalStorage(updatedEvents);
+        return newLocalEvent;
+    }
+};
+
+export const updateUserEvent = async (updatedEventData: CalendarEvent): Promise<CalendarEvent | undefined> => {
+    if (!updatedEventData.id) return undefined;
+    const currentUser = auth.currentUser;
+
+    const dataToSave = {
+        title: updatedEventData.title,
+        start: updatedEventData.start.toISOString(),
+        end: updatedEventData.end.toISOString(),
+        description: updatedEventData.description,
     };
-    const updatedEvents = [...userEvents, newEvent].sort((a, b) => a.start.getTime() - b.start.getTime());
-    saveUserEvents(updatedEvents);
-    return newEvent;
-}
 
-export const updateUserEvent = (updatedEvent: CalendarEvent): CalendarEvent | undefined => {
-    if (!updatedEvent.id) return undefined; 
-    const userEvents = loadUserEvents();
-    let found = false;
-    const updatedEvents = userEvents.map(event => {
-        if (event.id === updatedEvent.id) {
-            found = true;
-            return updatedEvent; 
+    if (currentUser) {
+        const eventRef = ref(db, `users/${currentUser.uid}/calendarEvents/${updatedEventData.id}`);
+        await set(eventRef, dataToSave);
+        return updatedEventData; // Return the original object with Date instances
+    } else {
+        const userEvents = loadUserEventsFromLocalStorage();
+        let found = false;
+        const updatedEvents = userEvents.map(event => {
+            if (event.id === updatedEventData.id) {
+                found = true;
+                return updatedEventData;
+            }
+            return event;
+        }).sort((a, b) => a.start.getTime() - b.start.getTime());
+
+        if (found) {
+            saveUserEventsToLocalStorage(updatedEvents);
+            return updatedEventData;
         }
-        return event;
-    }).sort((a, b) => a.start.getTime() - b.start.getTime());
-
-    if (found) {
-        saveUserEvents(updatedEvents);
-        return updatedEvent;
+        return undefined;
     }
-    return undefined;
-}
+};
 
-export const deleteUserEvent = (eventId: string): boolean => {
-    const userEvents = loadUserEvents();
-    const updatedEvents = userEvents.filter(event => event.id !== eventId);
-    if (updatedEvents.length < userEvents.length) { 
-        saveUserEvents(updatedEvents);
+export const deleteUserEvent = async (eventId: string): Promise<boolean> => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        const eventRef = ref(db, `users/${currentUser.uid}/calendarEvents/${eventId}`);
+        await remove(eventRef);
         return true;
+    } else {
+        const userEvents = loadUserEventsFromLocalStorage();
+        const updatedEvents = userEvents.filter(event => event.id !== eventId);
+        if (updatedEvents.length < userEvents.length) {
+            saveUserEventsToLocalStorage(updatedEvents);
+            return true;
+        }
+        return false;
     }
-    return false;
-}
+};
+
+export { saveUserEventsToLocalStorage as saveUserEvents };
