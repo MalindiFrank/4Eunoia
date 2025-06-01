@@ -3,7 +3,8 @@
 
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
-import { Slot } from "@radix-ui/react-slot"
+// Slot is no longer used directly by FormControl in this alternative
+// import { Slot } from "@radix-ui/react-slot"
 import {
   Controller,
   FormProvider,
@@ -105,26 +106,45 @@ const FormLabel = React.forwardRef<
 FormLabel.displayName = "FormLabel"
 
 const FormControl = React.forwardRef<
-  React.ElementRef<typeof Slot>,
-  React.ComponentPropsWithoutRef<typeof Slot>
->(({ ...props }, ref) => { // Reverted: No explicit children destructuring. Slot will use props.children.
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+  // The ref type now depends on the child, could be HTMLElement or a component instance.
+  // For simplicity, let's use HTMLElement as common DOM elements are expected.
+  HTMLElement,
+  // We expect 'children' to be a single React.ReactElement.
+  // Other props like className are passed through.
+  React.HTMLAttributes<HTMLElement> & { children: React.ReactElement }
+>(({ children, ...props }, ref) => {
+  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
 
-  return (
-    <Slot
-      ref={ref}
-      id={formItemId}
-      aria-describedby={
-        !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`
-      }
-      aria-invalid={!!error}
-      {...props} // Slot will take `children` from `props`
-    />
-  )
-})
-FormControl.displayName = "FormControl"
+  // `React.Children.only` will throw if `children` is not a single, valid React element.
+  // This is similar to what Slot does internally.
+  const child = React.Children.only(children) as React.ReactElement;
+
+  // The `ref` passed to FormControl (from `React.forwardRef`) is not typically what
+  // react-hook-form's Controller needs for the actual input. `field.ref` from
+  // Controller is usually spread directly onto the input component (e.g., <Input {...field} />).
+  // `React.cloneElement` will preserve the `ref` that is already on the `child` if `field.ref` was spread.
+  // So, we don't explicitly pass the `ref` from `FormControl`'s `forwardRef` here.
+  
+  // Props to add or override on the child.
+  const controlProps: React.HTMLAttributes<HTMLElement> & { [key: string]: any } = {
+    id: formItemId,
+    'aria-describedby': !error
+      ? formDescriptionId
+      : `${formDescriptionId} ${formMessageId}`,
+    'aria-invalid': !!error,
+  };
+
+  // Merge props: `props` passed to FormControl (e.g., className), then our controlProps,
+  // then the child's original props. cloneElement handles merging.
+  return React.cloneElement(child, {
+    ...props,       // Props passed to <FormControl> (e.g., className)
+    ...controlProps // Our generated ARIA props and id
+    // Child's original props (including field props from react-hook-form) are preserved by cloneElement
+    // and new props take precedence if there are conflicts.
+  });
+});
+FormControl.displayName = "FormControl";
+
 
 const FormDescription = React.forwardRef<
   HTMLParagraphElement,
