@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/input'; // Ensure Input is imported
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +27,7 @@ import type { Task } from '@/services/task';
 import { getTasks, addUserTask, updateUserTask, deleteUserTask, toggleUserTaskStatus } from '@/services/task';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/context/auth-context';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Task title cannot be empty.'),
@@ -97,14 +98,9 @@ const TaskForm: FC<{
                     <FormItem>
                       <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <input
+                        <Input // Use shadcn/ui Input component
                           placeholder="Task title"
-                          name={field.name}
-                          value={field.value || ''}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          ref={field.ref}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          {...field} // Spread field props
                         />
                       </FormControl>
                       <FormMessage />
@@ -130,9 +126,11 @@ const TasksPage: FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth(); // Use auth context
 
   useEffect(() => {
     const loadTasks = async () => {
+      if (authLoading) return; // Don't load if auth state is not resolved
       setIsLoading(true);
       try {
         const loadedTasks = await getTasks();
@@ -146,7 +144,7 @@ const TasksPage: FC = () => {
       }
     };
     loadTasks();
-  }, [toast]);
+  }, [toast, user, authLoading]); // Depend on user and authLoading
 
 
    const openDialog = (task: Task | null = null) => {
@@ -231,7 +229,7 @@ const TasksPage: FC = () => {
         <h1 className="text-3xl font-bold">Tasks</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
            <DialogTrigger asChild>
-             <Button onClick={() => openDialog()} className="shadow-md">
+             <Button onClick={() => openDialog()} className="shadow-md" disabled={authLoading || !user}>
                <Plus className="mr-2 h-4 w-4" /> Add Task
              </Button>
            </DialogTrigger>
@@ -255,11 +253,15 @@ const TasksPage: FC = () => {
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-[500px] w-full">
-                    {isLoading ? (
+                    {isLoading || authLoading ? (
                          <div className="space-y-4 p-2">
                             {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
                          </div>
-                    ) : sortedTasks.length === 0 ? (
+                    ) : sortedTasks.length === 0 && !user ? (
+                        <p className="text-center text-muted-foreground pt-10">
+                           Please sign in to manage your tasks.
+                        </p>
+                    ) : sortedTasks.length === 0 && user ? (
                         <p className="text-center text-muted-foreground pt-10">
                            No tasks yet. Add your first task!
                         </p>
@@ -274,6 +276,7 @@ const TasksPage: FC = () => {
                                             onCheckedChange={() => handleToggleTaskStatus(task.id)}
                                             className="mt-1 flex-shrink-0"
                                             aria-label={`Mark task "${task.title}" as ${task.status === 'Completed' ? 'incomplete' : 'complete'}`}
+                                            disabled={!user}
                                         />
                                         <div className="grid gap-0.5 flex-grow">
                                             <label
@@ -305,17 +308,9 @@ const TasksPage: FC = () => {
                                         </div>
                                     </div>
                                      <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(task)} aria-label={`Edit task "${task.title}"`}>
-                                            <Edit className="h-4 w-4" />
-                                            <span className="sr-only">Edit Task</span>
-                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(task)} aria-label={`Edit task "${task.title}"`} disabled={!user}><Edit className="h-4 w-4" /><span className="sr-only">Edit Task</span></Button>
                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete task "${task.title}"`}>
-                                                    <Trash2 className="h-4 w-4" />
-                                                    <span className="sr-only">Delete Task</span>
-                                                </Button>
-                                            </AlertDialogTrigger>
+                                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" aria-label={`Delete task "${task.title}"`} disabled={!user}><Trash2 className="h-4 w-4" /><span className="sr-only">Delete Task</span></Button></AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader><AlertDialogTitle>Delete Task?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the task "{task.title}"?</AlertDialogDescription></AlertDialogHeader>
                                                 <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTask(task.id)} className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}>Delete</AlertDialogAction></AlertDialogFooter>
