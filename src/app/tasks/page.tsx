@@ -60,20 +60,20 @@ const TaskForm: FC<{
         },
     });
 
-    const onSubmit = (data: TaskFormValues) => {
+    const onSubmit = async (data: TaskFormValues) => {
         const taskData: Omit<Task, 'id' | 'createdAt'> = data;
 
         try {
             let savedTask: Task | undefined;
             if (initialData?.id) {
-                savedTask = updateUserTask({ ...initialData, ...taskData });
+                savedTask = await updateUserTask({ ...initialData, ...taskData });
                  if (savedTask) {
                     toast({ title: "Task Updated", description: `Task "${data.title}" updated.` });
                  } else {
                      throw new Error("Failed to find task to update.");
                  }
             } else {
-                savedTask = addUserTask(taskData);
+                savedTask = await addUserTask(taskData);
                 toast({ title: "Task Added", description: `Task "${data.title}" added.` });
             }
             if (savedTask) {
@@ -97,13 +97,14 @@ const TaskForm: FC<{
                     <FormItem>
                       <FormLabel>Title</FormLabel>
                       <FormControl>
-                        {/* Using raw input for testing the Slot error */}
                         <input
                           placeholder="Task title"
-                          {...field} // Spread field props (value, onChange, onBlur, name, ref)
-                          className={cn(
-                            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                          )}
+                          name={field.name}
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                         />
                       </FormControl>
                       <FormMessage />
@@ -170,10 +171,10 @@ const TasksPage: FC = () => {
         closeDialog();
     };
 
-    const handleDeleteTask = (taskId: string) => {
+    const handleDeleteTask = async (taskId: string) => {
        const taskToDelete = tasks.find(t => t.id === taskId);
        try {
-           const success = deleteUserTask(taskId);
+           const success = await deleteUserTask(taskId);
             if (success) {
                setTasks(prev => prev.filter(t => t.id !== taskId));
                toast({ title: "Task Deleted", description: `Task "${taskToDelete?.title}" deleted.`, variant: "default" });
@@ -186,9 +187,9 @@ const TasksPage: FC = () => {
        }
    };
 
-    const handleToggleTaskStatus = (taskId: string) => {
+    const handleToggleTaskStatus = async (taskId: string) => {
         try {
-            const updatedTask = toggleUserTaskStatus(taskId);
+            const updatedTask = await toggleUserTaskStatus(taskId);
             if (updatedTask) {
                  setTasks(prevTasks =>
                      prevTasks.map(task =>
