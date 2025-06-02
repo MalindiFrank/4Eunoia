@@ -3,7 +3,8 @@
 
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
-import { Slot } from "@radix-ui/react-slot"
+// Slot is no longer used directly by FormControl in this version
+// import { Slot } from "@radix-ui/react-slot" 
 import {
   Controller,
   FormProvider,
@@ -105,25 +106,42 @@ const FormLabel = React.forwardRef<
 FormLabel.displayName = "FormLabel"
 
 const FormControl = React.forwardRef<
-  React.ElementRef<typeof Slot>,
-  React.ComponentPropsWithoutRef<typeof Slot>
->(({ ...props }, ref) => { // Reverted to spread props to Slot
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+  HTMLElement, // More generic, as the child could be various HTML elements
+  React.HTMLAttributes<HTMLElement> & { children: React.ReactNode }
+>(({ children, ...props }, ref) => {
+  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
 
-  return (
-    <Slot
-      ref={ref}
-      id={formItemId}
-      aria-describedby={
-        !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`
-      }
-      aria-invalid={!!error}
-      {...props} // This implicitly passes children to Slot
-    />
-  )
-})
+  // Ensure children is a single valid React element.
+  // React.Children.only will throw if `children` is not a single, valid React element.
+  // This is where the error in the stack trace originates if `children` is problematic.
+  const childElement = React.Children.only(children) as React.ReactElement;
+
+  // Props to add/override on the child element.
+  // These are primarily for accessibility and form state.
+  const newProps: Record<string, any> = {
+    id: formItemId,
+    'aria-describedby': !error
+      ? `${formDescriptionId}`
+      : `${formDescriptionId} ${formMessageId}`,
+    'aria-invalid': !!error,
+  };
+
+  // Clone the child element (e.g., <Input />, <Textarea />) and merge props.
+  // 1. Spread `childElement.props`: This includes props passed directly to the child
+  //    in the FormField render prop (e.g., `placeholder`, and crucially, `...field`
+  //    from react-hook-form which contains `ref`, `value`, `onChange`, etc.).
+  // 2. Spread `newProps`: These are the accessibility props derived from form context.
+  // 3. Spread `...props`: These are any additional props passed directly to <FormControl>
+  //    itself (e.g., `className`).
+  // The `ref` passed to this `FormControl` (from `React.forwardRef`) is not applied
+  // here, as `react-hook-form` handles the ref for the actual input via `field.ref`,
+  // which is part of `childElement.props`.
+  return React.cloneElement(childElement, {
+    ...childElement.props,
+    ...newProps,
+    ...props, // Spread props passed to FormControl itself, like className
+  });
+});
 FormControl.displayName = "FormControl"
 
 
